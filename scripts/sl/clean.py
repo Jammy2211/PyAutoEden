@@ -1,14 +1,10 @@
 import glob
 import os
-import shutil
 
-BUILD_PATH = os.getcwd()
-
-EDEN_PATH = f"{os.getcwd()}/../eden"
-SHE_SLModel_PATH = f"{os.getcwd()}/../SHE_SLModel"
+eden_prefix = "SHE_SLModel"
+eden_path = f"{os.getcwd()}/../build_eden/{eden_prefix}"
 
 FILES_OMIT = ["conftest.py"]
-
 FOLDERS_OMIT = ["output", "SHE_SLModel_Programs"]
 
 
@@ -16,11 +12,11 @@ def main():
 
     # Removing old .py files from SHE_SLModel modules.
 
-    os.chdir(SHE_SLModel_PATH)
+    os.chdir(eden_path)
 
-    for x in [t[0] for t in os.walk("../SHE_SLModel")]:
+    for x in [t[0] for t in os.walk(f"../{eden_prefix}")]:
 
-        path = f"{SHE_SLModel_PATH}/{x}"
+        path = f"{eden_path}/{x}"
 
         try:
 

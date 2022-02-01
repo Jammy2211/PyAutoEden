@@ -1,5 +1,6 @@
 import shutil
 from pathlib import Path
+import os
 
 from .file import File
 from .import_ import Import
@@ -11,30 +12,31 @@ from .package import Package
 def edenise(
         root_directory,
         name,
-        prefix,
         eden_prefix,
         eden_dependencies,
-        target_eden_directory=None,
+        target_path=None,
+        eden_path=None,
         should_rename_modules=False,
         should_remove_type_annotations=False
 ):
-    target_directory = f"{root_directory}/../eden/{name}_eden"
+    target_path = target_path or f"{os.getcwd()}/../build_target/{name}_eden"
+    eden_path = eden_path or f"{os.getcwd()}/../build_eden/{eden_prefix}"
 
-    print(f"Creating {target_directory}...")
+    print(f"Creating {target_path}...")
     shutil.rmtree(
-        target_directory,
+        target_path,
         ignore_errors=True
     )
     shutil.copytree(
         root_directory,
-        target_directory,
+        target_path,
         symlinks=True
     )
 
-    target_directory = Path(target_directory)
+    target_path = Path(target_path)
 
     package = Package(
-        target_directory / name,
+        target_path / name,
         prefix=eden_prefix,
         is_top_level=True,
         eden_dependencies=eden_dependencies,
@@ -42,8 +44,8 @@ def edenise(
         should_remove_type_annotations=should_remove_type_annotations
     )
 
-    target_eden_directory = Path(target_eden_directory or target_directory)
+    eden_path = Path(eden_path)
 
     package.generate_target(
-        target_eden_directory
+        eden_path
     )

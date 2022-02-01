@@ -1,0 +1,3 @@
+{
+    "arctic/arcticpy/src": "wrapper.pyx"
+}

@@ -2,23 +2,21 @@ import glob
 import json
 import os
 import shutil
+
 from autoeden import edenise
+from autoeden.util import clearCache, replace_strings, remove_files, black
 
-from eden_util import clearCache, replace_strings, remove_files, black
-
-BUILD_PATH = os.getcwd()
-
-EDEN_PATH = f"{os.getcwd()}"
-SHE_SLMODEL_PATH = f"{os.getcwd()}/.."
-PYAUTOGALAXY_PATH = f"{os.getcwd()}/../PyAutoGalaxy"
+PYAUTOGALAXY_PATH = f"{os.getcwd()}/../../PyAutoGalaxy"
 
 eden_prefix = "SHE_SLModel"
+eden_path = f"{os.getcwd()}/../build_eden/{eden_prefix}"
+
 
 def main():
 
     # Removing old edenised projects.
 
-    os.chdir(EDEN_PATH)
+    os.chdir(os.getcwd())
 
     for f in glob.glob(f"auto*_eden"):
         shutil.rmtree(f)
@@ -32,20 +30,23 @@ def main():
     edenise(
         root_directory=PYAUTOGALAXY_PATH,
         name="autogalaxy",
-        prefix="galaxy",
         eden_prefix=eden_prefix,
         eden_dependencies=["autoconf", "autofit", "autoarray"],
-        target_eden_directory=SHE_SLMODEL_PATH,
+        eden_path=eden_path,
     )
 
-    replace_strings(eden_prefix=eden_prefix, replace_dict=replace_dict)
+    replace_strings(
+        eden_path=eden_path,
+        eden_prefix=eden_prefix,
+        replace_dict=replace_dict,
+    )
 
-    remove_files(eden_prefix=eden_prefix, remove_list=remove_list)
+    remove_files(
+        eden_path=eden_path, eden_prefix=eden_prefix, remove_list=remove_list
+    )
 
-    clearCache(EDEN_PATH=EDEN_PATH)
-
-    black(eden_prefix=eden_prefix)
-
+    black(eden_path=eden_path)
+    clearCache(eden_path=eden_path)
 
 if __name__ == "__main__":
     main()

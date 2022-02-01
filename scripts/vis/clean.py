@@ -1,14 +1,10 @@
 import glob
 import os
-import shutil
 
-BUILD_PATH = os.getcwd()
-
-EDEN_PATH = f"{os.getcwd()}/../eden"
-VIS_CTI_PATH = f"{os.getcwd()}/../VIS_CTI"
+eden_prefix = "VIS_CTI"
+eden_path = f"{os.getcwd()}/../build_eden/{eden_prefix}"
 
 FILES_OMIT = ["conftest.py"]
-
 FOLDERS_OMIT = ["output", "VIS_CTI_Programs"]
 
 
@@ -16,11 +12,11 @@ def main():
 
     # Removing old .py files from VIS_CTI modules.
 
-    os.chdir(VIS_CTI_PATH)
+    os.chdir(eden_path)
 
-    for x in [t[0] for t in os.walk("../VIS_CTI")]:
+    for x in [t[0] for t in os.walk(f"../{eden_prefix}")]:
 
-        path = f"{VIS_CTI_PATH}/{x}"
+        path = f"{eden_path}/{x}"
 
         try:
 
