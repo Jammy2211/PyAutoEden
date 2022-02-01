@@ -1,0 +1,8 @@
+[
+    "update_identifiers.py",
+    "result_builder.py",
+    "VIS_CTI_Zeus",
+    "VIS_CTI_Emcee",
+    "VIS_CTI_Ultranest",
+    "VIS_CTI_Pyswarms"
+]
