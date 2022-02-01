@@ -1,0 +1,17 @@
+[
+  "test_import.py::test_direct_import[import autofit.tools.edenise-\\nimport VIS_CTI_Autofit.VIS_CTI_Tools.VIS_CTI_Edenise\\n]",
+  "test_import.py::test_direct_import[import autofit-\\nimport VIS_CTI_Autofit\\n]",
+  "test_import.py::test_direct_import[import autofit.tools.edenise.Line-\\nimport VIS_CTI_Autofit.VIS_CTI_Tools.VIS_CTI_Edenise.Line\\n]",
+  "test_import.py::test_project_import",
+  "test_import.py::test_non_project_import",
+  "test_import.py::test_non_project_from_import",
+  "test_import.py::test_target_import_string",
+  "test_import.py::test_multi_import",
+  "test_import.py::test_import_as",
+  "test_import.py::test_file_import",
+  "test_import.py::test_relative_import[from . import util-\\nfrom VIS_CTI_Autofit.VIS_CTI_Tools import util\\n]",
+  "test_import.py::test_relative_import[from .. import conf-\\nfrom VIS_CTI_Autofit import conf\\n]",
+  "test_import.py::test_relative_import[from ..tools import util-\\nfrom VIS_CTI_Autofit.VIS_CTI_Tools import util\\n]",
+  "test_import.py::test_module_import_name",
+  "test_import.py::test_module_path_import_name"
+]
