@@ -2,7 +2,7 @@ import glob
 import json
 import os
 import shutil
-from autofit.tools.edenise import edenise
+from autoeden import edenise
 
 from eden_util import clearCache, replace_strings, remove_files, black
 
