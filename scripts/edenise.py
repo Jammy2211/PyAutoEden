@@ -1,37 +1,28 @@
 #!/usr/bin/env python
 
-from configparser import ConfigParser
+from pathlib import Path
 from sys import argv
 
-from autofit.tools import edenise
+import yaml
+
+from autoeden import Package
+from autoeden import edenise
 
 
 def main(
         root_directory
 ):
     try:
-        config = ConfigParser()
-        config.read(
-            f"{root_directory}/eden.ini"
+        with open(root_directory / "eden.yaml") as f:
+            config = yaml.safe_load(f)
+
+        package = Package.from_config(
+            config
         )
 
-        eden_dependencies = [
-            dependency.strip()
-            for dependency
-            in config.get(
-                "eden",
-                "eden_dependencies"
-            ).split(",")
-        ]
-
-        edenise.edenise(
+        edenise(
             root_directory=root_directory,
-            name=config.get("eden", "name"),
-            prefix=config.get("eden", "prefix"),
-            eden_prefix=config.get("eden", "eden_prefix"),
-            eden_dependencies=eden_dependencies,
-            should_rename_modules=config.get("eden", "should_rename_modules").lower().startswith("t"),
-            should_remove_type_annotations=config.get("eden", "should_remove_type_annotations").lower().startswith("t"),
+            package=package,
         )
     except ValueError:
         print("Usage: ./edenise.py root_directory")
@@ -40,5 +31,5 @@ def main(
 
 if __name__ == "__main__":
     main(
-        argv[1]
+        Path(argv[1])
     )

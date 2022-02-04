@@ -21,9 +21,9 @@ def make_import(file):
 @pytest.mark.parametrize(
     "source, target",
     [
-        ("import autofit.tools.edenise", "\nimport VIS_CTI_Autofit.VIS_CTI_Tools.VIS_CTI_Edenise\n"),
+        ("import autofit.tools.edenise", "\nimport VIS_CTI_Autofit.VIS_CTI_Tools.edenise\n"),
         ("import autofit", "\nimport VIS_CTI_Autofit\n"),
-        ("import autofit.tools.edenise.Line", "\nimport VIS_CTI_Autofit.VIS_CTI_Tools.VIS_CTI_Edenise.Line\n"),
+        ("import autofit.tools.edenise.Line", "\nimport VIS_CTI_Autofit.VIS_CTI_Tools.Line\n"),
     ]
 )
 def test_direct_import(
