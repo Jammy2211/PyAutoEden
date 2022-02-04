@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from autoeden import Package, File
+from autoeden import File
 
 
 @pytest.fixture(
@@ -21,35 +21,16 @@ def test_top_level(package):
     assert len(package.children) > 1
 
 
-def test_child(child):
-    assert isinstance(
-        child,
-        Package
-    )
-    assert child.is_top_level is False
-
-
 def test_path(package, child):
-    assert package.target_name == "VIS_CTI_Autofit"
-    assert str(package.target_path) == "VIS_CTI/VIS_CTI_Autofit/python/VIS_CTI_Autofit"
-    assert str(child.target_path) == f"VIS_CTI/VIS_CTI_Autofit/python/VIS_CTI_Autofit/{child.target_file_name}"
+    assert package.target_name == "VIS_CTI_Autoeden"
+    assert str(package.target_path) == "VIS_CTI/VIS_CTI_Autoeden/python/VIS_CTI_Autoeden"
+    assert str(child.target_path) == f"VIS_CTI/VIS_CTI_Autoeden/python/VIS_CTI_Autoeden/{child.target_file_name}"
 
 
 def test_init(
         package
 ):
     assert package["__init__"].target_file_name == "__init__.py"
-
-
-def test_get_item(
-        package
-):
-    assert isinstance(
-        package[
-            "mapper"
-        ],
-        Package
-    )
 
 
 def test_file(package):

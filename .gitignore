@@ -1,0 +1,5 @@
+.idea/
+root.log
+.DS_Store
+.envr
+__pycache__/

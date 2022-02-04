@@ -6,7 +6,8 @@ from autoeden import Package
 
 package_directory = Path(
     __file__
-).parent.parent.parent / "PyAutoFit" / "autofit"
+).parent.parent / "autoeden"
+
 
 @pytest.fixture(
     name="package"
@@ -16,7 +17,7 @@ def make_package():
         package_directory,
         prefix="VIS_CTI",
         is_top_level=True,
-        eden_dependencies=["autoconf"],
+        eden_dependencies=["autoconf", "autofit"],
         should_rename_modules=True
     )
 
