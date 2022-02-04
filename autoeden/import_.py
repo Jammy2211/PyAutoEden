@@ -1,6 +1,6 @@
 import ast
-from copy import deepcopy, copy
-from typing import Optional, Set, List
+from copy import copy
+from typing import Optional, List
 
 from .item import Item
 from .line import LineItem
@@ -27,74 +27,6 @@ class Import(LineItem):
     def alias(self):
         for name in self.ast_item.names:
             return name.asname
-
-    def as_from_import(
-            self,
-            attribute_names: Set[str]
-    ) -> "Import":
-        """
-        Convert an import as import to an explicit
-        import of each attribute.
-
-        Parameters
-        ----------
-        attribute_names
-            A list of names of attributes accessed on
-            the alias
-
-        Returns
-        -------
-        An explicit import of each attribute
-
-        Examples
-        --------
-        import autofit as af
-
-        af.Model(af.Gaussian)
-
-        becomes
-
-        from autofit import Model, Gaussian
-
-        Model(Gaussian)
-        """
-        if len(attribute_names) == 0:
-            ast_item = deepcopy(self.ast_item)
-            ast_item.names[0].asname = None
-            return Import(
-                ast_item,
-                parent=self.parent
-            )
-
-        module = self.ast_item.names[0].name
-        level = 0
-
-        if isinstance(
-                self,
-                ImportFrom
-        ):
-            if self.ast_item.module is not None:
-                module = f"{self.ast_item.module}.{module}"
-            level = self.ast_item.level
-
-        # noinspection PyTypeChecker
-        return ImportFrom(
-            ast.ImportFrom(
-                col_offset=self.ast_item.col_offset,
-                lineno=self.ast_item.lineno,
-                module=module,
-                names=[
-                    ast.alias(
-                        name=attribute_name,
-                        asname=None
-                    )
-                    for attribute_name
-                    in sorted(attribute_names)
-                ],
-                level=level
-            ),
-            parent=self.parent
-        )
 
     @property
     def is_in_project(self) -> bool:

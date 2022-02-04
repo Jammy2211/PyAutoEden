@@ -23,14 +23,6 @@ class Function(LineItem):
 
         body = list()
         for line in self.lines():
-            if isinstance(
-                    line, Import
-            ) and line.is_in_project and line.is_aliased:
-                line = line.as_from_import(
-                    self.parent.attributes_for_alias(
-                        line.alias
-                    )
-                )
             body.append(
                 line.converted()
             )

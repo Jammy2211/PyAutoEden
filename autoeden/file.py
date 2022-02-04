@@ -204,14 +204,6 @@ class File(DirectoryItem):
         converted_lines = []
 
         for line in self.lines():
-            if isinstance(
-                    line, Import
-            ) and line.is_in_project and line.is_aliased:
-                line = line.as_from_import(
-                    self.attributes_for_alias(
-                        line.alias
-                    )
-                )
             converted_lines.append(
                 line.converted()
             )
