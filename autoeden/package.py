@@ -1,7 +1,7 @@
 import importlib
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Iterable
 
 from .file import File
 from .item import DirectoryItem, Member, Item
@@ -10,11 +10,11 @@ from .item import DirectoryItem, Member, Item
 class Package(DirectoryItem):
     def __init__(
             self,
-            path: Path,
+            name,
             prefix: str,
             is_top_level: bool,
             parent: Optional["Package"] = None,
-            eden_dependencies: Optional[List[str]] = None,
+            eden_dependencies: Iterable["Package"] = (),
             should_rename_modules: bool = False,
             should_remove_type_annotations: bool = False
     ):
@@ -41,27 +41,66 @@ class Package(DirectoryItem):
             prefix,
             parent=parent
         )
-        self._path = path
+        if isinstance(
+                name, str
+        ):
+            self._path = Path(
+                importlib.import_module(
+                    name
+                ).__file__
+            ).parent
+        else:
+            self._path = name
 
         self.is_top_level = is_top_level
-        self._eden_dependencies = [
-            Package(
-                Path(
-                    importlib.import_module(
-                        dependency
-                    ).__file__
-                ).parent,
-                prefix=prefix,
-                is_top_level=True,
-                should_rename_modules=should_rename_modules,
-                should_remove_type_annotations=should_remove_type_annotations,
-            )
-            for dependency in (
-                    eden_dependencies or []
-            )
-        ]
+        self._eden_dependencies = eden_dependencies
         self._should_rename_modules = should_rename_modules
         self._should_remove_type_annotations = should_remove_type_annotations
+
+    @classmethod
+    def from_config(
+            cls,
+            config_dict,
+            is_top_level=True,
+            **overrides,
+    ):
+        def parse_boolean(key):
+            return config_dict.get(
+                key, ""
+            ).lower().startswith("t")
+
+        config_dict = {
+            **config_dict,
+            **overrides,
+        }
+
+        name = config_dict["name"]
+        string = config_dict.get(
+            "eden_dependencies"
+        )
+        if string is not None:
+            dependency_names = string.split(",")
+        else:
+            dependency_names = []
+        dependencies = [
+            Package.from_config(
+                config_dict,
+                is_top_level=False,
+                name=dependency_name,
+                eden_dependencies=None,
+            )
+            for dependency_name
+            in dependency_names
+        ]
+
+        return Package(
+            name=name,
+            prefix=config_dict["eden_prefix"],
+            is_top_level=is_top_level,
+            eden_dependencies=dependencies,
+            should_rename_modules=parse_boolean("should_rename_modules"),
+            should_remove_type_annotations=parse_boolean("should_remove_type_annotations"),
+        )
 
     @property
     def name(self) -> str:
@@ -160,7 +199,7 @@ class Package(DirectoryItem):
         return self._should_remove_type_annotations
 
     @property
-    def eden_dependencies(self) -> List["Package"]:
+    def eden_dependencies(self) -> Iterable["Package"]:
         """
         Packages on which this project depends. e.g. autoconf
         """

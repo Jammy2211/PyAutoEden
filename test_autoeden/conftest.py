@@ -13,11 +13,24 @@ package_directory = Path(
     name="package"
 )
 def make_package():
+    prefix = "VIS_CTI"
+    autoconf = Package(
+        "autoconf",
+        prefix=prefix,
+        is_top_level=False,
+        should_rename_modules=True,
+    )
+    autofit = Package(
+        "autofit",
+        prefix=prefix,
+        is_top_level=False,
+        should_rename_modules=True,
+    )
     return Package(
-        package_directory,
+        "autoeden",
         prefix="VIS_CTI",
         is_top_level=True,
-        eden_dependencies=["autoconf", "autofit"],
+        eden_dependencies=[autoconf, autofit],
         should_rename_modules=True
     )
 
