@@ -60,18 +60,20 @@ class Package(DirectoryItem):
         }
 
         name = config_dict["name"]
-        dependency_names = config_dict.get(
+        dependency_dicts = config_dict.get(
             "eden_dependencies", []
         )
+        config_dict["eden_dependencies"] = []
         dependencies = [
             Package.from_config(
-                config_dict,
+                {
+                    **config_dict,
+                    **dependency_dict,
+                },
                 is_top_level=False,
-                name=dependency_name,
-                eden_dependencies=[],
             )
-            for dependency_name
-            in dependency_names
+            for dependency_dict
+            in dependency_dicts
         ]
 
         path = Path(

@@ -14,9 +14,11 @@ autoeden_path = directory.parent / "autoeden"
 def make_package():
     return Package.from_config({
         'name': 'autoeden',
-        'prefix': 'prefix',
         'eden_prefix': 'eden_prefix',
-        'eden_dependencies': ['autoeden'],
+        'eden_dependencies': [{
+            "name": "autoeden",
+            'eden_prefix': 'dependency_prefix',
+        }],
         'should_rename_modules': False,
         'should_remove_type_annotations': False,
     })
@@ -24,8 +26,10 @@ def make_package():
 
 def test_parse(package):
     assert package.path == autoeden_path
+    assert package.prefix == "eden_prefix"
 
 
 def test_dependency(package):
     dependency, = package.eden_dependencies
     assert dependency.path == autoeden_path
+    assert dependency.prefix == "dependency_prefix"
