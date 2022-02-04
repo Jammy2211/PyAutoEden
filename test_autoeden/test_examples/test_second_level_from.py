@@ -53,6 +53,6 @@ def test_in_situ(
         prefix=""
     )
     assert file.target_string == """
-from VIS_CTI_Autofit.VIS_CTI_Database import VIS_CTI_Query
-from VIS_CTI_Autoeden.VIS_CTI_Database import VIS_CTI_Model
+from VIS_CTI_Autofit.VIS_CTI_Database import VIS_CTI_Query as q
+from VIS_CTI_Autoeden.VIS_CTI_Database import VIS_CTI_Model as m
 """

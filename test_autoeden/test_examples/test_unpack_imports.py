@@ -86,40 +86,12 @@ def test_attributes_for_alias(
            }
 
 
-def test_convert_import(file):
-    import_from = Import.parse_fragment(
-        """import autofit as af""",
-        parent=file
-    )
-    assert import_from.as_from_import(
-        attribute_names={
-            "Model", "Gaussian"
-        }
-    ).target_string == """
-from VIS_CTI_Autofit import Gaussian, Model
-"""
-
-
-def test_convert_numpy_import(file):
-    import_from = Import.parse_fragment(
-        """import numpy as np""",
-        parent=file
-    )
-    assert import_from.as_from_import(
-        attribute_names={
-            "isnan"
-        }
-    ).target_string == """
-from numpy import isnan
-"""
-
-
 def test_whole_file(
         file
 ):
     assert file.target_string == """
-from VIS_CTI_Autofit import Gaussian, Model
-model = Model(Gaussian)
+import VIS_CTI_Autofit as af
+model = af.Model(af.Gaussian)
 print(model.prior_count)
 """
 
@@ -136,5 +108,5 @@ def test_replace_alias(
     )
 
     assert item.target_string == """
-model = Model(Gaussian)
+model = af.Model(af.Gaussian)
 """
