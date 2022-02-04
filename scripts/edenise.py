@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
-from configparser import ConfigParser
+from pathlib import Path
 from sys import argv
+
+import yaml
 
 from autoeden import Package
 from autoeden import edenise
@@ -11,15 +13,11 @@ def main(
         root_directory
 ):
     try:
-        config = ConfigParser()
-        config.read(
-            f"{root_directory}/eden.ini"
-        )
-
-        section = config["eden"]
+        with open(root_directory / "eden.yaml") as f:
+            config = yaml.safe_load(f)
 
         package = Package.from_config(
-            section
+            config
         )
 
         edenise(
@@ -33,5 +31,5 @@ def main(
 
 if __name__ == "__main__":
     main(
-        argv[1]
+        Path(argv[1])
     )

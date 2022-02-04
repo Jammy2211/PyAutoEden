@@ -10,7 +10,7 @@ from .item import DirectoryItem, Member, Item
 class Package(DirectoryItem):
     def __init__(
             self,
-            name,
+            path,
             prefix: str,
             is_top_level: bool,
             parent: Optional["Package"] = None,
@@ -41,17 +41,7 @@ class Package(DirectoryItem):
             prefix,
             parent=parent
         )
-        if isinstance(
-                name, str
-        ):
-            self._path = Path(
-                importlib.import_module(
-                    name
-                ).__file__
-            ).parent
-        else:
-            self._path = name
-
+        self._path = path
         self.is_top_level = is_top_level
         self._eden_dependencies = eden_dependencies
         self._should_rename_modules = should_rename_modules
@@ -64,42 +54,45 @@ class Package(DirectoryItem):
             is_top_level=True,
             **overrides,
     ):
-        def parse_boolean(key):
-            return config_dict.get(
-                key, ""
-            ).lower().startswith("t")
-
         config_dict = {
             **config_dict,
             **overrides,
         }
 
         name = config_dict["name"]
-        string = config_dict.get(
-            "eden_dependencies"
+        dependency_names = config_dict.get(
+            "eden_dependencies", []
         )
-        if string is not None:
-            dependency_names = string.split(",")
-        else:
-            dependency_names = []
         dependencies = [
             Package.from_config(
                 config_dict,
                 is_top_level=False,
                 name=dependency_name,
-                eden_dependencies=None,
+                eden_dependencies=[],
             )
             for dependency_name
             in dependency_names
         ]
 
+        path = Path(
+            importlib.import_module(
+                name
+            ).__file__
+        ).parent
+
         return Package(
-            name=name,
+            path=path,
             prefix=config_dict["eden_prefix"],
             is_top_level=is_top_level,
             eden_dependencies=dependencies,
-            should_rename_modules=parse_boolean("should_rename_modules"),
-            should_remove_type_annotations=parse_boolean("should_remove_type_annotations"),
+            should_rename_modules=config_dict.get(
+                "should_rename_modules",
+                False
+            ),
+            should_remove_type_annotations=config_dict.get(
+                "should_remove_type_annotations",
+                False
+            ),
         )
 
     @property
