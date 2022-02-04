@@ -16,7 +16,7 @@ def make_file(
     name="import_string"
 )
 def make_import_string():
-    return "from VIS_CTI_Autofit.VIS_CTI_Database.VIS_CTI_Query.VIS_CTI_Query import AbstractQuery, Attribute"
+    return "from VIS_CTI_Autoeden.VIS_CTI_Database.VIS_CTI_Query.VIS_CTI_Query import AbstractQuery, Attribute"
 
 
 def test_second_level_from(
@@ -31,17 +31,10 @@ def test_second_level_from(
            )
 
 
-def test_string_in_file(
-        file,
-        import_string
-):
-    assert import_string in file.target_string
-
-
 def test_relative_aliased_import(
         file
 ):
-    string = "from VIS_CTI_Autofit.VIS_CTI_Database import VIS_CTI_Model as m"
+    string = "from VIS_CTI_Autoeden.VIS_CTI_Database import VIS_CTI_Model as m"
     assert Import.parse_fragment(
         "from .. import model as m",
         parent=file
@@ -61,5 +54,5 @@ def test_in_situ(
     )
     assert file.target_string == """
 from VIS_CTI_Autofit.VIS_CTI_Database import VIS_CTI_Query
-from VIS_CTI_Autofit.VIS_CTI_Database import VIS_CTI_Model
+from VIS_CTI_Autoeden.VIS_CTI_Database import VIS_CTI_Model
 """

@@ -71,7 +71,7 @@ from hashlib import md5
 
 
 def test_target_import_string(import_):
-    string = "\nfrom VIS_CTI_Autofit.VIS_CTI_Tools.VIS_CTI_Edenise import Line\n"
+    string = "\nfrom VIS_CTI_Autoeden import Line\n"
     target_import_string = unparse(import_.converted())
     assert target_import_string == string
 
@@ -85,7 +85,7 @@ def test_multi_import(
         ).body[0],
         parent=file
     )
-    string = "\nfrom VIS_CTI_Autofit.VIS_CTI_Tools.VIS_CTI_Edenise import file, File, Import\n"
+    string = "\nfrom VIS_CTI_Autoeden import file, File, Import\n"
     target_import_string = unparse(import_.converted())
     assert target_import_string == string
 
@@ -99,7 +99,7 @@ def test_import_as(
         ).body[0],
         parent=file
     )
-    string = "\nfrom VIS_CTI_Autofit.VIS_CTI_Tools import VIS_CTI_Edenise as e\n"
+    string = "\nfrom VIS_CTI_Autoeden import edenise as e\n"
     target_import_string = unparse(import_.converted())
     assert target_import_string == string
 
@@ -114,7 +114,7 @@ def test_file_import(
         parent=file
     )
 
-    string = "\nfrom VIS_CTI_Autofit.VIS_CTI_Tools import VIS_CTI_Edenise\n"
+    string = "\nfrom VIS_CTI_Autoeden import edenise\n"
     target_import_string = unparse(import_.converted())
     assert target_import_string == string
 
@@ -122,9 +122,9 @@ def test_file_import(
 @pytest.mark.parametrize(
     "string, result",
     [
-        ("from . import util", "\nfrom VIS_CTI_Autofit.VIS_CTI_Tools import util\n"),
-        ("from .. import conf", "\nfrom VIS_CTI_Autofit import conf\n"),
-        ("from ..tools import util", "\nfrom VIS_CTI_Autofit.VIS_CTI_Tools import util\n")
+        ("from . import util", "\nfrom VIS_CTI_Autoeden.VIS_CTI_Tools import util\n"),
+        ("from .. import conf", "\nfrom VIS_CTI_Autoeden import conf\n"),
+        ("from ..tools import util", "\nfrom VIS_CTI_Autoeden.VIS_CTI_Tools import util\n")
     ]
 )
 def test_relative_import(
@@ -141,18 +141,6 @@ def test_relative_import(
 
     target_import_string = unparse(import_.converted())
     assert target_import_string == result
-
-
-def test_module_import_name(
-        package
-):
-    conf = package["conf"]
-    assert conf.target_import_string == "VIS_CTI_Conf as conf"
-    assert conf.target_file_name == "VIS_CTI_Conf.py"
-
-    package._should_rename_modules = False
-    assert conf.target_import_string == "conf"
-    assert conf.target_file_name == "conf.py"
 
 
 def test_module_path_import_name(
