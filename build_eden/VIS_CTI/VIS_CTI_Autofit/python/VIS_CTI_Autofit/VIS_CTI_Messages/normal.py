@@ -1,0 +1,198 @@
+import math
+from typing import Tuple
+import numpy as np
+from scipy.special.cython_special import erfcinv
+from scipy.stats import norm
+from VIS_CTI_Autoconf import cached_property
+from VIS_CTI_Autofit.VIS_CTI_Messages.abstract import AbstractMessage
+from VIS_CTI_Autofit.VIS_CTI_Messages.transform import (
+    phi_transform,
+    log_transform,
+    multinomial_logit_transform,
+    log_10_transform,
+)
+from VIS_CTI_Autofit import exc
+
+
+def is_nan(value):
+    is_nan_ = np.isnan(value)
+    if isinstance(is_nan_, np.ndarray):
+        is_nan_ = is_nan_.all()
+    return is_nan_
+
+
+class NormalMessage(AbstractMessage):
+    @cached_property
+    def log_partition(self):
+        (eta1, eta2) = self.natural_parameters
+        return (((-(eta1 ** 2)) / 4) / eta2) - (np.log(((-2) * eta2)) / 2)
+
+    log_base_measure = (-0.5) * np.log((2 * np.pi))
+    _support = (((-np.inf), np.inf),)
+    _parameter_support = (((-np.inf), np.inf), (0, np.inf))
+
+    def __init__(
+        self,
+        mean,
+        sigma,
+        lower_limit=(-math.inf),
+        upper_limit=math.inf,
+        log_norm=0.0,
+        id_=None,
+    ):
+        if (np.array(sigma) < 0).any():
+            raise exc.MessageException("Sigma cannot be negative")
+        super().__init__(
+            mean,
+            sigma,
+            log_norm=log_norm,
+            lower_limit=lower_limit,
+            upper_limit=upper_limit,
+            id_=id_,
+        )
+        (self.mean, self.sigma) = self.parameters
+
+    def cdf(self, x):
+        return norm.cdf(x, loc=self.mean, scale=self.sigma)
+
+    def ppf(self, x):
+        return norm.ppf(x, loc=self.mean, scale=self.sigma)
+
+    @cached_property
+    def natural_parameters(self):
+        return self.calc_natural_parameters(self.mean, self.sigma)
+
+    @staticmethod
+    def calc_natural_parameters(mu, sigma):
+        precision = sigma ** (-2)
+        return np.array([(mu * precision), ((-precision) / 2)])
+
+    @staticmethod
+    def invert_natural_parameters(natural_parameters):
+        (eta1, eta2) = natural_parameters
+        mu = ((-0.5) * eta1) / eta2
+        sigma = np.sqrt(((-0.5) / eta2))
+        return (mu, sigma)
+
+    @staticmethod
+    def to_canonical_form(x):
+        return np.array([x, (x ** 2)])
+
+    @classmethod
+    def invert_sufficient_statistics(cls, suff_stats):
+        (m1, m2) = suff_stats
+        sigma = np.sqrt((m2 - (m1 ** 2)))
+        return cls.calc_natural_parameters(m1, sigma)
+
+    @cached_property
+    def variance(self):
+        return self.sigma ** 2
+
+    def sample(self, n_samples=None):
+        if n_samples:
+            x = np.random.randn(n_samples, *self.shape)
+            if self.shape:
+                return (x * self.sigma[(None, ...)]) + self.mean[(None, ...)]
+        else:
+            x = np.random.randn(*self.shape)
+        return (x * self.sigma) + self.mean
+
+    def kl(self, dist):
+        return (
+            np.log((dist.sigma / self.sigma))
+            + (
+                (((self.sigma ** 2) + ((self.mean - dist.mean) ** 2)) / 2)
+                / (dist.sigma ** 2)
+            )
+        ) - (1 / 2)
+
+    @classmethod
+    def from_mode(cls, mode, covariance=1.0, id_=None):
+        (mode, variance) = cls._get_mean_variance(mode, covariance)
+        return cls(mode, (variance ** 0.5), id_=id_)
+
+    def _normal_gradient_hessian(self, x):
+        shape = np.shape(x)
+        if shape:
+            x = np.asanyarray(x)
+            deltax = x - self.mean
+            hess_logl = -(self.sigma ** (-2))
+            grad_logl = deltax * hess_logl
+            eta_t = (0.5 * grad_logl) * deltax
+            logl = (self.log_base_measure + eta_t) - np.log(self.sigma)
+            if shape[1:] == self.shape:
+                hess_logl = np.repeat(
+                    np.reshape(hess_logl, ((1,) + np.shape(hess_logl))), shape[0], 0
+                )
+        else:
+            deltax = x - self.mean
+            hess_logl = -(self.sigma ** (-2))
+            grad_logl = deltax * hess_logl
+            eta_t = (0.5 * grad_logl) * deltax
+            logl = (self.log_base_measure + eta_t) - np.log(self.sigma)
+        return (logl, grad_logl, hess_logl)
+
+    def logpdf_gradient(self, x):
+        return self._normal_gradient_hessian(x)[:2]
+
+    def logpdf_gradient_hessian(self, x):
+        return self._normal_gradient_hessian(x)
+
+    __name__ = "gaussian_prior"
+    __default_fields__ = ("log_norm", "id_")
+
+    def value_for(self, unit):
+        """
+
+        Parameters
+        ----------
+        unit: Float
+            A unit hypercube value between 0 and 1
+
+        Returns
+        -------
+        value: Float
+            A value for the attribute biased to the gaussian distribution
+        """
+        return self.mean + ((self.sigma * math.sqrt(2)) * erfcinv((2.0 * (1.0 - unit))))
+
+    def log_prior_from_value(self, value):
+        """
+        Returns the log prior of a physical value, so the log likelihood of a model evaluation can be converted to a
+        posterior as log_prior + log_likelihood.
+
+        This is used by Emcee in the log likelihood function evaluation.
+
+        Parameters
+        ----------
+        value
+            The physical value of this prior's corresponding parameter in a `NonLinearSearch` sample.
+        """
+        return ((value - self.mean) ** 2.0) / (2 * (self.sigma ** 2.0))
+
+    def __str__(self):
+        """
+        The line of text describing this prior for the model_mapper.info file
+        """
+        return f"GaussianPrior, mean = {self.mean}, sigma = {self.sigma}"
+
+    def __repr__(self):
+        return "<GaussianPrior id={} mean={} sigma={} lower_limit={} upper_limit={}>".format(
+            self.id, self.mean, self.sigma, self.lower_limit, self.upper_limit
+        )
+
+    def dict(self):
+        """
+        A dictionary representation of this prior
+        """
+        prior_dict = super().dict()
+        return {**prior_dict, "mean": self.mean, "sigma": self.sigma}
+
+
+UniformNormalMessage = NormalMessage.transformed(phi_transform, "UniformNormalMessage")
+UniformNormalMessage.__module__ = __name__
+Log10UniformNormalMessage = UniformNormalMessage.transformed(log_10_transform)
+LogNormalMessage = NormalMessage.transformed(log_transform, "LogNormalMessage")
+MultiLogitNormalMessage = NormalMessage.transformed(
+    multinomial_logit_transform, "MultiLogitNormalMessage", ((0, 1),)
+)
