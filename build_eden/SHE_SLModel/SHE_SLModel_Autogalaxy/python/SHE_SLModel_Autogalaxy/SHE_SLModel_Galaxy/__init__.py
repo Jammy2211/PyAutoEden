@@ -1,2 +1,0 @@
-from SHE_SLModel_Autogalaxy.SHE_SLModel_Galaxy.galaxy import Galaxy
-from SHE_SLModel_Autogalaxy.SHE_SLModel_Galaxy.galaxy import Redshift

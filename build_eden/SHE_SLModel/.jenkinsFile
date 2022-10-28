@@ -1,3 +1,0 @@
-#!groovy
-@Library('integration-library@release-8') _
-pipelineElements(artifactId:"SHE_SLModel", component:'eden.3.0')
