@@ -1,3 +1,0 @@
-#!groovy
-@Library('integration-library@release-8') _
-pipelineElements(artifactId:"SHE_ArCTIC", component:'eden.3.0')

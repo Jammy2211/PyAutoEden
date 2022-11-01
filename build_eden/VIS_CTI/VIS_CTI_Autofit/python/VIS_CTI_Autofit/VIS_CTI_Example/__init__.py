@@ -1,3 +1,0 @@
-from VIS_CTI_Autofit.VIS_CTI_Example.analysis import Analysis
-from VIS_CTI_Autofit.VIS_CTI_Example.model import Gaussian
-from VIS_CTI_Autofit.VIS_CTI_Example.model import Exponential
