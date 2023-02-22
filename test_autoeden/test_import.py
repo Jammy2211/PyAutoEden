@@ -149,9 +149,9 @@ def test_module_path_import_name(
     file._should_rename_modules = False
     import_ = Import(
         ast.parse(
-            "from autofit.non_linear.samples import NestSamples, Sample"
+            "from autofit.non_linear.samples import SamplesNest, Sample"
         ).body[0],
         parent=file
     )
-    target_string = "\nfrom VIS_CTI_Autofit.VIS_CTI_NonLinear.VIS_CTI_Samples import NestSamples, Sample\n"
+    target_string = "\nfrom VIS_CTI_Autofit.VIS_CTI_NonLinear.VIS_CTI_Samples import SamplesNest, Sample\n"
     assert unparse(import_.converted()) == target_string

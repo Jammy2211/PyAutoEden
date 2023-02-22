@@ -1,0 +1,52 @@
+{
+    "type": "VIS_CTI_Autocti.VIS_CTI_Clocker.two_d.Clocker2D",
+    "iterations": 5,
+    "parallel_roe": {
+        "type": "SHE_ArCTICPy.roe.ROE",
+        "dwell_times": {
+            "type": "numpy.ndarray",
+            "array": [
+                1.0
+            ],
+            "dtype": "float64"
+        },
+        "empty_traps_between_columns": true,
+        "empty_traps_for_first_transfers": false,
+        "force_release_away_from_readout": true,
+        "use_integer_express_matrix": false
+    },
+    "parallel_express": 5,
+    "parallel_time_start": 0,
+    "parallel_time_stop": 1,
+    "parallel_window_offset": 0,
+    "parallel_window_start": 0,
+    "parallel_window_stop": -1,
+    "parallel_prune_n_electrons" : 1e-18,
+    "parallel_prune_frequency" :  0,
+    "parallel_poisson_traps": false,
+    "parallel_fast_mode": false,
+    "serial_roe": {
+        "type": "SHE_ArCTICPy.roe.ROE",
+        "dwell_times": {
+            "type": "numpy.ndarray",
+            "array": [
+                1.0
+            ],
+            "dtype": "float64"
+        },
+        "empty_traps_between_columns": true,
+        "empty_traps_for_first_transfers": false,
+        "force_release_away_from_readout": true,
+        "use_integer_express_matrix": false
+    },
+    "serial_express": 5,
+    "serial_time_start": 0,
+    "serial_time_stop": 1,
+    "serial_window_offset": 0,
+    "serial_window_start": 0,
+    "serial_window_stop": -1,
+    "serial_prune_frequency" :  0,
+    "serial_fast_mode": false,
+    "verbosity": 0,
+    "poisson_seed": -1
+}

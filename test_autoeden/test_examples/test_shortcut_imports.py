@@ -23,8 +23,8 @@ def test_aliased_relative_import(
 ):
     assert file.target_string == (
         """
-from VIS_CTI_Autofit.VIS_CTI_Mapper.VIS_CTI_PriorModel.prior_model import PriorModel
-from VIS_CTI_Autofit.VIS_CTI_Mapper.VIS_CTI_PriorModel.collection import CollectionPriorModel
+from VIS_CTI_Autofit.VIS_CTI_Mapper.VIS_CTI_PriorModel.prior_model import Model
+from VIS_CTI_Autofit.VIS_CTI_Mapper.VIS_CTI_PriorModel.collection import Collection
 from VIS_CTI_Autofit.VIS_CTI_Mock.mock import MockSamples
 """
     )

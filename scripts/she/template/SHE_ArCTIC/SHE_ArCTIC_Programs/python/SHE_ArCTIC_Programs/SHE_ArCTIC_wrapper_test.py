@@ -50,10 +50,10 @@ def mainMethod(args):
     logger.info("#")
 
     import SHE_ArCTIC_wrapper as w
-    from SHE_ArCTICPy import ccd as c
-    from SHE_ArCTICPy import traps
-    from SHE_ArCTICPy import cti
-    from SHE_ArCTICPy import roe as r
+    from arcticpy import ccd as c
+    from arcticpy import traps
+    from arcticpy import cti
+    from arcticpy import roe as r
 
     image_pre_cti = np.zeros((20, 1))
     image_pre_cti[2, 0] = 800

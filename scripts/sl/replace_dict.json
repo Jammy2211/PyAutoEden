@@ -1,7 +1,0 @@
-{
-    "SHE_SLModel_Autoconf": "VIS_CTI_Autoconf",
-    "SHE_SLModel_Autofit": "VIS_CTI_Autofit",
-    "SHE_SLModel_Autoarray": "VIS_CTI_Autoarray",
-    "from VIS_CTI_Autofit import conf": "from VIS_CTI_Autoconf import conf",
-    "from VIS_CTI_Autoarray import conf": "from VIS_CTI_Autoconf import conf"
-}

@@ -1,0 +1,157 @@
+"""
+@file: python/RemoveCTI/VIS_simulate_ci.py
+@author: jnightingale
+@date: 03/09/16
+
+History:
+2018-02-24 (CG):
+    Close files that were not closed
+    Suppress in_hdu0 and in_file0 (useless)
+"""
+
+
+# import ElementsKernel.Logging as log
+import logging
+
+from VIS_CTI_Autoconf import conf
+
+import VIS_CTI_Autofit as af
+import VIS_CTI_Autocti as ac
+
+logger = logging.getLogger(
+    __name__
+)
+
+def calibrate_cti(imaging_ci_list, config_path, output_path):
+    """
+    @brief The "main" method.
+    @details
+        This method is the entry point to the program. In this sense, it is
+        similar to a main (and it is why it is called mainMethod()).
+    """
+
+    logger.info("CTI Calibration starting.")
+
+    conf.instance.push(new_path=config_path, output_path=output_path)
+
+    """
+    __Example: Modeling__
+
+    To fit a CTI model to a dataset, we must perform CTI modeling, which uses a non-linear search algorithm to fit many
+    different CTI models to the dataset.
+
+    Model-fitting is handled by our project **PyAutoFit**, a probablistic programming language for non-linear model
+    fitting. The setting up on configuration files is performed by our project **PyAutoConf**. We'll need to import
+    both to perform the model-fit.
+
+    In this script, we will fit charge injection imaging which has been subjected to CTI, where:
+
+     - The CTI model consists of two parallel `Trap` species.
+     - The `CCD` volume fill parameterization is a simple form with just a *well_fill_beta* parameter.
+     - The `CIImaging` is simulated with uniform charge injection lines and no cosmic rays.
+
+    The *Clocker* models the CCD read-out, including CTI. 
+
+    For parallel clocking, we use 'charge injection mode' which transfers the charge of every pixel over the full CCD.
+    """
+    clocker = ac.Clocker2D(parallel_express=5, parallel_roe=ac.ROEChargeInjection())
+
+    """
+    __Model__
+
+    We compose our lens model using `Trap` and `CCD` objects, which are what add CTI to our images during clocking and 
+    read out. In this example our CTI model is:
+
+     - Two parallel `TrapInstantCapture`'s which capture electrins during clokcing intant in the parallel direction. 
+     - A simple `CCD` volume beta parametrization.
+
+    The number of free parameters and therefore the dimensionality of non-linear parameter space is N=12.
+    """
+
+    parallel_trap_list = [af.Model(ac.TrapInstantCapture)]
+    parallel_ccd = af.Model(ac.CCDPhase)
+    parallel_ccd.well_notch_depth = 0.0
+    parallel_ccd.full_well_depth = 84700.0
+
+    model = af.Collection(
+        cti=af.Model(
+            ac.CTI2D,
+            parallel_trap_list=parallel_trap_list,
+            parallel_ccd=parallel_ccd
+        )
+    )
+
+    print(model.info)
+
+    """
+    __Search__
+
+    The lens model is fitted to the data using a `NonLinearSearch`. In this example, we use the
+    nested sampling algorithm MultiNest with 50 live points.
+
+    The script 'autocti_workspace/examples/model/customize/non_linear_searches.py' gives a description of the types of
+    non-linear searches that can be used with **PyAutoCTI**. If you do not know what a non-linear search is or how it 
+    operates, checkout chapters 1 and 2 of the HowToCTI lecture series.
+    """
+    search = af.DynestyStatic(name="parallel[x1]", n_live_points=50, vol_dec=0.5, vol_check=2.0)
+
+    """
+    __Settings__
+
+    To reduce run-times, we trim the `ImagingCI` data from the high resolution data (e.g. 2000 columns) to just 50 columns 
+    to speed up the model-fit at the expense of inferring larger errors on the CTI model.
+    
+    We also mask the FPR of the data during the model-fit.
+    """
+    mask_ci = ac.Mask2D.all_false(
+        shape_native=imaging_ci_list[0].shape_native,
+        pixel_scales=imaging_ci_list[0].pixel_scales,
+    )
+    mask_ci = ac.Mask2D.masked_fpr_and_eper_from(
+        mask=mask_ci,
+        layout=imaging_ci_list[0].layout,
+        settings=ac.SettingsMask2D(parallel_fpr_pixels=(0, 200)),
+        pixel_scales=imaging_ci_list[0].pixel_scales,
+    )
+
+    imaging_ci_trimmed_list = [
+        imaging_ci.apply_mask(mask=mask_ci) for imaging_ci in imaging_ci_list
+    ]
+
+    imaging_ci_trimmed_list = [
+        imaging_ci.apply_settings(settings=ac.SettingsImagingCI(parallel_pixels=(0, 1)))
+        for imaging_ci in imaging_ci_trimmed_list
+    ]
+
+    """
+    __Analysis__
+
+    The `AnalysisImagingCI` object defines the `log_likelihood_function` used by the non-linear search to fit the 
+    model to  the `ImagingCI`dataset.
+    """
+    analysis_list = [
+        ac.AnalysisImagingCI(dataset=imaging_ci, clocker=clocker)
+        for imaging_ci in imaging_ci_trimmed_list
+    ]
+    analysis = analysis_list[0]
+    # analysis = sum(analysis_list)
+
+    """
+    We can now begin the fit by passing the dataset and mask to the phase, which will use the non-linear search to fit
+    the model to the data. 
+
+    The fit outputs visualization on-the-fly, so checkout the path 
+    '/path/to/autolens_workspace/output/examples/phase__lens_sie__source_sersic' to see how your fit is doing!
+    """
+
+    result_list = search.fit(model=model, analysis=analysis)
+
+    """
+    Checkout '/path/to/autocti_workspace/examples/model/results.py' for a full description of the result object.
+    """
+    logger.info("#")
+    logger.info(
+        f"Density = {result_list[0].max_log_likelihood_instance.cti.parallel_trap_list[0].density}"
+    )
+    logger.info("# Exiting VIS_calibrate_ci mainMethod()")
+    logger.info("#")

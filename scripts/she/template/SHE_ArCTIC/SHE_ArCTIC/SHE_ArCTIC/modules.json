@@ -1,4 +1,4 @@
 {
     "arctic/include": "all",
-    "arctic/arcticpy/src": "interface.hpp"
+    "arctic/python/arcticpy/include": "interface.hpp"
 }

@@ -1,0 +1,12 @@
+inversion:
+  reconstruction_vmax_factor: 0.5   # Plots of an Inversion's reconstruction use the reconstructed data's bright value multiplied by this factor.
+  check_solution_default: true      # When an Inversion checks solutions in case they are numerically unstable by default or not (e.g. InversionSettings.check_solution).
+numba:
+  use_numba: true
+  cache: false
+  nopython: true
+  parallel: false
+structures:
+  use_dataset_grids: true           # If True, dataset objects (e.g. Imaging) have a grid of (y,x) coordinates computed for them.
+units:
+  in_kpc: false                     # If True, plots that are normally in arc-seconds are instead plotted using kiloparsecs.

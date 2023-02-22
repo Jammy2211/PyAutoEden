@@ -1,0 +1,8 @@
+{
+    "test_abstract.py": "VIS_CTI_Autofit",
+    "test_dynesty.py": "VIS_CTI_Autofit",
+    "test_array_2d.py": "VIS_CTI_Autoarray",
+    "test_config.py": "VIS_CTI_Autoconf",
+    "test_fit_ci_plots.py": "VIS_CTI_Autocti",
+    "test_ou_sim_ci.py": "VIS_CTI_Autocti"
+}

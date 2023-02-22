@@ -11,12 +11,14 @@ ARCTIC_PATH = f"{os.getcwd()}/../../arctic"
 
 target_path = f"{os.getcwd()}/../build_target"
 
-eden_prefix = "SHE_Arctic"
+eden_prefix = "SHE_ArCTIC"
 store_path = f"{os.getcwd()}/she/store"
 template_path = f"{os.getcwd()}/she/template/{eden_prefix}"
 eden_path = f"{os.getcwd()}/../build_eden/{eden_prefix}"
 
-FOLDERS_OMIT = ["SHE_Arctic_Programs"]
+print(eden_path)
+
+FOLDERS_OMIT = ["SHE_ArCTIC_Programs"]
 
 def cp_dir(source, target):
     call(["cp", "-r", source, target])  # Linux
@@ -31,11 +33,8 @@ def main():
     if os.path.exists(f"{eden_path}"):
         shutil.rmtree(f"{eden_path}")
 
-    with open("sl/replace_dict.json") as json_file:
+    with open("she/replace_dict.json") as json_file:
         replace_dict = json.load(json_file)
-
-    with open("sl/remove_list.json") as json_file:
-        remove_list = json.load(json_file)
 
     cp_dir(ARCTIC_PATH, target_path)
     cp_dir(store_path, target_path)
@@ -47,12 +46,11 @@ def main():
 
     replace_strings(
         eden_path=eden_path,
-        eden_prefix=eden_prefix,
         replace_dict=replace_dict,
     )
 
     os.system(
-        f"mv {eden_path}/src/Cython/wrapper.pyx {eden_path}/src/Cython/lib/SHE_ArCTIC_wrapper.pyx"
+        f"mv {eden_path}/{eden_prefix}/src/Cython/wrapper.pyx {eden_path}/{eden_prefix}/src/Cython/lib/SHE_ArCTIC_wrapper.pyx"
     )
 
     black(eden_path=eden_path)

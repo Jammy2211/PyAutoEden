@@ -43,9 +43,24 @@ class Package(DirectoryItem):
         )
         self._path = path
         self.is_top_level = is_top_level
-        self._eden_dependencies = eden_dependencies
         self._should_rename_modules = should_rename_modules
         self._should_remove_type_annotations = should_remove_type_annotations
+        self._eden_dependencies = [
+            Package(
+                Path(
+                    importlib.import_module(
+                        dependency
+                    ).__file__
+                ).parent,
+                prefix=prefix,
+                is_top_level=True,
+                should_rename_modules=should_rename_modules,
+                should_remove_type_annotations=should_remove_type_annotations,
+            )
+            for dependency in (
+                    eden_dependencies or []
+            )
+        ]
 
     @classmethod
     def from_config(

@@ -1,0 +1,6 @@
+{
+        "arcticpy.src": "SHE_ArCTICPy",
+        "arcticpy.": "",
+        "import wrapper as w": "import SHE_ArCTIC_wrapper as w",
+        "autoconf":"VIS_CTI_Autoconf"
+}

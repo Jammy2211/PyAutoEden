@@ -1,0 +1,8 @@
+.idea
+.cache
+.pytest_cache
+*.pyc
+build.x86_64-co7-gcc48-o2g/
+InstallArea/
+.cache/
+__pycache__/

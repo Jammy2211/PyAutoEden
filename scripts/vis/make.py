@@ -4,7 +4,7 @@ import os
 import shutil
 from autoeden import edenise
 
-from autoeden.util import clearCache, replace_strings, remove_files, black
+from autoeden.util import clearCache, replace_strings, remove_files, move_test_files, black
 
 PYAUTOCONF_PATH = f"{os.getcwd()}/../../PyAutoConf"
 PYAUTOFIT_PATH = f"{os.getcwd()}/../../PyAutoFit"
@@ -13,7 +13,10 @@ PYAUTOCTI_PATH = f"{os.getcwd()}/../../PyAutoCTI"
 
 eden_prefix = "VIS_CTI"
 
-eden_path = f"{os.getcwd()}/../build_eden/{eden_prefix}"
+build_path = f"{os.getcwd()}/../build_eden"
+eden_path = f"{build_path}/{eden_prefix}"
+tests_path = f"{os.getcwd()}/vis/tests"
+manual_path = f"{os.getcwd()}/vis/manual"
 
 def main():
 
@@ -35,7 +38,7 @@ def main():
         name="autoconf",
         eden_prefix=eden_prefix,
         eden_dependencies=None,
-        eden_path=eden_path,
+        eden_path=build_path,
         should_remove_type_annotations=True,
     )
 
@@ -44,7 +47,7 @@ def main():
         name="autofit",
         eden_prefix=eden_prefix,
         eden_dependencies=["autoconf"],
-        eden_path=eden_path,
+        eden_path=build_path,
         should_remove_type_annotations=True,
     )
 
@@ -53,27 +56,37 @@ def main():
         name="autoarray",
         eden_prefix=eden_prefix,
         eden_dependencies=["autoconf"],
-        eden_path=eden_path,
+        eden_path=build_path,
         should_remove_type_annotations=True,
     )
+
+    nest_path = os.path.join(build_path, "VIS_CTI", "VIS_CTI_Autofit", "python", "VIS_CTI_Autofit", "VIS_CTI_NonLinear", "VIS_CTI_Nest")
+
+    try:
+        shutil.rmtree(os.path.join(nest_path, "VIS_CTI_Dynesty"))
+    except FileNotFoundError:
+        pass
+
+    shutil.copytree(os.path.join(manual_path, "VIS_CTI_Dynesty"), os.path.join(nest_path, "VIS_CTI_Dynesty"))
 
     edenise(
         root_directory=PYAUTOCTI_PATH,
         name="autocti",
         eden_prefix=eden_prefix,
         eden_dependencies=["autoconf", "autofit", "autoarray"],
-        eden_path=eden_path
+        eden_path=build_path,
     )
 
     replace_strings(
         eden_path=eden_path,
-        eden_prefix=eden_prefix,
         replace_dict=replace_dict,
     )
 
     remove_files(
-        eden_path=eden_path, eden_prefix=eden_prefix, remove_list=remove_list
+        eden_path=eden_path, remove_list=remove_list
     )
+
+    move_test_files(tests_path=tests_path, eden_path=eden_path)
 
     black(eden_path=eden_path)
     clearCache(eden_path=eden_path)

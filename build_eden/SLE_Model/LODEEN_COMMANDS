@@ -1,0 +1,19 @@
+git clone https://gitlab.euclid-sgs.uk/PF-SHE/SHE_CTICorrection.git
+cd SHE_CTICorrection
+make install
+cd ..
+git clone https://gitlab.euclid-sgs.uk/PF-VIS/SLE_Model.git -b SC4_James
+mv -i SC4_James/ SLE_Model
+cd SLE_Model
+make install
+ERun SLE_Model runremoveCTI --i path/to/data/file.fits --o out.fits
+
+ERun SLE_Model 5.0.0 VIS_correct_cti --i $INTPATH/dataset/science.fits.001 --o $INTPATH/dataset/out.fits --cti_model=$INTPATH/cti_model_v540_BOL.json --cti_clocker=$INTPATH/cti_clocker_v540.json
+ERun SLE_Model 5.0.0 VIS_simulate_ci --o /home/user/Work/Projects/dataset --configpath /home/user/Work/Projects/SLE_Model/config
+ERun SLE_Model 5.0.0 VIS_calibrate_ci --d /home/user/Work/Projects/dataset --o /home/user/Work/Projects/output --configpath /home/user/Work/Projects/SLE_Model/config
+
+sudo mount -t vboxsf PyAuto /home/user/PyAuto/
+
+Run from the ctical directory.
+
+E-Run VIS_Tasks 4.4 SLE_Model_Calibration --workdir=/home/user/euclid-ial/workspace/ctical/ --logdir=logdir/gather_cti_quads --config=VIS_science_xml_in/config.cfg --input_ccd=ccd_list.json_cti.10.json --cti_output=test_cti_out/producta.json

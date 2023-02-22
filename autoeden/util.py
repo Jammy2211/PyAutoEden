@@ -20,7 +20,7 @@ def clearCache(eden_path):
             shutil.rmtree(root, ignore_errors=False)
 
 
-def replace_strings(eden_path: str, eden_prefix: str, replace_dict: Dict):
+def replace_strings(eden_path: str, replace_dict: Dict):
     """
     Replace all strings in an edenised project with alternative strings.
 
@@ -34,15 +34,13 @@ def replace_strings(eden_path: str, eden_prefix: str, replace_dict: Dict):
     ----------
     eden_path
         The path to the eden project, which should be in the `build_eden` folder.
-    eden_prefix
-        The prefix of the eden project, for example `VIS_CTI` for the project VIS_CTI.
     replace_dict
         The dictionary of strings which are replaced, where keys are the strings searched for in the EDEN project and
         values their replacements.
     """
     os.chdir(eden_path)
 
-    for x in [t[0] for t in os.walk(f"/{eden_prefix}")]:
+    for x in [t[0] for t in os.walk(".")]:
 
         pth = f"{eden_path}/{x}"
         os.chdir(pth)
@@ -57,7 +55,7 @@ def replace_strings(eden_path: str, eden_prefix: str, replace_dict: Dict):
     os.chdir(eden_path)
 
 
-def remove_files(eden_path: str, eden_prefix: str, remove_list: List):
+def remove_files(eden_path: str, remove_list: List):
     """
     Remove modules and packages in an EDEN project based an input list of strings.
 
@@ -70,13 +68,12 @@ def remove_files(eden_path: str, eden_prefix: str, remove_list: List):
     ----------
     eden_path
         The path to the eden project, which should be in the `build_eden` folder.
-    eden_prefix
-        The prefix of the eden project, for example `VIS_CTI` for the project VIS_CTI.
     remove_list
         The list of strings containing the names of the modules and packages that are to be removed.
     """
+    os.chdir(eden_path)
 
-    for x in [t[0] for t in os.walk(f"{eden_prefix}")]:
+    for x in [t[0] for t in os.walk(".")]:
 
         pth = f"{eden_path}/{x}"
 
@@ -97,6 +94,34 @@ def remove_files(eden_path: str, eden_prefix: str, remove_list: List):
 
         except FileNotFoundError:
             pass
+
+    os.chdir(eden_path)
+
+
+def move_test_files(tests_path: str, eden_path: str):
+    """
+    Move test files from the `scripts/tests` folder to their respective test folder in the `build_eden` project.
+
+    This loads a `test_dict`, which is a dictionary where the keys are the nexts of the test files in `scripts/tests`
+    and the values are the folder of `build_eden` the test go in.
+
+    Parameters
+    ----------
+    tests_path
+        The path to the tests which are copied to the eden project.
+    eden_path
+        The path to the eden project, which should be in the `build_eden` folder.
+    """
+    os.chdir(tests_path)
+
+    with open("test_dict.json") as json_file:
+        test_dict = dict(json.load(json_file))
+
+    for key, value in test_dict.items():
+
+        build_path = f"{eden_path}/{value}/tests/python"
+
+        shutil.copy(key, build_path)
 
     os.chdir(eden_path)
 

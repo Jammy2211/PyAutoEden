@@ -1,0 +1,16 @@
+2022-11-14 15:19:37,295 - VIS_CTI_Autofit.VIS_CTI_NonLinear.abstract_search - INFO - Creating search
+2022-11-14 15:19:37,364 - VIS_CTI_Autofit.VIS_CTI_NonLinear.abstract_search - INFO - Creating search
+2022-11-14 15:19:37,364 - VIS_CTI_Autofit.VIS_CTI_NonLinear.abstract_search - INFO - Creating search
+2022-11-14 15:19:37,364 - VIS_CTI_Autofit.VIS_CTI_NonLinear.abstract_search - INFO - Creating search
+2022-11-14 15:23:43,451 - VIS_CTI_Autoarray.VIS_CTI_Plot.VIS_CTI_Wrap.VIS_CTI_Base.cmap - INFO - 
+                    Cannot make symmetric Cmap (e.g. vmax = -vmin) because 
+                    both vmin and vmax are positive or negative.
+                    
+2022-11-14 15:23:43,488 - VIS_CTI_Autoarray.VIS_CTI_Plot.VIS_CTI_Wrap.VIS_CTI_Base.cmap - INFO - 
+                    Cannot make symmetric Cmap (e.g. vmax = -vmin) because 
+                    both vmin and vmax are positive or negative.
+                    
+2022-11-14 15:23:44,191 - VIS_CTI_Autoarray.VIS_CTI_Plot.VIS_CTI_Wrap.VIS_CTI_Base.cmap - INFO - 
+                    Cannot make symmetric Cmap (e.g. vmax = -vmin) because 
+                    both vmin and vmax are positive or negative.
+                    

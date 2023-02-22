@@ -1,0 +1,4 @@
+{
+    "test_basis.py": "SLE_Model_Autogalaxy",
+    "test_fit_imaging.py": "SLE_Model_Autolens"
+}

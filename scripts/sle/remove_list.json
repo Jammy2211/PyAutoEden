@@ -1,0 +1,8 @@
+[
+    "update_identifiers.py",
+    "result_builder.py",
+    "SLE_Model_Zeus",
+    "SLE_Model_Emcee",
+    "SLE_Model_Ultranest",
+    "SLE_Model_Pyswarms"
+]

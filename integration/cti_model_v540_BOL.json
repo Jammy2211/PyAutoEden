@@ -1,0 +1,44 @@
+{
+    "type": "VIS_CTI_Autocti.VIS_CTI_Model.model_util.CTI2D",
+    "parallel_trap_list": [
+        {
+            "type": "SHE_ArCTICPy.traps.TrapInstantCapture",
+            "density": 0.003312,
+            "release_timescale": 1.25
+        },
+        {
+            "type": "SHE_ArCTICPy.traps.TrapInstantCapture",
+            "density": 0.00637,
+            "release_timescale": 4.4
+        }
+    ],
+    "parallel_ccd": {
+        "type": "SHE_ArCTICPy.ccd.CCDPhase",
+        "full_well_depth": 200000,
+        "well_notch_depth": 1e-09,
+        "well_fill_power": 0.58
+    },
+    "serial_trap_list": [
+        {
+            "type": "SHE_ArCTICPy.traps.TrapInstantCapture",
+            "density": 0.000884,
+            "release_timescale": 0.8
+        },
+        {
+            "type": "SHE_ArCTICPy.traps.TrapInstantCapture",
+            "density": 0.002652,
+            "release_timescale": 2.5
+        },
+        {
+            "type": "SHE_ArCTICPy.traps.TrapInstantCapture",
+            "density": 0.07956400000000001,
+            "release_timescale": 20.0
+        }
+    ],
+    "serial_ccd": {
+        "type": "SHE_ArCTICPy.ccd.CCDPhase",
+        "full_well_depth": 200000,
+        "well_notch_depth": 1e-09,
+        "well_fill_power": 0.58
+    }
+}
