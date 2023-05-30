@@ -1,4 +1,7 @@
 {
+    "test_dynesty.py": "SLE_Model_Autofit",
+    "test_array_2d.py": "SLE_Model_Autoarray",
+    "test_config.py": "SLE_Model_Autoconf",
     "test_basis.py": "SLE_Model_Autogalaxy",
     "test_fit_imaging.py": "SLE_Model_Autolens"
 }

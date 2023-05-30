@@ -5,20 +5,17 @@ They appear as follows:
 
 .. code-block:: bash
 
-    "IsothermalSph": {
-        "einstein_radius": {
-            "type": "Uniform",
-            "lower_limit": 0.0,
-            "upper_limit": 4.0,
-            "width_modifier": {
-                "type": "Absolute",
-                "value": 0.2
-            },
-            "gaussian_limits": {
-                "lower": 0.0,
-                "upper": "inf"
-            }
-        }
+    Sersic:
+      effective_radius:
+        type: Uniform
+        lower_limit: 0.0
+        upper_limit: 100.0
+        width_modifier:
+          type: Absolute
+          value: 20.0
+        gaussian_limits:
+          lower: -inf
+          upper: inf
 
 The sections of this example config set the following:
 
@@ -35,3 +32,6 @@ The sections of this example config set the following:
         When the results of a search are passed to a subsequent search, they are passed using a GaussianPrior. The
         gaussian_limits set the physical lower and upper limits of this GaussianPrior, such that parameter samples
         can not go beyond these limits.
+
+The files ``template_module.yaml`` and ``TemplateObject.yaml`` give templates one can use to set up prior default
+configs for your own model components.

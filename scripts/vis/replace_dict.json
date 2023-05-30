@@ -20,5 +20,15 @@
     "from VIS_CTI_Autofit.VIS_CTI_NonLinear.VIS_CTI_Optimize.VIS_CTI_Pyswarms.plotter import PySwarmsPlotter": "",
     "from VIS_CTI_Autofit.VIS_CTI_NonLinear.VIS_CTI_Mcmc.VIS_CTI_Emcee.plotter import EmceePlotter": "",
     "from VIS_CTI_Autofit.VIS_CTI_NonLinear.VIS_CTI_Nest.VIS_CTI_Dynesty.plotter import DynestyPlotter": "",
+    "from VIS_CTI_Autofit.VIS_CTI_NonLinear.VIS_CTI_Mcmc.VIS_CTI_Emcee.emcee import Emcee": "",
+    "from VIS_CTI_Autofit.VIS_CTI_NonLinear.VIS_CTI_Mcmc.VIS_CTI_Zeus.zeus import Zeus": "",
+    "from VIS_CTI_Autofit.VIS_CTI_NonLinear.VIS_CTI_Nest.VIS_CTI_Ultranest.ultranest import UltraNest": "",
+    "from VIS_CTI_Autofit.VIS_CTI_NonLinear.VIS_CTI_Optimize.VIS_CTI_Pyswarms.globe import PySwarmsGlobal": "",
+    "from VIS_CTI_Autofit.VIS_CTI_NonLinear.VIS_CTI_Optimize.VIS_CTI_Pyswarms.local import PySwarmsLocal": "",
+    "original_create_file_handle = pickle._pickle._create_filehandle": "",
+    "pickle._pickle._create_filehandle = _create_file_handle": "",
+    "@register(abc.ABCMeta)": "",
+    "def save_abc(pickler, obj):": "",
+    "pickle._Pickler.save_type(pickler, obj)": "",
     "dir(messages)": ""
 }

@@ -1,8 +1,8 @@
-HyperCINoiseScalar:
-  scale_factor:
-    type: Uniform
-    lower_limit: 0.0
-    upper_limit: 10.0
+ConstantSplit:
+  coefficient:
+    type: LogUniform
+    lower_limit: 1.0e-06
+    upper_limit: 1000000.0
     width_modifier:
       type: Relative
       value: 0.5

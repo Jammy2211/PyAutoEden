@@ -5,7 +5,7 @@ import shutil
 BUILD_PATH = os.getcwd()
 
 EDEN_PATH = f"{os.getcwd()}/../eden"
-SHE_ARCTIC_PATH = f"{os.getcwd()}/../SHE_Arctic"
+SHE_ARCTIC_PATH = f"{os.getcwd()}/../build_eden/SHE_Arctic"
 
 FILES_OMIT = []
 

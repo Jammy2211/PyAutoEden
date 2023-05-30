@@ -6,14 +6,15 @@ import shutil
 from autoeden import edenise
 from autoeden.util import clearCache, replace_strings, remove_files, move_test_files, black
 
-PYAUTOCONF_PATH = f"{os.getcwd()}/../../PyAutoConf"
-PYAUTOFIT_PATH = f"{os.getcwd()}/../../PyAutoFit"
-PYAUTOARRAY_PATH = f"{os.getcwd()}/../../PyAutoArray"
-PYAUTOGALAXY_PATH = f"{os.getcwd()}/../../PyAutoGalaxy"
-PYAUTOLENS_PATH = f"{os.getcwd()}/../../PyAutoLens"
+PYAUTOCONF_PATH = f"{os.getcwd()}/../../../PyAuto/PyAutoConf"
+PYAUTOFIT_PATH = f"{os.getcwd()}/../../../PyAuto/PyAutoFit"
+PYAUTOARRAY_PATH = f"{os.getcwd()}/../../../PyAuto/PyAutoArray"
+PYAUTOGALAXY_PATH = f"{os.getcwd()}/../../../PyAuto/PyAutoGalaxy"
+PYAUTOLENS_PATH = f"{os.getcwd()}/../../../PyAuto/PyAutoLens"
+
+eden_prefix = "SLE_Model"
 
 build_path = f"{os.getcwd()}/../build_eden"
-eden_prefix = "SLE_Model"
 eden_path = f"{os.getcwd()}/../build_eden/{eden_prefix}"
 tests_path = f"{os.getcwd()}/sle/tests"
 manual_path = f"{os.getcwd()}/sle/manual"
@@ -33,50 +34,50 @@ def main():
     with open("sle/remove_list.json") as json_file:
         remove_list = json.load(json_file)
 
-    # edenise(
-    #     root_directory=PYAUTOCONF_PATH,
-    #     name="autoconf",
-    #     eden_prefix=eden_prefix,
-    #     eden_dependencies=None,
-    #     eden_path=build_path,
-    #     should_remove_type_annotations=True,
-    # )
-    #
-    # edenise(
-    #     root_directory=PYAUTOFIT_PATH,
-    #     name="autofit",
-    #     eden_prefix=eden_prefix,
-    #     eden_dependencies=["autoconf"],
-    #     eden_path=build_path,
-    #     should_remove_type_annotations=True,
-    # )
-    #
-    # edenise(
-    #     root_directory=PYAUTOARRAY_PATH,
-    #     name="autoarray",
-    #     eden_prefix=eden_prefix,
-    #     eden_dependencies=["autoconf"],
-    #     eden_path=build_path,
-    #     should_remove_type_annotations=True,
-    # )
-    #
-    # nest_path = os.path.join(build_path, "SLE_Model", "SLE_Model_Autofit", "python", "SLE_Model_Autofit", "SLE_Model_NonLinear", "SLE_Model_Nest")
-    #
-    # try:
-    #     shutil.rmtree(os.path.join(nest_path, "SLE_Model_Dynesty"))
-    # except FileNotFoundError:
-    #     pass
-    #
-    # shutil.copytree(os.path.join(manual_path, "SLE_Model_Dynesty"), os.path.join(nest_path, "SLE_Model_Dynesty"))
-    #
-    # edenise(
-    #     root_directory=PYAUTOGALAXY_PATH,
-    #     name="autogalaxy",
-    #     eden_prefix=eden_prefix,
-    #     eden_dependencies=["autoconf", "autofit", "autoarray"],
-    #     eden_path=build_path,
-    #     should_remove_type_annotations=True,
-    # )
+    edenise(
+        root_directory=PYAUTOCONF_PATH,
+        name="autoconf",
+        eden_prefix=eden_prefix,
+        eden_dependencies=None,
+        eden_path=build_path,
+        should_remove_type_annotations=True,
+    )
+
+    edenise(
+        root_directory=PYAUTOFIT_PATH,
+        name="autofit",
+        eden_prefix=eden_prefix,
+        eden_dependencies=["autoconf"],
+        eden_path=build_path,
+        should_remove_type_annotations=True,
+    )
+
+    edenise(
+        root_directory=PYAUTOARRAY_PATH,
+        name="autoarray",
+        eden_prefix=eden_prefix,
+        eden_dependencies=["autoconf"],
+        eden_path=build_path,
+        should_remove_type_annotations=True,
+    )
+
+    nest_path = os.path.join(build_path, "SLE_Model", "SLE_Model_Autofit", "python", "SLE_Model_Autofit", "SLE_Model_NonLinear", "SLE_Model_Nest")
+
+    try:
+        shutil.rmtree(os.path.join(nest_path, "SLE_Model_Dynesty"))
+    except FileNotFoundError:
+        pass
+
+    shutil.copytree(os.path.join(manual_path, "SLE_Model_Dynesty"), os.path.join(nest_path, "SLE_Model_Dynesty"))
+
+    edenise(
+        root_directory=PYAUTOGALAXY_PATH,
+        name="autogalaxy",
+        eden_prefix=eden_prefix,
+        eden_dependencies=["autoconf", "autofit", "autoarray"],
+        eden_path=build_path,
+        should_remove_type_annotations=True,
+    )
 
     edenise(
         root_directory=PYAUTOLENS_PATH,

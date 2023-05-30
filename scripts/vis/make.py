@@ -6,10 +6,10 @@ from autoeden import edenise
 
 from autoeden.util import clearCache, replace_strings, remove_files, move_test_files, black
 
-PYAUTOCONF_PATH = f"{os.getcwd()}/../../PyAutoConf"
-PYAUTOFIT_PATH = f"{os.getcwd()}/../../PyAutoFit"
-PYAUTOARRAY_PATH = f"{os.getcwd()}/../../PyAutoArray"
-PYAUTOCTI_PATH = f"{os.getcwd()}/../../PyAutoCTI"
+PYAUTOCONF_PATH = f"{os.getcwd()}/../../../PyAuto/PyAutoConf"
+PYAUTOFIT_PATH = f"{os.getcwd()}/../../../PyAuto/PyAutoFit"
+PYAUTOARRAY_PATH = f"{os.getcwd()}/../../../PyAuto/PyAutoArray"
+PYAUTOCTI_PATH = f"{os.getcwd()}/../../../PyAuto/PyAutoCTI"
 
 eden_prefix = "VIS_CTI"
 
@@ -68,6 +68,9 @@ def main():
         pass
 
     shutil.copytree(os.path.join(manual_path, "VIS_CTI_Dynesty"), os.path.join(nest_path, "VIS_CTI_Dynesty"))
+
+    model_path = os.path.join(build_path, "VIS_CTI", "VIS_CTI_Autocti", "python", "VIS_CTI_Autocti", "VIS_CTI_Model")
+    shutil.copy(os.path.join(manual_path, "VIS_CTI_Model", "model_util.py"), model_path)
 
     edenise(
         root_directory=PYAUTOCTI_PATH,

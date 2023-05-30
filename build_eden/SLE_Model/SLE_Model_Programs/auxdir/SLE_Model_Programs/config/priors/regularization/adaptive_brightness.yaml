@@ -1,58 +1,62 @@
-TrapInstantCapture:
-  density:
-    type: Uniform
-    lower_limit: 0.0
-    upper_limit: 10.0
+AdaptiveBrightness:
+  inner_coefficient:
+    type: LogUniform
+    lower_limit: 1.0e-06
+    upper_limit: 1000000.0
     width_modifier:
       type: Relative
       value: 0.5
     gaussian_limits:
       lower: 0.0
       upper: inf
-  release_timescale:
-    type: Uniform
-    lower_limit: 0.0
-    upper_limit: 50.0
+  outer_coefficient:
+    type: LogUniform
+    lower_limit: 1.0e-06
+    upper_limit: 1000000.0
     width_modifier:
       type: Relative
       value: 0.5
     gaussian_limits:
       lower: 0.0
       upper: inf
-  fractional_volume_none_exposed:
-    type: Constant
-    value: 0.0
-  fractional_volume_full_exposed:
-    type: Constant
-    value: 0.0
-TrapInstantCaptureContinuum:
-  density:
-    type: Uniform
-    lower_limit: 0.0
-    upper_limit: 10.0
-    width_modifier:
-      type: Relative
-      value: 0.5
-    gaussian_limits:
-      lower: 0.0
-      upper: inf
-  release_timescale:
-    type: Uniform
-    lower_limit: 0.0
-    upper_limit: 50.0
-    width_modifier:
-      type: Relative
-      value: 0.5
-    gaussian_limits:
-      lower: 0.0
-      upper: inf
-  release_timescale_sigma:
+  signal_scale:
     type: Uniform
     lower_limit: 0.0
     upper_limit: 1.0
     width_modifier:
       type: Relative
+      value: 0.2
+    gaussian_limits:
+      lower: 0.0
+      upper: inf
+AdaptiveBrightnessSplit:
+  inner_coefficient:
+    type: LogUniform
+    lower_limit: 1.0e-06
+    upper_limit: 1000000.0
+    width_modifier:
+      type: Relative
       value: 0.5
+    gaussian_limits:
+      lower: 0.0
+      upper: inf
+  outer_coefficient:
+    type: LogUniform
+    lower_limit: 1.0e-06
+    upper_limit: 1000000.0
+    width_modifier:
+      type: Relative
+      value: 0.5
+    gaussian_limits:
+      lower: 0.0
+      upper: inf
+  signal_scale:
+    type: Uniform
+    lower_limit: 0.0
+    upper_limit: 1.0
+    width_modifier:
+      type: Relative
+      value: 0.2
     gaussian_limits:
       lower: 0.0
       upper: inf

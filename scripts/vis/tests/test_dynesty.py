@@ -7,6 +7,7 @@ import VIS_CTI_Autofit as af
 
 pytestmark = pytest.mark.filterwarnings("ignore::FutureWarning")
 
+
 class MockDynestyResults:
     def __init__(self, samples, logl, logwt, ncall, logz, nlive):
         self.samples = samples
@@ -21,8 +22,8 @@ class MockDynestySampler:
     def __init__(self, results):
         self.results = results
 
-class TestDynestyConfig:
 
+class TestDynestyConfig:
     def test__loads_from_config_file_if_not_input(self):
         dynesty = af.DynestyStatic(
             prior_passer=af.PriorPasser(sigma=2.0, use_errors=False, use_widths=False),
@@ -74,7 +75,7 @@ class TestDynestyConfig:
         assert dynesty.prior_passer.sigma == 3.0
         assert dynesty.prior_passer.use_errors is True
         assert dynesty.prior_passer.use_widths is True
-        assert dynesty.iterations_per_update == 2500
+        assert dynesty.iterations_per_update == 500
 
         assert dynesty.config_dict_search["facc"] == 0.2
         assert dynesty.config_dict_run["dlogz_init"] == 0.01

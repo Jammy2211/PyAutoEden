@@ -31,8 +31,6 @@ FillBetween:         # wrapper for `plt.fill_between()`: customize how fill betw
 YXPlot:              # wrapper for `plt.plot()`: customize plots of y versus x.
   figure:
     c: k
-    linewidth: 1
-    ms: 2
   subplot:
     c: k
 YXScatter:
