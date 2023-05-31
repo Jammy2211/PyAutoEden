@@ -15,7 +15,6 @@ def make_fit_ci_plotter_setup():
 def test__individual_attribute_plots__all_plot_correctly(
     fit_ci_7x7, plot_path, plot_patch
 ):
-
     fit_ci_plotter = aplt.FitImagingCIPlotter(
         fit=fit_ci_7x7,
         mat_plot_2d=aplt.MatPlot2D(output=aplt.Output(plot_path, format="png")),
@@ -23,7 +22,7 @@ def test__individual_attribute_plots__all_plot_correctly(
     )
 
     fit_ci_plotter.figures_2d(
-        image=True,
+        data=True,
         noise_map=True,
         signal_to_noise_map=True,
         pre_cti_data=True,
@@ -33,7 +32,7 @@ def test__individual_attribute_plots__all_plot_correctly(
         chi_squared_map=True,
     )
 
-    assert path.join(plot_path, "image_2d.png") in plot_patch.paths
+    assert path.join(plot_path, "data.png") in plot_patch.paths
     assert path.join(plot_path, "noise_map.png") in plot_patch.paths
     assert path.join(plot_path, "signal_to_noise_map.png") in plot_patch.paths
     assert path.join(plot_path, "pre_cti_data.png") in plot_patch.paths
@@ -45,7 +44,7 @@ def test__individual_attribute_plots__all_plot_correctly(
     plot_patch.paths = []
 
     fit_ci_plotter.figures_2d(
-        image=True,
+        data=True,
         noise_map=False,
         signal_to_noise_map=False,
         pre_cti_data=True,
@@ -53,7 +52,7 @@ def test__individual_attribute_plots__all_plot_correctly(
         chi_squared_map=True,
     )
 
-    assert path.join(plot_path, "image_2d.png") in plot_patch.paths
+    assert path.join(plot_path, "data.png") in plot_patch.paths
     assert path.join(plot_path, "noise_map.png") not in plot_patch.paths
     assert path.join(plot_path, "signal_to_noise_map.png") not in plot_patch.paths
     assert path.join(plot_path, "pre_cti_data.png") in plot_patch.paths
@@ -65,16 +64,15 @@ def test__individual_attribute_plots__all_plot_correctly(
 def test__individual_line_attriutes_plot__all_plot_correctly_output(
     fit_ci_7x7, plot_path, plot_patch
 ):
-
     fit_ci_plotter = aplt.FitImagingCIPlotter(
         fit=fit_ci_7x7,
         mat_plot_2d=aplt.MatPlot2D(output=aplt.Output(plot_path, format="png")),
         mat_plot_1d=aplt.MatPlot1D(output=aplt.Output(plot_path, format="png")),
     )
 
-    fit_ci_plotter.figures_1d_of_region(
+    fit_ci_plotter.figures_1d(
         region="parallel_fpr",
-        image=True,
+        data=True,
         noise_map=True,
         signal_to_noise_map=True,
         pre_cti_data=True,
@@ -84,7 +82,7 @@ def test__individual_line_attriutes_plot__all_plot_correctly_output(
         chi_squared_map=True,
     )
 
-    assert path.join(plot_path, "image_parallel_fpr.png") in plot_patch.paths
+    assert path.join(plot_path, "data_parallel_fpr.png") in plot_patch.paths
     assert path.join(plot_path, "noise_map_parallel_fpr.png") in plot_patch.paths
     assert (
         path.join(plot_path, "signal_to_noise_map_parallel_fpr.png") in plot_patch.paths
@@ -100,9 +98,9 @@ def test__individual_line_attriutes_plot__all_plot_correctly_output(
 
     plot_patch.paths = []
 
-    fit_ci_plotter.figures_1d_of_region(
+    fit_ci_plotter.figures_1d(
         region="parallel_fpr",
-        image=True,
+        data=True,
         noise_map=False,
         signal_to_noise_map=False,
         pre_cti_data=True,
@@ -110,7 +108,7 @@ def test__individual_line_attriutes_plot__all_plot_correctly_output(
         chi_squared_map=True,
     )
 
-    assert path.join(plot_path, "image_parallel_fpr.png") in plot_patch.paths
+    assert path.join(plot_path, "data_parallel_fpr.png") in plot_patch.paths
     assert path.join(plot_path, "noise_map_parallel_fpr.png") not in plot_patch.paths
     assert (
         path.join(plot_path, "signal_to_noise_map_parallel_fpr.png")
@@ -123,17 +121,16 @@ def test__individual_line_attriutes_plot__all_plot_correctly_output(
 
 
 def test__fit_ci_subplots_are_output(fit_ci_7x7, plot_path, plot_patch):
-
     fit_ci_plotter = aplt.FitImagingCIPlotter(
         fit=fit_ci_7x7,
         mat_plot_2d=aplt.MatPlot2D(output=aplt.Output(plot_path, format="png")),
         mat_plot_1d=aplt.MatPlot1D(output=aplt.Output(plot_path, format="png")),
     )
 
-    fit_ci_plotter.subplot_fit_ci()
-    assert path.join(plot_path, "subplot_fit_ci.png") in plot_patch.paths
+    fit_ci_plotter.subplot_fit()
+    assert path.join(plot_path, "subplot_fit.png") in plot_patch.paths
 
-    fit_ci_plotter.subplot_1d_of_region(region="parallel_fpr")
+    fit_ci_plotter.subplot_1d(region="parallel_fpr")
     assert (
         path.join(plot_path, "subplot_1d_fit_ci_parallel_fpr.png") in plot_patch.paths
     )
@@ -142,5 +139,4 @@ def test__fit_ci_subplots_are_output(fit_ci_7x7, plot_path, plot_patch):
     assert (
         path.join(plot_path, "subplot_noise_scaling_map_dict.png") in plot_patch.paths
     )
-
 

@@ -17,7 +17,8 @@ def edenise(
         target_path=None,
         eden_path=None,
         should_rename_modules=False,
-        should_remove_type_annotations=False
+        should_remove_type_annotations=False,
+        should_move_config=True,
 ):
     target_path = target_path or f"{os.getcwd()}/../build_target/{name}_eden"
     eden_path = eden_path or f"{os.getcwd()}/../build_eden/{eden_prefix}"
@@ -49,3 +50,14 @@ def edenise(
     package.generate_target(
         eden_path
     )
+
+    if should_move_config:
+
+        config_path = target_path / name / "config"
+
+        if os.path.exists(config_path):
+
+            shutil.copytree(
+                src=target_path / name / "config",
+                dst=eden_path / eden_prefix / f"VIS_CTI_{name.capitalize()}"
+            )
