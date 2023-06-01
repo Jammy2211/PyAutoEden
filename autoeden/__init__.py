@@ -53,11 +53,17 @@ def edenise(
 
     if should_move_config:
 
-        config_path = target_path / name / "config"
+        src = target_path / name / "config"
+        dst = eden_path / eden_prefix / f"VIS_CTI_{name.capitalize()}" / "python" / f"VIS_CTI_{name.capitalize()}" / "config"
 
-        if os.path.exists(config_path):
+        if os.path.exists(src):
+
+            try:
+                shutil.rmtree(path=dst)
+            except FileNotFoundError:
+                pass
 
             shutil.copytree(
-                src=target_path / name / "config",
-                dst=eden_path / eden_prefix / f"VIS_CTI_{name.capitalize()}"
+                src=src,
+                dst=dst
             )

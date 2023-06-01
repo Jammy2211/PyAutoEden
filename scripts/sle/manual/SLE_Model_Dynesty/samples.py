@@ -2,11 +2,11 @@ from dynesty.results import Results
 from dynesty import utils as dyfunc
 import numpy as np
 from typing import Optional
-from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.abstract import (
+from VIS_CTI_Autofit.VIS_CTI_Mapper.VIS_CTI_PriorModel.abstract import (
     AbstractPriorModel,
 )
-from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples import Sample
-from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.nest import SamplesNest
+from VIS_CTI_Autofit.VIS_CTI_NonLinear.VIS_CTI_Samples import Sample
+from VIS_CTI_Autofit.VIS_CTI_NonLinear.VIS_CTI_Samples.nest import SamplesNest
 
 
 class SamplesDynesty(SamplesNest):

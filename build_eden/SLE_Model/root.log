@@ -1,0 +1,146 @@
+2023-05-30 15:16:27,659 - SLE_Model_Autofit.SLE_Model_NonLinear.abstract_search - INFO - Creating search
+2023-05-30 15:16:27,826 - SLE_Model_Autofit.SLE_Model_NonLinear.abstract_search - INFO - Creating search
+2023-05-30 15:16:27,826 - SLE_Model_Autofit.SLE_Model_NonLinear.abstract_search - INFO - Creating search
+2023-05-30 15:16:27,827 - SLE_Model_Autofit.SLE_Model_NonLinear.abstract_search - INFO - Creating search
+2023-05-30 15:25:54,060 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:25:54,061 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:25:55,106 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:25:55,356 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:25:55,379 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:25:55,402 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:25:55,427 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:25:55,428 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Abstract.dataset - INFO - 
+                    No noise map was input into the Imaging class, but a `noise_covariance_matrix` was.
+    
+                    Using the diagonal of the `noise_covariance_matrix` to create the `noise_map`. 
+    
+                    This `noise-map` is used only for visualization where it is not appropriate to plot covariance.
+                    
+2023-05-30 15:25:55,899 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:25:55,937 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:25:55,962 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:25:56,570 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:25:56,595 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:25:56,943 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:25:57,003 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:25:57,040 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:25:57,074 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:25:57,090 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:27:25,854 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:27:25,855 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:27:25,891 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:27:26,180 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:27:26,222 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:27:26,321 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:27:26,350 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:27:26,351 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Abstract.dataset - INFO - 
+                    No noise map was input into the Imaging class, but a `noise_covariance_matrix` was.
+    
+                    Using the diagonal of the `noise_covariance_matrix` to create the `noise_map`. 
+    
+                    This `noise-map` is used only for visualization where it is not appropriate to plot covariance.
+                    
+2023-05-30 15:27:26,362 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:27:26,400 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:27:26,433 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:27:26,541 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:27:34,693 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:27:34,740 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:27:34,798 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:27:34,839 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:27:34,873 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:27:34,891 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:32,289 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:32,291 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:32,327 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:32,623 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:32,650 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:32,751 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:32,785 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:32,786 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Abstract.dataset - INFO - 
+                    No noise map was input into the Imaging class, but a `noise_covariance_matrix` was.
+    
+                    Using the diagonal of the `noise_covariance_matrix` to create the `noise_map`. 
+    
+                    This `noise-map` is used only for visualization where it is not appropriate to plot covariance.
+                    
+2023-05-30 15:28:32,798 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:32,842 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:32,872 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:32,997 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:33,171 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:33,216 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:33,277 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:33,318 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:33,351 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:33,370 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:50,218 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:50,219 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:50,251 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:50,252 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Abstract.dataset - INFO - 
+                    No noise map was input into the Imaging class, but a `noise_covariance_matrix` was.
+    
+                    Using the diagonal of the `noise_covariance_matrix` to create the `noise_map`. 
+    
+                    This `noise-map` is used only for visualization where it is not appropriate to plot covariance.
+                    
+2023-05-30 15:28:50,263 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:50,531 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:50,635 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:50,799 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:50,849 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:50,910 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:50,950 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:50,985 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:28:51,002 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:39:38,154 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:39:38,156 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:39:38,189 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:39:38,190 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Abstract.dataset - INFO - 
+                    No noise map was input into the Imaging class, but a `noise_covariance_matrix` was.
+    
+                    Using the diagonal of the `noise_covariance_matrix` to create the `noise_map`. 
+    
+                    This `noise-map` is used only for visualization where it is not appropriate to plot covariance.
+                    
+2023-05-30 15:39:38,200 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:39:38,473 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:39:38,573 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:39:38,750 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:39:38,797 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:39:38,859 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:39:38,966 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:39:39,000 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:39:39,016 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:42:06,012 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:42:06,015 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:42:06,066 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:42:06,320 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:42:06,371 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:42:06,438 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:42:06,478 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:42:06,497 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:56:41,830 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:56:41,831 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:56:42,802 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:56:50,254 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:56:50,568 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:56:50,623 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:56:50,657 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-05-30 15:56:50,681 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-06-01 17:02:25,965 - SLE_Model_Autofit.SLE_Model_NonLinear.abstract_search - INFO - Creating search
+2023-06-01 17:02:26,234 - SLE_Model_Autofit.SLE_Model_NonLinear.abstract_search - INFO - Creating search
+2023-06-01 17:02:26,235 - SLE_Model_Autofit.SLE_Model_NonLinear.abstract_search - INFO - Creating search
+2023-06-01 17:02:26,236 - SLE_Model_Autofit.SLE_Model_NonLinear.abstract_search - INFO - Creating search
+2023-06-01 17:02:50,548 - SLE_Model_Autofit.SLE_Model_NonLinear.abstract_search - INFO - Creating search
+2023-06-01 17:02:50,727 - SLE_Model_Autofit.SLE_Model_NonLinear.abstract_search - INFO - Creating search
+2023-06-01 17:02:50,727 - SLE_Model_Autofit.SLE_Model_NonLinear.abstract_search - INFO - Creating search
+2023-06-01 17:02:50,728 - SLE_Model_Autofit.SLE_Model_NonLinear.abstract_search - INFO - Creating search
+2023-06-01 17:04:15,481 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-06-01 17:04:15,482 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-06-01 17:04:16,525 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-06-01 17:04:24,567 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-06-01 17:04:24,845 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-06-01 17:04:24,898 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-06-01 17:04:24,929 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels
+2023-06-01 17:04:24,944 - SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.imaging - INFO - IMAGING - Data masked, contains a total of 9 image-pixels

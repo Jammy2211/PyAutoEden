@@ -2,19 +2,19 @@ from abc import ABC
 from os import path
 from typing import Optional
 import numpy as np
-from SLE_Model_Autoconf import conf
-from SLE_Model_Autofit.SLE_Model_Database.sqlalchemy_ import sa
-from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.abstract import (
+from VIS_CTI_Autoconf import conf
+from VIS_CTI_Autofit.VIS_CTI_Database.sqlalchemy_ import sa
+from VIS_CTI_Autofit.VIS_CTI_Mapper.VIS_CTI_PriorModel.abstract import (
     AbstractPriorModel,
 )
-from SLE_Model_Autofit.SLE_Model_NonLinear.abstract_search import PriorPasser
-from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Nest.abstract_nest import AbstractNest
+from VIS_CTI_Autofit.VIS_CTI_NonLinear.abstract_search import PriorPasser
+from VIS_CTI_Autofit.VIS_CTI_NonLinear.VIS_CTI_Nest.abstract_nest import AbstractNest
 
-from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Nest.SLE_Model_Dynesty.samples import (
+from VIS_CTI_Autofit.VIS_CTI_NonLinear.VIS_CTI_Nest.VIS_CTI_Dynesty.samples import (
     SamplesDynesty,
 )
-from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Nest.SLE_Model_Dynesty.plotter import DynestyPlotter
-from SLE_Model_Autofit.SLE_Model_Plot.output import Output
+
+from VIS_CTI_Autofit.VIS_CTI_Plot.output import Output
 
 
 def prior_transform(cube, model):
@@ -146,15 +146,15 @@ class AbstractDynesty(AbstractNest, ABC):
                 total_iterations = np.sum(sampler.results.ncall)
             except AttributeError:
                 total_iterations = 0
-            if self.config_dict_run["maxcall"] is not None:
-                iterations = self.config_dict_run["maxcall"] - total_iterations
-            else:
-                iterations = self.iterations_per_update
+            iterations = self.iterations_per_update
             if iterations > 0:
                 for i in range(10):
                     try:
                         config_dict_run = self.config_dict_run
-                        config_dict_run.pop("maxcall")
+                        try:
+                            config_dict_run.pop("maxcall")
+                        except KeyError:
+                            pass
                         sampler.run_nested(
                             maxcall=iterations,
                             print_progress=(not self.silence),
@@ -172,9 +172,7 @@ class AbstractDynesty(AbstractNest, ABC):
             sampler.loglikelihood = fitness_function
             self.perform_update(model=model, analysis=analysis, during_analysis=True)
             iterations_after_run = np.sum(sampler.results.ncall)
-            if (total_iterations == iterations_after_run) or (
-                total_iterations == self.config_dict_run["maxcall"]
-            ):
+            if total_iterations == iterations_after_run:
                 finished = True
 
     def sampler_from(self, model, fitness_function, pool=None):
@@ -256,6 +254,8 @@ class AbstractDynesty(AbstractNest, ABC):
 
         def should_plot(name):
             return conf.instance["visualize"]["plots_search"]["dynesty"][name]
+
+        from VIS_CTI_Autofit.VIS_CTI_NonLinear.VIS_CTI_Nest.VIS_CTI_Dynesty.plotter import DynestyPlotter
 
         plotter = DynestyPlotter(
             samples=samples,
