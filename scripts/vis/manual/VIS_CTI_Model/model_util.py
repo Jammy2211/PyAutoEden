@@ -1,10 +1,17 @@
 from typing import Optional, List
+
+from VIS_CTI_Autoconf.dictable import from_json
+
 from SHE_ArCTICPy import CCDPhase
 from SHE_ArCTICPy import TrapInstantCapture
-from VIS_CTI_Autoconf.dictable import Dictable
+from SHE_ArCTICPy import PixelBounce
 
 
 class AbstractCTI:
+    @staticmethod
+    def from_json(file_path):
+        return from_json(file_path=file_path)
+
     @property
     def trap_list(self):
         raise NotImplementedError
@@ -14,11 +21,13 @@ class AbstractCTI:
         return sum([trap.delta_ellipticity for trap in self.trap_list])
 
 
-class CTI1D(AbstractCTI, Dictable):
-    def __init__(self,
-                 trap_list: Optional[List[TrapInstantCapture]] = None,
-                 ccd: Optional[CCDPhase] = None,
-                 ):
+class CTI1D(AbstractCTI):
+    def __init__(
+        self,
+        trap_list: Optional[List[TrapInstantCapture]] = None,
+        ccd: Optional[CCDPhase] = None,
+        pixel_bounce_list : Optional[List[PixelBounce]] = None,
+    ):
         """
         An object which determines the behaviour of CTI during 1D clocking.
 
@@ -31,22 +40,27 @@ class CTI1D(AbstractCTI, Dictable):
         ccd
             The CCD volume filling parameterization which dictates how an electron cloud fills pixels and thus
             how it is subject to traps.
+        pixel_bounce_list
+            List of pixel bounce objects which describe the behaviour of electrons due to electronic pixel bounce.
         """
         self._trap_list = trap_list
         self.ccd = ccd
+        self.pixel_bounce_list = pixel_bounce_list
 
     @property
     def trap_list(self):
+
         return self._trap_list
 
 
-class CTI2D(AbstractCTI, Dictable):
+class CTI2D(AbstractCTI):
     def __init__(
         self,
         parallel_trap_list: Optional[List[TrapInstantCapture]] = None,
         parallel_ccd: Optional[CCDPhase] = None,
         serial_trap_list: Optional[List[TrapInstantCapture]] = None,
         serial_ccd: Optional[CCDPhase] = None,
+        pixel_bounce_list : Optional[List[PixelBounce]] = None,
     ):
         """
         An object which determines the behaviour of CTI during 2D parallel and serial clocking.
@@ -65,14 +79,17 @@ class CTI2D(AbstractCTI, Dictable):
         serial_ccd
             The CCD volume filling parameterization which dictates how an electron cloud fills pixel in the serial
              direction and thus how it is subject to traps.
+        pixel_bounce_list
+            List of pixel bounce objects which describe the behaviour of electrons due to electronic pixel bounce.
         """
         self.parallel_trap_list = parallel_trap_list
         self.parallel_ccd = parallel_ccd
         self.serial_trap_list = serial_trap_list
         self.serial_ccd = serial_ccd
+        self.pixel_bounce_list = pixel_bounce_list
 
     @property
-    def trap_list(self):
+    def trap_list(self) -> List[TrapInstantCapture]:
         """
         Combine the parallel and serial trap lists to make an overall list of traps in the model.
 
@@ -81,22 +98,8 @@ class CTI2D(AbstractCTI, Dictable):
         """
         parallel_traps = self.parallel_trap_list or []
         serial_traps = self.serial_trap_list or []
+
         return [trap for trap in parallel_traps] + [trap for trap in serial_traps]
 
 
-def is_parallel_fit(model):
-    if (model.parallel_ccd is not None) and (model.serial_ccd is None):
-        return True
-    return False
 
-
-def is_serial_fit(model):
-    if (model.parallel_ccd is None) and (model.serial_ccd is not None):
-        return True
-    return False
-
-
-def is_parallel_and_serial_fit(model):
-    if (model.parallel_ccd is not None) and (model.serial_ccd is not None):
-        return True
-    return False

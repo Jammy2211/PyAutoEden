@@ -7,7 +7,7 @@ from subprocess import call
 
 from autoeden.util import clearCache, replace_strings, black, build_via_modules, remove_init_files
 
-ARCTIC_PATH = f"{os.getcwd()}/../../arctic"
+ARCTIC_PATH = f"{os.getcwd()}/../../../PyAuto/arctic"
 
 target_path = f"{os.getcwd()}/../build_target"
 

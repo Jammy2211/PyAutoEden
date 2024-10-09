@@ -15,7 +15,7 @@ class TestAPI:
     def test__manual(self):
 
         arr = aa.Array2D.no_mask(
-                values=[[1.0, 2.0], [3.0, 4.0]], pixel_scales=1.0, sub_size=1
+            values=[[1.0, 2.0], [3.0, 4.0]], pixel_scales=1.0, sub_size=1
         )
 
         assert type(arr) == aa.Array2D
@@ -27,7 +27,7 @@ class TestAPI:
         assert arr.mask.sub_size == 1
 
         arr = aa.Array2D.no_mask(
-                values=[1.0, 2.0, 3.0, 4.0],
+            values=[1.0, 2.0, 3.0, 4.0],
             shape_native=(1, 1),
             pixel_scales=1.0,
             sub_size=2,
@@ -42,7 +42,7 @@ class TestAPI:
         assert arr.mask.sub_size == 2
 
         arr = aa.Array2D.no_mask(
-                values=[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+            values=[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
             shape_native=(2, 1),
             pixel_scales=2.0,
             sub_size=2,
@@ -109,7 +109,7 @@ class TestAPI:
 
         mask = aa.Mask2D(mask=[[False], [True]], pixel_scales=2.0, sub_size=2)
         arr = aa.Array2D.no_mask(
-                values=[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+            values=[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
             shape_native=(2, 1),
             pixel_scales=2.0,
             sub_size=2,
@@ -124,18 +124,22 @@ class TestAPI:
         self,
     ):
         with pytest.raises(aa.exc.ArrayException):
-            mask = aa.Mask2D.all_false(shape_native=(2, 2), pixel_scales=1.0, sub_size=1)
+            mask = aa.Mask2D.all_false(
+                shape_native=(2, 2), pixel_scales=1.0, sub_size=1
+            )
             aa.Array2D(values=[[1.0], [3.0]], mask=mask)
 
         with pytest.raises(aa.exc.ArrayException):
-            mask = aa.Mask2D.all_false(shape_native=(2, 2), pixel_scales=1.0, sub_size=2)
+            mask = aa.Mask2D.all_false(
+                shape_native=(2, 2), pixel_scales=1.0, sub_size=2
+            )
             aa.Array2D(values=[[1.0, 2.0], [3.0, 4.0]], mask=mask)
 
         with pytest.raises(aa.exc.ArrayException):
-            mask = aa.Mask2D.all_false(shape_native=(2, 2), pixel_scales=1.0, sub_size=2)
-            aa.Array2D(
-            values=[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], mask=mask
+            mask = aa.Mask2D.all_false(
+                shape_native=(2, 2), pixel_scales=1.0, sub_size=2
             )
+            aa.Array2D(values=[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], mask=mask)
 
     def test__exception_raised_if_input_array_is_1d_and_not_number_of_masked_sub_pixels(
         self,
@@ -315,7 +319,7 @@ class TestAPI:
         assert (arr == arr_via_yx).all()
 
         arr = aa.Array2D.no_mask(
-                values=[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], pixel_scales=1.0
+            values=[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], pixel_scales=1.0
         )
 
         y = arr.mask.derive_grid.all_false_sub_1[:, 0]
@@ -328,7 +332,7 @@ class TestAPI:
         assert (arr == arr_via_yx).all()
 
         arr = aa.Array2D.no_mask(
-                values=[[1.0, 2.0, 3.0], [3.0, 4.0, 6.0]], pixel_scales=1.0
+            values=[[1.0, 2.0, 3.0], [3.0, 4.0, 6.0]], pixel_scales=1.0
         )
 
         y = arr.mask.derive_grid.all_false_sub_1[:, 0]

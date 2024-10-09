@@ -17,7 +17,8 @@ def edenise(
         target_path=None,
         eden_path=None,
         should_rename_modules=False,
-        should_remove_type_annotations=False
+        should_remove_type_annotations=False,
+        should_move_config=True,
 ):
     target_path = target_path or f"{os.getcwd()}/../build_target/{name}_eden"
     eden_path = eden_path or f"{os.getcwd()}/../build_eden/{eden_prefix}"
@@ -49,3 +50,20 @@ def edenise(
     package.generate_target(
         eden_path
     )
+
+    if should_move_config:
+
+        src = target_path / name / "config"
+        dst = eden_path / eden_prefix / f"VIS_CTI_{name.capitalize()}" / "python" / f"VIS_CTI_{name.capitalize()}" / "config"
+
+        if os.path.exists(src):
+
+            try:
+                shutil.rmtree(path=dst)
+            except FileNotFoundError:
+                pass
+
+            shutil.copytree(
+                src=src,
+                dst=dst
+            )

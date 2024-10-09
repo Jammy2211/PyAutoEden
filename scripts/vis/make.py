@@ -60,15 +60,6 @@ def main():
         should_remove_type_annotations=True,
     )
 
-    nest_path = os.path.join(build_path, "VIS_CTI", "VIS_CTI_Autofit", "python", "VIS_CTI_Autofit", "VIS_CTI_NonLinear", "VIS_CTI_Nest")
-
-    try:
-        shutil.rmtree(os.path.join(nest_path, "VIS_CTI_Dynesty"))
-    except FileNotFoundError:
-        pass
-
-    shutil.copytree(os.path.join(manual_path, "VIS_CTI_Dynesty"), os.path.join(nest_path, "VIS_CTI_Dynesty"))
-
     model_path = os.path.join(build_path, "VIS_CTI", "VIS_CTI_Autocti", "python", "VIS_CTI_Autocti", "VIS_CTI_Model")
     shutil.copy(os.path.join(manual_path, "VIS_CTI_Model", "model_util.py"), model_path)
 

@@ -179,7 +179,7 @@ def file_layer_entry_point(
     VIS_calibrate_ci.calibrate_cti(
         imaging_ci_list=imaging_ci_list,
         config_path=config_path,
-        output_fit_path_parallel=output_fit_path_parallel,
+        output_fit_path=output_fit_path_parallel,
         output_fit_path_serial=output_fit_path_serial,
     )
 

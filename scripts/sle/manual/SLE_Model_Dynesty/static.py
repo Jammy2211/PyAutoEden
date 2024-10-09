@@ -1,7 +1,7 @@
 from typing import Optional
 from dynesty import NestedSampler as StaticSampler
-from SLE_Model_Autofit.SLE_Model_Database.sqlalchemy_ import sa
-from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Nest.SLE_Model_Dynesty.abstract import (
+from VIS_CTI_Autofit.VIS_CTI_Database.sqlalchemy_ import sa
+from VIS_CTI_Autofit.VIS_CTI_NonLinear.VIS_CTI_Nest.VIS_CTI_Dynesty.abstract import (
     AbstractDynesty,
     prior_transform,
 )

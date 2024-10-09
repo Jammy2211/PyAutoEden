@@ -63,7 +63,10 @@ elements_install_aux_files()
 #                             ElementsExamples.PythonProgramExample)
 #===============================================================================
 elements_add_python_program(VIS_correct_cti VIS_CTI_Programs.VIS_correct_cti)
-elements_add_python_program(VIS_calibrate_ci VIS_CTI_Programs.VIS_calibrate_ci)
+elements_add_python_program(VIS_calibrate_parallel VIS_CTI_Programs.VIS_calibrate_parallel)
+elements_add_python_program(VIS_calibrate_serial VIS_CTI_Programs.VIS_calibrate_serial)
+elements_add_python_program(VIS_calibrate_make_result VIS_CTI_Programs.VIS_calibrate_make_result)
+elements_add_python_program(VIS_fit_time_evolution VIS_CTI_Programs.VIS_fit_time_evolution)
 
 #===============================================================================
 # Add the elements_install_conf_files macro
