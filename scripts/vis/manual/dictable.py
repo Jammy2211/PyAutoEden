@@ -1,79 +1,27 @@
-import builtins
 import inspect
-import importlib
 import json
 import logging
 import numpy as np
-import re
+from pathlib import Path
+from typing import Union
+
+from VIS_CTI_Autoconf.class_path import get_class_path, get_class
 
 logger = logging.getLogger(__name__)
 
-def get_class_path(cls):
-    """
-    The full import path of the type
-    """
-    if hasattr(cls, "__class_path__"):
-        cls = cls.__class_path__
-    return re.search("'(.*)'", str(cls))[1]
 
-
-def get_class(class_path):
-    return GetClass(class_path).cls
-
-
-class GetClass:
-    def __init__(self, class_path):
-        self.class_path = class_path
-
-    @property
-    def _class_path_array(self):
-        """
-        A list of strings describing the module and class of the
-        real object represented here
-        """
-        return self.class_path.split(".")
-
-    @property
-    def _class_name(self):
-        """
-        The name of the real class
-        """
-        return self._class_path_array[(-1)]
-
-    @property
-    def _module_path(self):
-        """
-        The path of the module containing the real class
-        """
-        return ".".join(self._class_path_array[:(-1)])
-
-    @property
-    def _module(self):
-        """
-        The module containing the real class
-        """
-        try:
-            return importlib.import_module(self._module_path)
-        except ValueError:
-            return builtins
-
-    @property
-    def cls(self):
-        """
-        The class of the real object
-        """
-        return getattr(self._module, self._class_name)
-
-
-
-def nd_array_as_dict(obj):
+def nd_array_as_dict(obj: np.ndarray) -> dict:
     """
     Converts a numpy array to a dictionary representation.
     """
-    return {"type": "numpy.ndarray", "array": obj.tolist(), "dtype": str(obj.dtype)}
+    return {
+        "type": "numpy.ndarray",
+        "array": obj.tolist(),
+        "dtype": str(obj.dtype),
+    }
 
 
-def nd_array_from_dict(nd_array_dict):
+def nd_array_from_dict(nd_array_dict: dict) -> np.ndarray:
     """
     Converts a dictionary representation back to a numpy array.
     """
@@ -86,26 +34,40 @@ def as_dict(obj):
             return nd_array_as_dict(obj)
         except Exception as e:
             logger.info(e)
+
+    if inspect.isclass(obj):
+        return {
+            "type": "type",
+            "class_path": get_class_path(obj),
+        }
+
     if isinstance(obj, list):
         return list(map(as_dict, obj))
+    if isinstance(obj, dict):
+        return {
+            "type": "dict",
+            **{key: as_dict(value) for key, value in obj.items()},
+        }
     if obj.__class__.__module__ == "builtins":
         return obj
     argument_dict = {
         arg: getattr(obj, arg) for arg in inspect.getfullargspec(obj.__init__).args[1:]
     }
+
     return {
         "type": get_class_path(obj.__class__),
-        **{key: as_dict(value) for (key, value) in argument_dict.items()},
+        **{key: as_dict(value) for key, value in argument_dict.items()},
     }
 
 
 class Dictable:
-    def dict(self):
+    def dict(self) -> dict:
         """
         A dictionary representation of the instance comprising a type
         field which contains the entire class path by which the type
         can be imported and constructor arguments.
         """
+        # noinspection PyTypeChecker
         return as_dict(self)
 
     @staticmethod
@@ -129,15 +91,24 @@ class Dictable:
             return list(map(Dictable.from_dict, cls_dict))
         if not isinstance(cls_dict, dict):
             return cls_dict
-        cls = get_class(cls_dict.pop("type"))
+
+        type_ = cls_dict.pop("type")
+
+        if type_ == "type":
+            return get_class(cls_dict["class_path"])
+
+        cls = get_class(type_)
+
         if cls is np.ndarray:
             return nd_array_from_dict(cls_dict)
+
+        # noinspection PyArgumentList
         return cls(
-            **{name: Dictable.from_dict(value) for (name, value) in cls_dict.items()}
+            **{name: Dictable.from_dict(value) for name, value in cls_dict.items()}
         )
 
     @classmethod
-    def from_json(cls, file_path):
+    def from_json(cls, file_path: str) -> "Dictable":
         """
         Load the dictable object to a .json file, whereby all attributes are converted from the .json file's dictionary
         representation to create the instance of the object
@@ -151,9 +122,10 @@ class Dictable:
         """
         with open(file_path, "r+") as f:
             cls_dict = json.load(f)
+
         return cls.from_dict(cls_dict)
 
-    def output_to_json(self, file_path):
+    def output_to_json(self, file_path: Union[Path, str]):
         """
         Output the dictable object to a .json file, whereby all attributes are converted to a dictionary representation
         first.
