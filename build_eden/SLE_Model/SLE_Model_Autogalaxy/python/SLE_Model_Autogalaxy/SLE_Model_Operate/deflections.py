@@ -1,29 +1,26 @@
 from functools import wraps
 import logging
 import numpy as np
-from skimage import measure
-from typing import Callable, List, Tuple, Union
+from typing import List, Tuple, Union
+from SLE_Model_Autoconf import conf
 import SLE_Model_Autoarray as aa
-from SLE_Model_Autoconf.dictable import Dictable
 from SLE_Model_Autogalaxy.SLE_Model_Util.shear_field import ShearYX2D
 from SLE_Model_Autogalaxy.SLE_Model_Util.shear_field import ShearYX2DIrregular
-from SLE_Model_Autogalaxy import exc
 
 logger = logging.getLogger(__name__)
 
 
 def grid_scaled_2d_for_marching_squares_from(grid_pixels_2d, shape_native, mask):
     pixel_scales = mask.pixel_scales
-    sub_size = mask.sub_size
     origin = mask.origin
     grid_scaled_1d = aa.util.geometry.grid_scaled_2d_slim_from(
         grid_pixels_2d_slim=grid_pixels_2d,
         shape_native=shape_native,
-        pixel_scales=((pixel_scales[0] / sub_size), (pixel_scales[1] / sub_size)),
+        pixel_scales=pixel_scales,
         origin=origin,
     )
-    grid_scaled_1d[:, 0] -= pixel_scales[0] / (2.0 * sub_size)
-    grid_scaled_1d[:, 1] += pixel_scales[1] / (2.0 * sub_size)
+    grid_scaled_1d[:, 0] -= pixel_scales[0] / 2.0
+    grid_scaled_1d[:, 1] += pixel_scales[1] / 2.0
     return aa.Grid2DIrregular(values=grid_scaled_1d)
 
 
@@ -49,6 +46,14 @@ def evaluation_grid(func):
             int((pixel_scale_ratio * zoom_shape_native[0])),
             int((pixel_scale_ratio * zoom_shape_native[1])),
         )
+        max_evaluation_grid_size = conf.instance["general"]["grid"][
+            "max_evaluation_grid_size"
+        ]
+        if shape_native[0] > max_evaluation_grid_size:
+            pixel_scale = pixel_scale_ratio / (
+                shape_native[0] / float(max_evaluation_grid_size)
+            )
+            shape_native = (max_evaluation_grid_size, max_evaluation_grid_size)
         grid = aa.Grid2D.uniform(
             shape_native=shape_native,
             pixel_scales=(pixel_scale, pixel_scale),
@@ -60,10 +65,10 @@ def evaluation_grid(func):
     return wrapper
 
 
-class OperateDeflections(Dictable):
+class OperateDeflections:
     """
     Packages methods which manipulate the 2D deflection angle map returned from the `deflections_yx_2d_from` function
-    of a mass object (e.g. a `MassProfile`, `Galaxy`, `Plane`).
+    of a mass object (e.g. a `MassProfile`, `Galaxy`).
 
     The majority of methods are those which from the 2D deflection angle map compute lensing quantities like a 2D
     shear field, magnification map or the Einstein Radius.
@@ -76,7 +81,7 @@ class OperateDeflections(Dictable):
         The function which returns the mass object's 2D deflection angles.
     """
 
-    def deflections_yx_2d_from(self, grid):
+    def deflections_yx_2d_from(self, grid, **kwargs):
         raise NotImplementedError
 
     def __eq__(self, other):
@@ -144,7 +149,7 @@ class OperateDeflections(Dictable):
     def hessian_from(self, grid, buffer=0.01, deflections_func=None):
         """
         Returns the Hessian of the lensing object, where the Hessian is the second partial derivatives of the
-        potential (see equation 55 https://www.tau.ac.il/~lab3/MICROLENSING/JeruLect.pdf):
+        potential (see equation 55 https://inspirehep.net/literature/419263):
 
         `hessian_{i,j} = d^2 / dtheta_i dtheta_j`
 
@@ -168,16 +173,16 @@ class OperateDeflections(Dictable):
         """
         if deflections_func is None:
             deflections_func = self.deflections_yx_2d_from
-        grid_shift_y_up = np.zeros(grid.shape)
+        grid_shift_y_up = aa.Grid2DIrregular(values=np.zeros(grid.shape))
         grid_shift_y_up[:, 0] = grid[:, 0] + buffer
         grid_shift_y_up[:, 1] = grid[:, 1]
-        grid_shift_y_down = np.zeros(grid.shape)
+        grid_shift_y_down = aa.Grid2DIrregular(values=np.zeros(grid.shape))
         grid_shift_y_down[:, 0] = grid[:, 0] - buffer
         grid_shift_y_down[:, 1] = grid[:, 1]
-        grid_shift_x_left = np.zeros(grid.shape)
+        grid_shift_x_left = aa.Grid2DIrregular(values=np.zeros(grid.shape))
         grid_shift_x_left[:, 0] = grid[:, 0]
         grid_shift_x_left[:, 1] = grid[:, 1] - buffer
-        grid_shift_x_right = np.zeros(grid.shape)
+        grid_shift_x_right = aa.Grid2DIrregular(values=np.zeros(grid.shape))
         grid_shift_x_right[:, 0] = grid[:, 0]
         grid_shift_x_right[:, 1] = grid[:, 1] + buffer
         deflections_up = deflections_func(grid=grid_shift_y_up)
@@ -193,7 +198,7 @@ class OperateDeflections(Dictable):
     def convergence_2d_via_hessian_from(self, grid, buffer=0.01):
         """
         Returns the convergence of the lensing object, which is computed from the 2D deflection angle map via the
-        Hessian using the expression (see equation 56 https://www.tau.ac.il/~lab3/MICROLENSING/JeruLect.pdf):
+        Hessian using the expression (see equation 56 https://inspirehep.net/literature/419263):
 
         `convergence = 0.5 * (hessian_{0,0} + hessian_{1,1}) = 0.5 * (hessian_xx + hessian_yy)`
 
@@ -214,12 +219,12 @@ class OperateDeflections(Dictable):
         (hessian_yy, hessian_xy, hessian_yx, hessian_xx) = self.hessian_from(
             grid=grid, buffer=buffer
         )
-        return grid.values_from(array_slim=(0.5 * (hessian_yy + hessian_xx)))
+        return aa.ArrayIrregular(values=(0.5 * (hessian_yy + hessian_xx)))
 
     def shear_yx_2d_via_hessian_from(self, grid, buffer=0.01):
         """
         Returns the 2D (y,x) shear vectors of the lensing object, which are computed from the 2D deflection angle map
-        via the Hessian using the expressions (see equation 57 https://www.tau.ac.il/~lab3/MICROLENSING/JeruLect.pdf):
+        via the Hessian using the expressions (see equation 57 https://inspirehep.net/literature/419263):
 
         `shear_y = hessian_{1,0} =  hessian_{0,1} = hessian_yx = hessian_xy`
         `shear_x = 0.5 * (hessian_{0,0} - hessian_{1,1}) = 0.5 * (hessian_xx - hessian_yy)`
@@ -230,9 +235,15 @@ class OperateDeflections(Dictable):
         This calculation of the shear vectors is independent of analytic calculations defined within `MassProfile`
         objects and can therefore be used as a cross-check.
 
+        The result is returned as a `ShearYX2D` dats structure, which has shape [total_shear_vectors, 2], where
+        entries for [:,0] are the gamma_2 values and entries for [:,1] are the gamma_1 values.
+
+        Note therefore that this convention means the FIRST entries in the array are the gamma_2 values and the SECOND
+        entries are the gamma_1 values.
+
         Parameters
         ----------
-        grid
+        grids
             The 2D grid of (y,x) arc-second coordinates the deflection angles and Hessian are computed on.
         buffer
             The spacing in the y and x directions around each grid coordinate where deflection angles are computed and
@@ -241,9 +252,11 @@ class OperateDeflections(Dictable):
         (hessian_yy, hessian_xy, hessian_yx, hessian_xx) = self.hessian_from(
             grid=grid, buffer=buffer
         )
-        shear_yx_2d = np.zeros(shape=(grid.sub_shape_slim, 2))
-        shear_yx_2d[:, 0] = hessian_xy
-        shear_yx_2d[:, 1] = 0.5 * (hessian_xx - hessian_yy)
+        gamma_1 = 0.5 * (hessian_xx - hessian_yy)
+        gamma_2 = hessian_xy
+        shear_yx_2d = np.zeros(shape=(grid.shape_slim, 2))
+        shear_yx_2d[:, 0] = gamma_2
+        shear_yx_2d[:, 1] = gamma_1
         return ShearYX2DIrregular(values=shear_yx_2d, grid=grid)
 
     def magnification_2d_via_hessian_from(
@@ -251,7 +264,7 @@ class OperateDeflections(Dictable):
     ):
         """
         Returns the 2D magnification map of lensing object, which is computed from the 2D deflection angle map
-        via the Hessian using the expressions (see equation 60 https://www.tau.ac.il/~lab3/MICROLENSING/JeruLect.pdf):
+        via the Hessian using the expressions (see equation 60 https://inspirehep.net/literature/419263):
 
         `magnification = 1.0 / det(Jacobian) = 1.0 / abs((1.0 - convergence)**2.0 - shear**2.0)`
         `magnification = (1.0 - hessian_{0,0}) * (1.0 - hessian_{1, 1)) - hessian_{0,1}*hessian_{1,0}`
@@ -272,7 +285,16 @@ class OperateDeflections(Dictable):
             grid=grid, buffer=buffer, deflections_func=deflections_func
         )
         det_A = ((1 - hessian_xx) * (1 - hessian_yy)) - (hessian_xy * hessian_yx)
-        return grid.values_from(array_slim=(1.0 / det_A))
+        return aa.ArrayIrregular(values=(1.0 / det_A))
+
+    def contour_list_from(self, grid, contour_array):
+        grid_contour = aa.Grid2DContour(
+            grid=grid,
+            pixel_scales=grid.pixel_scales,
+            shape_native=grid.shape_native,
+            contour_array=contour_array.native,
+        )
+        return grid_contour.contour_list
 
     @evaluation_grid
     def tangential_critical_curve_list_from(self, grid, pixel_scale=0.05):
@@ -295,20 +317,7 @@ class OperateDeflections(Dictable):
             critical curve to be computed more accurately using a higher resolution grid.
         """
         tangential_eigen_values = self.tangential_eigen_value_from(grid=grid)
-        tangential_critical_curve_indices_list = measure.find_contours(
-            tangential_eigen_values.native, 0
-        )
-        if len(tangential_critical_curve_indices_list) == 0:
-            return []
-        tangential_critical_curve_list = []
-        for tangential_critical_curve_indices in tangential_critical_curve_indices_list:
-            curve = grid_scaled_2d_for_marching_squares_from(
-                grid_pixels_2d=tangential_critical_curve_indices,
-                shape_native=tangential_eigen_values.sub_shape_native,
-                mask=grid.mask,
-            )
-            tangential_critical_curve_list.append(curve)
-        return tangential_critical_curve_list
+        return self.contour_list_from(grid=grid, contour_array=tangential_eigen_values)
 
     @evaluation_grid
     def radial_critical_curve_list_from(self, grid, pixel_scale=0.05):
@@ -331,20 +340,7 @@ class OperateDeflections(Dictable):
             critical curve to be computed more accurately using a higher resolution grid.
         """
         radial_eigen_values = self.radial_eigen_value_from(grid=grid)
-        radial_critical_curve_indices_list = measure.find_contours(
-            radial_eigen_values.native, 0
-        )
-        if len(radial_critical_curve_indices_list) == 0:
-            return []
-        radial_critical_curve_list = []
-        for radial_critical_curve_indices in radial_critical_curve_indices_list:
-            curve = grid_scaled_2d_for_marching_squares_from(
-                grid_pixels_2d=radial_critical_curve_indices,
-                shape_native=radial_eigen_values.sub_shape_native,
-                mask=grid.mask,
-            )
-            radial_critical_curve_list.append(curve)
-        return radial_critical_curve_list
+        return self.contour_list_from(grid=grid, contour_array=radial_eigen_values)
 
     @evaluation_grid
     def tangential_caustic_list_from(self, grid, pixel_scale=0.05):
@@ -417,7 +413,33 @@ class OperateDeflections(Dictable):
         return radial_caustic_list
 
     @evaluation_grid
-    def area_within_tangential_critical_curve_list_from(self, grid, pixel_scale=0.05):
+    def radial_critical_curve_area_list_from(self, grid, pixel_scale):
+        """
+        Returns the surface area within each radial critical curve as a list, the calculation of which is described in
+        the function `radial_critical_curve_list_from()`.
+
+        The area is computed via a line integral.
+
+        Due to the use of a marching squares algorithm to estimate the critical curve, this function can only use the
+        Jacobian and a uniform 2D grid.
+
+
+        Parameters
+        ----------
+        grid
+            The 2D grid of (y,x) arc-second coordinates the deflection angles used to calculate the radial critical
+            curve are computed on.
+        pixel_scale
+            If input, the `evaluation_grid` decorator creates the 2D grid at this resolution, therefore enabling the
+            caustic to be computed more accurately using a higher resolution grid.
+        """
+        radial_critical_curve_list = self.radial_critical_curve_list_from(
+            grid=grid, pixel_scale=pixel_scale
+        )
+        return self.area_within_curve_list_from(curve_list=radial_critical_curve_list)
+
+    @evaluation_grid
+    def tangential_critical_curve_area_list_from(self, grid, pixel_scale=0.05):
         """
         Returns the surface area within each tangential critical curve as a list, the calculation of which is
         described in the function `tangential_critical_curve_list_from()`.
@@ -439,8 +461,13 @@ class OperateDeflections(Dictable):
         tangential_critical_curve_list = self.tangential_critical_curve_list_from(
             grid=grid, pixel_scale=pixel_scale
         )
+        return self.area_within_curve_list_from(
+            curve_list=tangential_critical_curve_list
+        )
+
+    def area_within_curve_list_from(self, curve_list):
         area_within_each_curve_list = []
-        for curve in tangential_critical_curve_list:
+        for curve in curve_list:
             (x, y) = (curve[:, 0], curve[:, 1])
             area = np.abs(
                 (0.5 * np.sum(((y[:(-1)] * np.diff(x)) - (x[:(-1)] * np.diff(y)))))
@@ -460,7 +487,7 @@ class OperateDeflections(Dictable):
         adopted in studies, for example the SLACS series of papers.
 
         The calculation of the tangential critical curves and their areas is described in the functions
-         `tangential_critical_curve_list_from()` and `area_within_tangential_critical_curve_list_from()`.
+         `tangential_critical_curve_list_from()` and `tangential_critical_curve_area_list_from()`.
 
         Due to the use of a marching squares algorithm to estimate the critical curve, this function can only use the
         Jacobian and a uniform 2D grid.
@@ -475,7 +502,7 @@ class OperateDeflections(Dictable):
             caustic to be computed more accurately using a higher resolution grid.
         """
         try:
-            area_list = self.area_within_tangential_critical_curve_list_from(
+            area_list = self.tangential_critical_curve_area_list_from(
                 grid=grid, pixel_scale=pixel_scale
             )
             return [np.sqrt((area / np.pi)) for area in area_list]
@@ -497,7 +524,7 @@ class OperateDeflections(Dictable):
         raises an error, and the function `einstein_radius_list_from()` should be used instead.
 
         The calculation of the tangential critical curves and their areas is described in the functions
-         `tangential_critical_curve_list_from()` and `area_within_tangential_critical_curve_list_from()`.
+         `tangential_critical_curve_list_from()` and `tangential_critical_curve_area_list_from()`.
 
         Due to the use of a marching squares algorithm to estimate the critical curve, this function can only use the
         Jacobian and a uniform 2D grid.
@@ -650,7 +677,7 @@ class OperateDeflections(Dictable):
     def convergence_2d_via_jacobian_from(self, grid, jacobian=None):
         """
         Returns the convergence of the lensing object, which is computed from the 2D deflection angle map via the
-        Jacobian using the expression (see equation 58 https://www.tau.ac.il/~lab3/MICROLENSING/JeruLect.pdf):
+        Jacobian using the expression (see equation 58 https://inspirehep.net/literature/419263):
 
         `convergence = 1.0 - 0.5 * (jacobian_{0,0} + jacobian_{1,1}) = 0.5 * (jacobian_xx + jacobian_yy)`
 
@@ -673,7 +700,7 @@ class OperateDeflections(Dictable):
     def shear_yx_2d_via_jacobian_from(self, grid, jacobian=None):
         """
         Returns the 2D (y,x) shear vectors of the lensing object, which are computed from the 2D deflection angle map
-        via the Jacobian using the expression (see equation 58 https://www.tau.ac.il/~lab3/MICROLENSING/JeruLect.pdf):
+        via the Jacobian using the expression (see equation 58 https://inspirehep.net/literature/419263):
 
         `shear_y = -0.5 * (jacobian_{0,1} + jacobian_{1,0} = -0.5 * (jacobian_yx + jacobian_xy)`
         `shear_x = 0.5 * (jacobian_{1,1} + jacobian_{0,0} = 0.5 * (jacobian_yy + jacobian_xx)`
@@ -690,7 +717,7 @@ class OperateDeflections(Dictable):
         jacobian
             A precomputed lensing jacobian, which is passed throughout the `CalcLens` functions for efficiency.
         """
-        shear_yx_2d = np.zeros(shape=(grid.sub_shape_slim, 2))
+        shear_yx_2d = np.zeros(shape=(grid.shape_slim, 2))
         shear_yx_2d[:, 0] = (-0.5) * (jacobian[0][1] + jacobian[1][0])
         shear_yx_2d[:, 1] = 0.5 * (jacobian[1][1] - jacobian[0][0])
         if isinstance(grid, aa.Grid2DIrregular):

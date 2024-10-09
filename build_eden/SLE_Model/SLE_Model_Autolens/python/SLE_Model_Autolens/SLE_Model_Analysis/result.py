@@ -1,29 +1,27 @@
 import os
-from os import path
 import numpy as np
-import json
-from typing import Dict, Optional, Union
-from SLE_Model_Autoconf import conf
+from typing import Optional, Union
 import SLE_Model_Autoarray as aa
 import SLE_Model_Autogalaxy as ag
-from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Paths.abstract import AbstractPaths
-from SLE_Model_Autogalaxy.SLE_Model_Analysis.result import Result as AgResult
+from SLE_Model_Autogalaxy.SLE_Model_Analysis.result import (
+    ResultDataset as AgResultDataset,
+)
 from SLE_Model_Autolens.SLE_Model_Analysis.positions import PositionsLHResample
 from SLE_Model_Autolens.SLE_Model_Analysis.positions import PositionsLHPenalty
-from SLE_Model_Autolens.SLE_Model_Point.SLE_Model_FitPoint.max_separation import (
+from SLE_Model_Autolens.SLE_Model_Point.SLE_Model_Fit.SLE_Model_Positions.SLE_Model_Source.max_separation import (
     FitPositionsSourceMaxSeparation,
 )
-from SLE_Model_Autolens.SLE_Model_Lens.ray_tracing import Tracer
-from SLE_Model_Autolens.SLE_Model_Point.point_solver import PointSolver
+from SLE_Model_Autolens.SLE_Model_Lens.tracer import Tracer
+from SLE_Model_Autolens.SLE_Model_Point.SLE_Model_Solver import PointSolver
 
 
-class Result(AgResult):
+class Result(AgResultDataset):
     @property
     def max_log_likelihood_tracer(self):
         """
         An instance of a `Tracer` corresponding to the maximum log likelihood model inferred by the non-linear search.
         """
-        return self.analysis.tracer_via_instance_from(instance=self.instance_copy)
+        return self.analysis.tracer_via_instance_from(instance=self.instance)
 
     @property
     def max_log_likelihood_positions_threshold(self):
@@ -46,7 +44,7 @@ class Result(AgResult):
 
         """
         positions_fits = FitPositionsSourceMaxSeparation(
-            positions=self.analysis.positions_likelihood.positions,
+            data=self.analysis.positions_likelihood.positions,
             noise_map=None,
             tracer=self.max_log_likelihood_tracer,
         )
@@ -61,7 +59,7 @@ class Result(AgResult):
         These centres are used by automatic position updating to determine the best-fit lens model's image-plane
         multiple-image positions.
         """
-        centre = self.max_log_likelihood_tracer.source_plane.extract_attribute(
+        centre = self.max_log_likelihood_tracer.planes[(-1)].extract_attribute(
             cls=ag.LightProfile, attr_name="centre"
         )
         if centre is not None:
@@ -88,12 +86,10 @@ class Result(AgResult):
 
         These image-plane positions are used by the next search in a pipeline if automatic position updating is turned
         on."""
-        grid = self.analysis.dataset.mask.derive_grid.all_false_sub_1
-        solver = PointSolver(
-            grid=grid, pixel_scale_precision=0.001, distance_to_mass_profile_centre=0.05
-        )
+        grid = self.analysis.dataset.mask.derive_grid.all_false
+        solver = PointSolver.for_grid(grid=grid, pixel_scale_precision=0.001)
         multiple_images = solver.solve(
-            lensing_obj=self.max_log_likelihood_tracer,
+            tracer=self.max_log_likelihood_tracer,
             source_plane_coordinate=self.source_plane_centre.in_list[0],
         )
         return aa.Grid2DIrregular(values=multiple_images)
@@ -116,7 +112,7 @@ class Result(AgResult):
         Parameters
         ----------
         factor
-            The value the computed threshold is multipled by to make the position threshold larger or smaller than the
+            The value the computed threshold is multiplied by to make the position threshold larger or smaller than the
             maximum log likelihood model's threshold.
         minimum_threshold
             The output threshold is rounded up to this value if it is below it, to avoid extremely small threshold
@@ -128,7 +124,7 @@ class Result(AgResult):
         Returns
         -------
         float
-            The maximum source plane separation of this results maximum likelihood `Tracer` multiple images multipled
+            The maximum source plane separation of this results maximum likelihood `Tracer` multiple images multiplied
             by `factor` and rounded up to the `threshold`.
         """
         positions = (
@@ -136,8 +132,9 @@ class Result(AgResult):
             if (positions is None)
             else positions
         )
+        tracer = Tracer(galaxies=self.max_log_likelihood_galaxies)
         positions_fits = FitPositionsSourceMaxSeparation(
-            positions=positions, noise_map=None, tracer=self.max_log_likelihood_tracer
+            data=positions, noise_map=None, tracer=tracer
         )
         threshold = factor * np.max(
             positions_fits.max_separation_of_source_plane_positions
@@ -164,13 +161,6 @@ class Result(AgResult):
             return PositionsLHPenalty(positions=positions, threshold=threshold)
         return PositionsLHResample(positions=positions, threshold=threshold)
 
-    @property
-    def path_galaxy_tuples(self):
-        """
-        Tuples associating the names of galaxies with instances from the best fit
-        """
-        return self.instance_copy.path_instance_tuples_for_class(cls=ag.Galaxy)
-
 
 class ResultDataset(Result):
     @property
@@ -178,30 +168,12 @@ class ResultDataset(Result):
         """
         An instance of a `Tracer` corresponding to the maximum log likelihood model inferred by the non-linear search.
 
-        If a dataset is fitted the hyper images of the hyper dataset must first be associated with each galaxy.
+        If a dataset is fitted the adapt images of the adapt image must first be associated with each galaxy.
         """
         instance = self.analysis.instance_with_associated_adapt_images_from(
-            instance=self.instance_copy
+            instance=self.instance
         )
         return self.analysis.tracer_via_instance_from(instance=instance)
-
-    @property
-    def max_log_likelihood_fit(self):
-        raise NotImplementedError
-
-    @property
-    def mask(self):
-        """
-        The 2D mask applied to the dataset for the model-fit.
-        """
-        return self.analysis.dataset.mask
-
-    @property
-    def grid(self):
-        """
-        The masked 2D grid used by the dataset in the model-fit.
-        """
-        return self.analysis.dataset.grid
 
     @property
     def positions(self):
@@ -238,101 +210,9 @@ class ResultDataset(Result):
         """
         if self.max_log_likelihood_fit.inversion is not None:
             if self.max_log_likelihood_fit.inversion.has(cls=aa.AbstractMapper):
-                return self.max_log_likelihood_fit.inversion.brightest_reconstruction_pixel_centre_list[
-                    0
-                ]
-
-    def image_for_galaxy(self, galaxy):
-        """
-        Given an instance of a `Galaxy` object, return an image of the galaxy via the maximum log likelihood fit.
-
-        This image is extracted via the fit's `galaxy_model_image_dict`, which is necessary to make it straight
-        forward to use the image as hyper-images.
-
-        Parameters
-        ----------
-        galaxy
-            A galaxy used by the model-fit.
-
-        Returns
-        -------
-        ndarray or None
-            A numpy arrays giving the model image of that galaxy.
-        """
-        return self.max_log_likelihood_fit.galaxy_model_image_dict[galaxy]
-
-    @property
-    def image_galaxy_dict(self):
-        """
-        A dictionary associating galaxy names with model images of those galaxies.
-
-        This is used for creating the adapt-dataset used by Analysis objects to adapt aspects of a model to the dataset
-        being fitted.
-        """
-        return {
-            galaxy_path: self.image_for_galaxy(galaxy)
-            for (galaxy_path, galaxy) in self.path_galaxy_tuples
-        }
-
-    @property
-    def adapt_galaxy_image_path_dict(self):
-        """
-        A dictionary associating 1D galaxy images with their names.
-        """
-        adapt_minimum_percent = conf.instance["general"]["adapt"][
-            "adapt_minimum_percent"
-        ]
-        adapt_galaxy_image_path_dict = {}
-        for (path, galaxy) in self.path_galaxy_tuples:
-            galaxy_image = self.image_galaxy_dict[path]
-            if not np.all((galaxy_image == 0)):
-                minimum_galaxy_value = adapt_minimum_percent * max(galaxy_image)
-                galaxy_image[
-                    (galaxy_image < minimum_galaxy_value)
-                ] = minimum_galaxy_value
-            adapt_galaxy_image_path_dict[path] = galaxy_image
-        return adapt_galaxy_image_path_dict
-
-    @property
-    def adapt_model_image(self):
-        """
-        The adapt image used by Analysis objects to adapt aspects of a model to the dataset being fitted.
-
-        The adapt image is the sum of the galaxy image of every individual galaxy.
-        """
-        adapt_model_image = aa.Array2D(
-            values=np.zeros(self.mask.derive_mask.sub_1.pixels_in_mask),
-            mask=self.mask.derive_mask.sub_1,
-        )
-        for (path, galaxy) in self.path_galaxy_tuples:
-            adapt_model_image += self.adapt_galaxy_image_path_dict[path]
-        return adapt_model_image
-
-    def stochastic_log_likelihoods_from(self, paths):
-        """
-        Certain `Inversion`'s have stochasticity in their log likelihood estimate.
-
-        For example, the `VoronoiBrightnessImage` pixelization, which changes the likelihood depending on how different
-        KMeans seeds change the pixel-grid.
-
-        A log likelihood cap can be applied to model-fits performed using these `Inversion`'s to improve error and
-        posterior estimates. This log likelihood cap is estimated from a list of stochastic log likelihoods, where
-        these log likelihoods are computed using the same model but with different KMeans seeds.
-
-        This function loads existing stochastic log likelihoods from the hard disk via a .json file. If the .json
-        file is not presented, then the log likelihoods are computed via the `stochastic_log_likelihoods_via_instance_from`
-        function of the associated Analysis class.
-        """
-        stochastic_log_likelihoods_json_file = path.join(
-            paths.output_path, "stochastic_log_likelihoods.json"
-        )
-        paths.restore()
-        try:
-            with open(stochastic_log_likelihoods_json_file, "r") as f:
-                stochastic_log_likelihoods = np.asarray(json.load(f))
-        except FileNotFoundError:
-            self.analysis.save_stochastic_outputs(paths=paths, samples=self.samples)
-            with open(stochastic_log_likelihoods_json_file, "r") as f:
-                stochastic_log_likelihoods = np.asarray(json.load(f))
-        paths.zip_remove()
-        return stochastic_log_likelihoods
+                inversion = self.max_log_likelihood_fit.inversion
+                mapper = inversion.cls_list_from(cls=aa.AbstractMapper)[0]
+                mapper_valued = aa.MapperValued(
+                    values=inversion.reconstruction_dict[mapper], mapper=mapper
+                )
+                return mapper_valued.max_pixel_centre

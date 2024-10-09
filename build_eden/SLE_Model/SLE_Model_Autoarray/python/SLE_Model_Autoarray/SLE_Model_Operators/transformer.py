@@ -63,17 +63,17 @@ class TransformerDFT(PyLopsOperator):
             pylops_exception()
         super().__init__()
         self.uv_wavelengths = uv_wavelengths.astype("float")
-        self.real_space_mask = real_space_mask.derive_mask.sub_1
-        self.grid = self.real_space_mask.derive_grid.unmasked_sub_1.binned.in_radians
+        self.real_space_mask = real_space_mask
+        self.grid = self.real_space_mask.derive_grid.unmasked.in_radians
         self.total_visibilities = uv_wavelengths.shape[0]
         self.total_image_pixels = self.real_space_mask.pixels_in_mask
         self.preload_transform = preload_transform
         if preload_transform:
             self.preload_real_transforms = transformer_util.preload_real_transforms(
-                grid_radians=self.grid, uv_wavelengths=self.uv_wavelengths
+                grid_radians=np.array(self.grid), uv_wavelengths=self.uv_wavelengths
             )
             self.preload_imag_transforms = transformer_util.preload_imag_transforms(
-                grid_radians=self.grid, uv_wavelengths=self.uv_wavelengths
+                grid_radians=np.array(self.grid), uv_wavelengths=self.uv_wavelengths
             )
         self.real_space_pixels = self.real_space_mask.pixels_in_mask
         self.shape = (
@@ -85,18 +85,22 @@ class TransformerDFT(PyLopsOperator):
         self.adjoint_scaling = (2.0 * self.grid.shape_native[0]) * (
             2.0 * self.grid.shape_native[1]
         )
+        self.matvec_count = 0
+        self.rmatvec_count = 0
+        self.matmat_count = 0
+        self.rmatmat_count = 0
 
     def visibilities_from(self, image):
         if self.preload_transform:
             visibilities = transformer_util.visibilities_via_preload_jit_from(
-                image_1d=image.binned,
+                image_1d=np.array(image),
                 preloaded_reals=self.preload_real_transforms,
                 preloaded_imags=self.preload_imag_transforms,
             )
         else:
             visibilities = transformer_util.visibilities_jit(
-                image_1d=image.binned,
-                grid_radians=self.grid,
+                image_1d=np.array(image.slim),
+                grid_radians=np.array(self.grid),
                 uv_wavelengths=self.uv_wavelengths,
             )
         return Visibilities(visibilities=visibilities)
@@ -104,14 +108,12 @@ class TransformerDFT(PyLopsOperator):
     def image_from(self, visibilities, use_adjoint_scaling=False):
         image_slim = transformer_util.image_via_jit_from(
             n_pixels=self.grid.shape[0],
-            grid_radians=self.grid,
+            grid_radians=np.array(self.grid),
             uv_wavelengths=self.uv_wavelengths,
             visibilities=visibilities.in_array,
         )
         image_native = array_2d_util.array_2d_native_from(
-            array_2d_slim=image_slim,
-            mask_2d=self.real_space_mask,
-            sub_size=self.real_space_mask.sub_size,
+            array_2d_slim=image_slim, mask_2d=self.real_space_mask
         )
         return Array2D(values=image_native, mask=self.real_space_mask)
 
@@ -125,7 +127,7 @@ class TransformerDFT(PyLopsOperator):
         else:
             return transformer_util.transformed_mapping_matrix_jit(
                 mapping_matrix=mapping_matrix,
-                grid_radians=self.grid,
+                grid_radians=np.array(self.grid),
                 uv_wavelengths=self.uv_wavelengths,
             )
 
@@ -138,7 +140,7 @@ class TransformerNUFFT(NUFFT_cpu, PyLopsOperator):
             pylops_exception()
         super(TransformerNUFFT, self).__init__()
         self.uv_wavelengths = uv_wavelengths
-        self.real_space_mask = real_space_mask.derive_mask.sub_1
+        self.real_space_mask = real_space_mask
         self.grid = Grid2D.from_mask(mask=self.real_space_mask).in_radians
         self.native_index_for_slim_index = copy.copy(
             real_space_mask.derive_indexes.native_for_slim.astype("int")
@@ -172,6 +174,10 @@ class TransformerNUFFT(NUFFT_cpu, PyLopsOperator):
         self.adjoint_scaling = (2.0 * self.grid.shape_native[0]) * (
             2.0 * self.grid.shape_native[1]
         )
+        self.matvec_count = 0
+        self.rmatvec_count = 0
+        self.matmat_count = 0
+        self.rmatmat_count = 0
 
     def initialize_plan(self, ratio=2, interp_kernel=(6, 6)):
         if not isinstance(ratio, int):
@@ -221,10 +227,12 @@ class TransformerNUFFT(NUFFT_cpu, PyLopsOperator):
         ...
         """
         warnings.filterwarnings("ignore")
-        return Visibilities(visibilities=self.forward(image.binned.native[::(-1), :]))
+        return Visibilities(visibilities=self.forward(image.native[::(-1), :]))
 
     def image_from(self, visibilities, use_adjoint_scaling=False):
-        image = np.real(self.adjoint(visibilities))[::(-1), :]
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            image = np.real(self.adjoint(visibilities))[::(-1), :]
         if use_adjoint_scaling:
             image *= self.adjoint_scaling
         return Array2D(values=image, mask=self.real_space_mask)
@@ -237,7 +245,6 @@ class TransformerNUFFT(NUFFT_cpu, PyLopsOperator):
             image_2d = array_2d_util.array_2d_native_from(
                 array_2d_slim=mapping_matrix[:, source_pixel_1d_index],
                 mask_2d=self.grid.mask,
-                sub_size=1,
             )
             image = Array2D(values=image_2d, mask=self.grid.mask)
             visibilities = self.visibilities_from(image=image)
@@ -255,7 +262,7 @@ class TransformerNUFFT(NUFFT_cpu, PyLopsOperator):
         warnings.filterwarnings("ignore")
         x2d = array_2d_util.array_2d_native_complex_via_indexes_from(
             array_2d_slim=x,
-            sub_shape_native=self.real_space_mask.shape_native,
+            shape_native=self.real_space_mask.shape_native,
             native_index_for_slim_index_2d=self.native_index_for_slim_index,
         )[::(-1), :]
         y = self.k2y(self.xx2k(self.x2xx(x2d)))
@@ -281,7 +288,7 @@ class TransformerNUFFT(NUFFT_cpu, PyLopsOperator):
         )
         x2d = np.real(self.xx2x(self.k2xx(self.y2k(y))))
         x = array_2d_util.array_2d_slim_complex_from(
-            array_2d_native=x2d[::(-1), :], sub_size=1, mask=self.real_space_mask
+            array_2d_native=x2d[::(-1), :], mask=np.array(self.real_space_mask)
         )
         x = x.real
         x *= self.adjoint_scaling

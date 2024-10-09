@@ -33,7 +33,8 @@ def fnnls_cholesky(ZTZ, ZTx, P_initial=np.zeros(0, dtype=int)):
     max_repetitions = 3
     no_update = 0
     loop_count = 0
-    P = np.zeros(n, dtype=np.bool)
+    loop_count2 = 0
+    P = np.zeros(n, dtype=bool)
     P[P_initial] = True
     d = np.zeros(n)
     w = ZTx - (ZTZ @ d)
@@ -65,6 +66,9 @@ def fnnls_cholesky(ZTZ, ZTx, P_initial=np.zeros(0, dtype=int)):
                 U=U,
                 tolerance=tolerance,
             )
+            loop_count2 += 1
+            if loop_count2 > 10000:
+                raise RuntimeError
         d = s_chol.copy()
         w = ZTx - (ZTZ @ d)
         loop_count += 1

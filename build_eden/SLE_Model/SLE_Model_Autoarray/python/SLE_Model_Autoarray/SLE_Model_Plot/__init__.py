@@ -51,6 +51,9 @@ from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Wrap.SLE_Model_OneD.fill_betwe
 from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Wrap.SLE_Model_TwoD.array_overlay import (
     ArrayOverlay,
 )
+from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Wrap.SLE_Model_TwoD.contour import (
+    Contour,
+)
 from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Wrap.SLE_Model_TwoD.grid_scatter import (
     GridScatter,
 )
@@ -86,6 +89,9 @@ from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Wrap.SLE_Model_TwoD.positions_
 )
 from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Wrap.SLE_Model_TwoD.index_scatter import (
     IndexScatter,
+)
+from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Wrap.SLE_Model_TwoD.index_plot import (
+    IndexPlot,
 )
 from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Wrap.SLE_Model_TwoD.mesh_grid_scatter import (
     MeshGridScatter,

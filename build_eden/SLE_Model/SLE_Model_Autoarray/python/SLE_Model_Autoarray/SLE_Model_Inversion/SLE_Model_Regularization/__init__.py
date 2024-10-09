@@ -25,3 +25,12 @@ from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Regularization.brightness
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Regularization.adaptive_brightness_split_zeroth import (
     AdaptiveBrightnessSplitZeroth,
 )
+from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Regularization.gaussian_kernel import (
+    GaussianKernel,
+)
+from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Regularization.exponential_kernel import (
+    ExponentialKernel,
+)
+from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Regularization.matern_kernel import (
+    MaternKernel,
+)

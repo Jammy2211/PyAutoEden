@@ -3,14 +3,21 @@ import numpy as np
 from scipy.linalg import block_diag
 from scipy.sparse import csc_matrix
 from scipy.sparse.linalg import splu
-from typing import Dict, List, Optional, Tuple, Type, Union
+from typing import Dict, List, Optional, Type, Union
 from SLE_Model_Autoconf import cached_property
 from SLE_Model_Autoarray.numba_util import profile_func
+from SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.dataset import Imaging
+from SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Interferometer.dataset import (
+    Interferometer,
+)
+from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.mapper_valued import (
+    MapperValued,
+)
+from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.dataset_interface import (
+    DatasetInterface,
+)
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_LinearObj.linear_obj import (
     LinearObj,
-)
-from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_LinearObj.func_list import (
-    AbstractLinearObjFuncList,
 )
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.abstract import (
     AbstractMapper,
@@ -22,9 +29,6 @@ from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.settings import
     SettingsInversion,
 )
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays.uniform_2d import Array2D
-from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.irregular_2d import (
-    Grid2DIrregular,
-)
 from SLE_Model_Autoarray.SLE_Model_Structures.visibilities import Visibilities
 from SLE_Model_Autoarray import exc
 from SLE_Model_Autoarray.SLE_Model_Util import misc_util
@@ -34,12 +38,11 @@ from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion import inversio
 class AbstractInversion:
     def __init__(
         self,
-        data,
-        noise_map,
+        dataset,
         linear_obj_list,
         settings=SettingsInversion(),
         preloads=None,
-        profiling_dict=None,
+        run_time_dict=None,
     ):
         """
         An `Inversion` reconstructs an input dataset using a list of linear objects (e.g. a list of analytic functions
@@ -80,30 +83,25 @@ class AbstractInversion:
         preloads
             Preloads in memory certain arrays which may be known beforehand in order to speed up the calculation,
             for example certain matrices used by the linear algebra could be preloaded.
-        profiling_dict
+        run_time_dict
             A dictionary which contains timing of certain functions calls which is used for profiling.
         """
         from SLE_Model_Autoarray.preloads import Preloads
 
         preloads = preloads or Preloads()
-        try:
-            import numba
-        except ModuleNotFoundError:
-            raise exc.InversionException(
-                """Inversion functionality (linear light profiles, pixelized reconstructions) is disabled if numba is not installed.
-
-This is because the run-times without numba are too slow.
-
-Please install numba, which is described at the following web page:
-
-https://pyautolens.readthedocs.io/en/latest/installation/overview.html"""
-            )
-        self.data = data
-        self.noise_map = noise_map
+        self.dataset = dataset
         self.linear_obj_list = linear_obj_list
         self.settings = settings
         self.preloads = preloads
-        self.profiling_dict = profiling_dict
+        self.run_time_dict = run_time_dict
+
+    @property
+    def data(self):
+        return self.dataset.data
+
+    @property
+    def noise_map(self):
+        return self.dataset.noise_map
 
     def has(self, cls):
         """
@@ -602,6 +600,30 @@ https://pyautolens.readthedocs.io/en/latest/installation/overview.html"""
         return sum(self.mapped_reconstructed_image_dict.values())
 
     @cached_property
+    def data_subtracted_dict(self):
+        """
+        Returns a dictionary of the data subtracted by the reconstructed images of combinations of all but one of the
+        linear objects the inversion.
+
+        This produces images of the data showing what each linear object is actually fitted to, after accounting for
+        the signal in the other linear objects.
+
+        Returns
+        -------
+        A dictionary of the data subtracted by the reconstructed images of combinations of all but one of the
+        linear objects the inversion.
+        """
+        data_subtracted_dict = {}
+        for linear_obj in self.linear_obj_list:
+            data_subtracted_dict[linear_obj] = copy.copy(self.data)
+            for linear_obj_other in self.linear_obj_list:
+                if linear_obj != linear_obj_other:
+                    data_subtracted_dict[
+                        linear_obj
+                    ] -= self.mapped_reconstructed_image_dict[linear_obj_other]
+        return data_subtracted_dict
+
+    @cached_property
     @profile_func
     def regularization_term(self):
         """
@@ -681,41 +703,6 @@ https://pyautolens.readthedocs.io/en/latest/installation/overview.html"""
     def errors_with_covariance(self):
         return np.linalg.inv(self.curvature_reg_matrix)
 
-    def interpolated_reconstruction_list_from(
-        self, shape_native=(401, 401), extent=None
-    ):
-        """
-        The reconstruction of an `Inversion` can be on an irregular pixelization (e.g. a Delaunay triangulation,
-        Voronoi mesh).
-
-        Analysing the reconstruction can therefore be difficult and require specific functionality tailored to using
-        this irregular grid.
-
-        This function therefore interpolates the irregular reconstruction on to a regular grid of square pixels.
-        The routine that performs the interpolation is specific to each pixelization and contained in its
-        corresponding `Mapper` and `Grid2DMesh` objects, which are called by this function.
-
-        The output interpolated reconstruction cis by default returned on a grid of 401 x 401 square pixels. This
-        can be customized by changing the `shape_native` input, and a rectangular grid with rectangular pixels can
-        be returned by instead inputting the optional `shape_scaled` tuple.
-
-        Parameters
-        ----------
-        shape_native
-            The 2D shape in pixels of the interpolated reconstruction, which is always returned using square pixels.
-        extent
-            The (x0, x1, y0, y1) extent of the grid in scaled coordinates over which the grid is created if it
-            is input.
-        """
-        return [
-            mapper.interpolated_array_from(
-                values=self.reconstruction_dict[mapper],
-                shape_native=shape_native,
-                extent=extent,
-            )
-            for mapper in self.cls_list_from(cls=AbstractMapper)
-        ]
-
     @property
     def errors(self):
         return np.diagonal(self.errors_with_covariance)
@@ -723,69 +710,6 @@ https://pyautolens.readthedocs.io/en/latest/installation/overview.html"""
     @property
     def errors_dict(self):
         return self.source_quantity_dict_from(source_quantity=self.errors)
-
-    def interpolated_errors_list_from(self, shape_native=(401, 401), extent=None):
-        """
-        Analogous to the function `interpolated_reconstruction_list_from()` but for the error in every reconstructed
-        pixel.
-
-        See this function for a full description.
-
-        Parameters
-        ----------
-        shape_native
-            The 2D shape in pixels of the interpolated errors, which is always returned using square pixels.
-        extent
-            The (x0, x1, y0, y1) extent of the grid in scaled coordinates over which the grid is created if it
-            is input.
-        """
-        return [
-            mapper.interpolated_array_from(
-                values=self.errors_dict[mapper],
-                shape_native=shape_native,
-                extent=extent,
-            )
-            for mapper in self.cls_list_from(cls=AbstractMapper)
-        ]
-
-    @property
-    def magnification_list(self):
-        magnification_list = []
-        interpolated_reconstruction_list = self.interpolated_reconstruction_list_from(
-            shape_native=(401, 401)
-        )
-        for (i, linear_obj) in enumerate(self.linear_obj_list):
-            mapped_reconstructed_image = self.mapped_reconstructed_image_dict[
-                linear_obj
-            ]
-            interpolated_reconstruction = interpolated_reconstruction_list[i]
-            magnification_list.append(
-                (
-                    np.sum(mapped_reconstructed_image)
-                    / np.sum(interpolated_reconstruction)
-                )
-            )
-        return magnification_list
-
-    @property
-    def brightest_reconstruction_pixel_list(self):
-        brightest_reconstruction_pixel_list = []
-        for mapper in self.cls_list_from(cls=AbstractMapper):
-            brightest_reconstruction_pixel_list.append(
-                np.argmax(self.reconstruction_dict[mapper])
-            )
-        return brightest_reconstruction_pixel_list
-
-    @property
-    def brightest_reconstruction_pixel_centre_list(self):
-        brightest_reconstruction_pixel_centre_list = []
-        for mapper in self.cls_list_from(cls=AbstractMapper):
-            brightest_reconstruction_pixel = np.argmax(self.reconstruction_dict[mapper])
-            centre = Grid2DIrregular(
-                values=[mapper.source_plane_mesh_grid[brightest_reconstruction_pixel]]
-            )
-            brightest_reconstruction_pixel_centre_list.append(centre)
-        return brightest_reconstruction_pixel_centre_list
 
     def regularization_weights_from(self, index):
         linear_obj = self.linear_obj_list[index]

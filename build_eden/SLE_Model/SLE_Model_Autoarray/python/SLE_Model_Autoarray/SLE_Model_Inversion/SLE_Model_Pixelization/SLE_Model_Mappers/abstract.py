@@ -12,11 +12,17 @@ from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_LinearObj.func_list impor
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_LinearObj.neighbors import (
     Neighbors,
 )
+from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.border_relocator import (
+    BorderRelocator,
+)
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.mapper_grids import (
     MapperGrids,
 )
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Regularization.abstract import (
     AbstractRegularization,
+)
+from SLE_Model_Autoarray.SLE_Model_Operators.SLE_Model_OverSampling.abstract import (
+    AbstractOverSampler,
 )
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays.uniform_2d import Array2D
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.uniform_2d import Grid2D
@@ -30,7 +36,14 @@ from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Ma
 
 
 class AbstractMapper(LinearObj):
-    def __init__(self, mapper_grids, regularization, profiling_dict=None):
+    def __init__(
+        self,
+        mapper_grids,
+        regularization,
+        over_sampler,
+        border_relocator,
+        run_time_dict=None,
+    ):
         """
         To understand a `Mapper` one must be familiar `Mesh` objects and the `mesh` and `pixelization` packages, where
         the four grids grouped in a `MapperGrids` object are explained (`image_plane_data_grid`, `source_plane_data_grid`,
@@ -83,10 +96,18 @@ class AbstractMapper(LinearObj):
         regularization
             The regularization scheme which may be applied to this linear object in order to smooth its solution,
             which for a mapper smooths neighboring pixels on the mesh.
-        profiling_dict
+        over_sampler
+            Performs over-sampling whereby the masked image pixels are split into sub-pixels, which are all
+            mapped via the mapper with sub-fractional values of flux.
+        border_relocator
+           The border relocator, which relocates coordinates outside the border of the source-plane data grid to its
+           edge.
+        run_time_dict
             A dictionary which contains timing of certain functions calls which is used for profiling.
         """
-        super().__init__(regularization=regularization, profiling_dict=profiling_dict)
+        super().__init__(regularization=regularization, run_time_dict=run_time_dict)
+        self.over_sampler = over_sampler
+        self.border_relocator = border_relocator
         self.mapper_grids = mapper_grids
 
     @property
@@ -114,8 +135,8 @@ class AbstractMapper(LinearObj):
         return self.source_plane_mesh_grid.edge_pixel_list
 
     @property
-    def hyper_data(self):
-        return self.mapper_grids.hyper_data
+    def adapt_data(self):
+        return self.mapper_grids.adapt_data
 
     @property
     def neighbors(self):
@@ -180,7 +201,7 @@ class AbstractMapper(LinearObj):
         The mappings between every sub-pixel data point on the sub-gridded data and each data point for a grid which
         does not use sub gridding (e.g. `sub_size=1`).
         """
-        return self.source_plane_data_grid.mask.derive_indexes.slim_for_sub_slim
+        return self.over_sampler.slim_for_sub_slim
 
     @property
     def sub_slim_indexes_for_pix_index(self):
@@ -241,12 +262,12 @@ class AbstractMapper(LinearObj):
             data_weights,
             pix_lengths,
         ) = mapper_util.data_slim_to_pixelization_unique_from(
-            data_pixels=self.source_plane_data_grid.shape_slim,
+            data_pixels=self.over_sampler.mask.pixels_in_mask,
             pix_indexes_for_sub_slim_index=self.pix_indexes_for_sub_slim_index,
             pix_sizes_for_sub_slim_index=self.pix_sizes_for_sub_slim_index,
             pix_weights_for_sub_slim_index=self.pix_weights_for_sub_slim_index,
             pix_pixels=self.params,
-            sub_size=self.source_plane_data_grid.sub_size,
+            sub_size=np.array(self.over_sampler.sub_size),
         )
         return UniqueMappings(
             data_to_pix_unique=data_to_pix_unique,
@@ -273,14 +294,14 @@ class AbstractMapper(LinearObj):
             pix_size_for_sub_slim_index=self.pix_sizes_for_sub_slim_index,
             pix_weights_for_sub_slim_index=self.pix_weights_for_sub_slim_index,
             pixels=self.pixels,
-            total_mask_pixels=self.source_plane_data_grid.mask.pixels_in_mask,
+            total_mask_pixels=self.over_sampler.mask.pixels_in_mask,
             slim_index_for_sub_slim_index=self.slim_index_for_sub_slim_index,
-            sub_fraction=self.source_plane_data_grid.mask.sub_fraction,
+            sub_fraction=np.array(self.over_sampler.sub_fraction),
         )
 
     def pixel_signals_from(self, signal_scale):
         """
-        Returns the (hyper) signal in each pixelization pixel, where this signal is an estimate of the expected signal
+        Returns the signal in each pixelization pixel, where this signal is an estimate of the expected signal
         each pixelization pixel contains given the data pixels it maps too.
 
         A full description of this is given in the function `mapper_util.adaptive_pixel_signals_from().
@@ -297,8 +318,8 @@ class AbstractMapper(LinearObj):
             pixel_weights=self.pix_weights_for_sub_slim_index,
             pix_indexes_for_sub_slim_index=self.pix_indexes_for_sub_slim_index,
             pix_size_for_sub_slim_index=self.pix_sizes_for_sub_slim_index,
-            slim_index_for_sub_slim_index=self.source_plane_data_grid.mask.derive_indexes.slim_for_sub_slim,
-            hyper_data=self.hyper_data,
+            slim_index_for_sub_slim_index=self.over_sampler.slim_for_sub_slim,
+            adapt_data=np.array(self.adapt_data),
         )
 
     def pix_indexes_for_slim_indexes(self, pix_indexes):
@@ -340,6 +361,20 @@ class AbstractMapper(LinearObj):
                 )
             return indexes
 
+    def data_weight_total_for_pix_from(self):
+        """
+        Returns the total weight of every pixelization pixel, which is the sum of the weights of all data-points that
+        map to that pixel.
+        """
+        return mapper_util.data_weight_total_for_pix_from(
+            pix_indexes_for_sub_slim_index=self.pix_indexes_for_sub_slim_index,
+            pix_weights_for_sub_slim_index=self.pix_weights_for_sub_slim_index,
+            pixels=self.pixels,
+        )
+
+    def data_pixel_area_for_pix_from(self):
+        pass
+
     def mapped_to_source_from(self, array):
         """
         Map a masked 2d image in the image domain to the source domain and sum up all mappings on the source-pixels.
@@ -347,7 +382,7 @@ class AbstractMapper(LinearObj):
         For example, suppose we have an image and a mapper. We can map every image-pixel to its corresponding mapper's
         source pixel and sum the values based on these mappings.
 
-        This will produce something similar to a `reconstruction`, albeit it bypasses the linear algebra / inversion.
+        This will produce something similar to a `reconstruction`, by passing the linear algebra / inversion.
 
         Parameters
         ----------
@@ -356,7 +391,7 @@ class AbstractMapper(LinearObj):
             source domain in order to compute their average values.
         """
         return mapper_util.mapped_to_source_via_mapping_matrix_from(
-            mapping_matrix=self.mapping_matrix, array_slim=array.binned.slim
+            mapping_matrix=self.mapping_matrix, array_slim=np.array(array.slim)
         )
 
     def extent_from(self, values=None, zoom_to_brightest=True):

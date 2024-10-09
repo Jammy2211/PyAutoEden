@@ -11,9 +11,12 @@ from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Ma
 class MockMapper(AbstractMapper):
     def __init__(
         self,
+        mask=None,
         source_plane_data_grid=None,
         source_plane_mesh_grid=None,
-        hyper_data=None,
+        over_sampler=None,
+        border_relocator=None,
+        adapt_data=None,
         edge_pixel_list=None,
         regularization=None,
         pix_sub_weights=None,
@@ -24,11 +27,17 @@ class MockMapper(AbstractMapper):
         interpolated_array=None,
     ):
         mapper_grids = MapperGrids(
+            mask=mask,
             source_plane_data_grid=source_plane_data_grid,
             source_plane_mesh_grid=source_plane_mesh_grid,
-            hyper_data=hyper_data,
+            adapt_data=adapt_data,
         )
-        super().__init__(mapper_grids=mapper_grids, regularization=regularization)
+        super().__init__(
+            mapper_grids=mapper_grids,
+            over_sampler=over_sampler,
+            border_relocator=border_relocator,
+            regularization=regularization,
+        )
         self._edge_pixel_list = edge_pixel_list
         self._pix_sub_weights = pix_sub_weights
         self._pix_sub_weights_split_cross = pix_sub_weights_split_cross

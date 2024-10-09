@@ -1,67 +1,73 @@
 import numpy as np
-import os
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 import SLE_Model_Autofit as af
 import SLE_Model_Autoarray as aa
 from SLE_Model_Autoarray.exc import PixelizationException
-from SLE_Model_Autogalaxy.SLE_Model_Analysis.analysis import AnalysisDataset
+from SLE_Model_Autogalaxy.SLE_Model_Analysis.SLE_Model_AdaptImages.adapt_image_maker import (
+    AdaptImageMaker,
+)
+from SLE_Model_Autogalaxy.SLE_Model_Analysis.SLE_Model_Analysis.dataset import (
+    AnalysisDataset,
+)
 from SLE_Model_Autogalaxy.SLE_Model_Analysis.preloads import Preloads
 from SLE_Model_Autogalaxy.SLE_Model_Cosmology.lensing import LensingCosmology
 from SLE_Model_Autogalaxy.SLE_Model_Cosmology.wrap import Planck15
+from SLE_Model_Autogalaxy.SLE_Model_Imaging.SLE_Model_Model.result import ResultImaging
 from SLE_Model_Autogalaxy.SLE_Model_Imaging.SLE_Model_Model.visualizer import (
     VisualizerImaging,
 )
-from SLE_Model_Autogalaxy.SLE_Model_Imaging.SLE_Model_Model.result import ResultImaging
 from SLE_Model_Autogalaxy.SLE_Model_Imaging.fit_imaging import FitImaging
-from SLE_Model_Autogalaxy.SLE_Model_Plane.plane import Plane
 from SLE_Model_Autogalaxy import exc
 
 
 class AnalysisImaging(AnalysisDataset):
+    Result = ResultImaging
+    Visualizer = VisualizerImaging
+
     def __init__(
         self,
         dataset,
-        adapt_result=None,
+        adapt_image_maker=None,
         cosmology=Planck15(),
-        settings_pixelization=None,
         settings_inversion=None,
+        title_prefix=None,
     ):
         """
-        Analysis classes are used by PyAutoFit to fit a model to a dataset via a non-linear search.
+        Fits a galaxy model to an imaging dataset via a non-linear search.
 
-        An Analysis class defines the `log_likelihood_function` which fits the model to the dataset and returns the
-        log likelihood value defining how well the model fitted the data. The Analysis class handles many other tasks,
-        such as visualization, outputting results to hard-disk and storing results in a format that can be loaded after
-        the model-fit is complete using PyAutoFit's database tools.
+        The `Analysis` class defines the `log_likelihood_function` which fits the model to the dataset and returns the
+        log likelihood value defining how well the model fitted the data.
 
-        This Analysis class is used for model-fits which fit galaxies (or objects containing galaxies like a `Plane`)
-        to an imaging dataset.
+        It handles many other tasks, such as visualization, outputting results to hard-disk and storing results in
+        a format that can be loaded after the model-fit is complete.
+
+        This class is used for model-fits which fit galaxies to an imaging dataset.
 
         This class stores the settings used to perform the model-fit for certain components of the model (e.g. a
-        pixelization or inversion), the Cosmology used for the analysis and hyper datasets used for certain model
+        pixelization or inversion), the Cosmology used for the analysis and adapt images used for certain model
         classes.
 
         Parameters
         ----------
         dataset
-            The `Imaging` dataset that the model is fitted too.
-        adapt_result
-            The hyper-model image and galaxies images of a previous result in a model-fitting pipeline, which are
+            The `Imaging` dataset that the model is fitted to.
+        adapt_image_maker
+            Makes the adapt-model image and galaxies images of a previous result in a model-fitting pipeline, which are
             used by certain classes for adapting the analysis to the properties of the dataset.
         cosmology
             The Cosmology assumed for this analysis.
-        settings_pixelization
-            Settings controlling how a pixelization is fitted for example if a border is used when creating the
-            pixelization.
         settings_inversion
             Settings controlling how an inversion is fitted for example which linear algebra formalism is used.
+        title_prefix
+            A string that is added before the title of all figures output by visualization, for example to
+            put the name of the dataset and galaxy in the title.
         """
         super().__init__(
             dataset=dataset,
-            adapt_result=adapt_result,
+            adapt_image_maker=adapt_image_maker,
             cosmology=cosmology,
-            settings_pixelization=settings_pixelization,
             settings_inversion=settings_inversion,
+            title_prefix=title_prefix,
         )
 
     @property
@@ -70,8 +76,8 @@ class AnalysisImaging(AnalysisDataset):
 
     def modify_before_fit(self, paths, model):
         """
-        PyAutoFit calls this function immediately before the non-linear search begins, therefore it can be used to
-        perform tasks using the final model parameterization.
+        This function is called immediately before the non-linear search begins and performs final tasks and checks
+        before it begins.
 
         This function checks that the adapt-dataset is consistent with previous adapt-datasets if the model-fit is
         being resumed from a previous run, and it visualizes objects which do not change throughout the model fit
@@ -80,10 +86,10 @@ class AnalysisImaging(AnalysisDataset):
         Parameters
         ----------
         paths
-            The PyAutoFit paths object which manages all paths, e.g. where the non-linear search outputs are stored,
+            The paths object which manages all paths, e.g. where the non-linear search outputs are stored,
             visualization and the pickled objects used by the aggregator output by this function.
         model
-            The PyAutoFit model object, which includes model components representing the galaxies that are fitted to
+            The model object, which includes model components representing the galaxies that are fitted to
             the imaging data.
         """
         super().modify_before_fit(paths=paths, model=model)
@@ -100,16 +106,16 @@ class AnalysisImaging(AnalysisDataset):
 
         For this analysis class, this function performs the following steps:
 
-        1) If the analysis has a hyper dataset, associated the model galaxy images of this dataset to the galaxies in
+        1) If the analysis has a adapt image, associated the model galaxy images of this dataset to the galaxies in
            the model instance.
 
         2) Extract attributes which model aspects of the data reductions, like the scaling the background sky
            and background noise.
 
-        3) Extracts all galaxies from the model instance and set up a `Plane`.
+        3) Extracts all galaxies from the model instance.
 
-        4) Use the `Plane` and other attributes to create a `FitImaging` object, which performs steps such as creating
-           model images of every galaxy in the plane, blurring them with the imaging dataset's PSF and computing residuals,
+        4) Use the galaxies and other attributes to create a `FitImaging` object, which performs steps such as creating
+           model images of every galaxy, blurring them with the imaging dataset's PSF and computing residuals,
            a chi-squared statistic and the log likelihood.
 
         Certain models will fail to fit the dataset and raise an exception. For example if an `Inversion` is used, the
@@ -129,7 +135,7 @@ class AnalysisImaging(AnalysisDataset):
             The log likelihood indicating how well this model instance fitted the imaging data.
         """
         try:
-            return self.fit_imaging_via_instance_from(instance=instance).figure_of_merit
+            return self.fit_from(instance=instance).figure_of_merit
         except (
             PixelizationException,
             exc.PixelizationException,
@@ -141,9 +147,7 @@ class AnalysisImaging(AnalysisDataset):
         ) as e:
             raise exc.FitException from e
 
-    def fit_imaging_via_instance_from(
-        self, instance, preload_overwrite=None, profiling_dict=None
-    ):
+    def fit_from(self, instance, preload_overwrite=None, run_time_dict=None):
         """
         Given a model instance create a `FitImaging` object.
 
@@ -155,195 +159,45 @@ class AnalysisImaging(AnalysisDataset):
         instance
             An instance of the model that is being fitted to the data by this analysis (whose parameters have been set
             via a non-linear search).
-        use_hyper_scaling
-            If false, the scaling of the background sky and noise are not performed irrespective of the model components
-            themselves.
         preload_overwrite
             If a `Preload` object is input this is used instead of the preloads stored as an attribute in the analysis.
-        profiling_dict
+        run_time_dict
             A dictionary which times functions called to fit the model to data, for profiling.
 
         Returns
         -------
         FitImaging
-            The fit of the plane to the imaging dataset, which includes the log likelihood.
+            The fit of the galaxies to the imaging dataset, which includes the log likelihood.
         """
-        instance = self.instance_with_associated_adapt_images_from(instance=instance)
-        plane = self.plane_via_instance_from(instance=instance)
-        return self.fit_imaging_via_plane_from(
-            plane=plane,
-            preload_overwrite=preload_overwrite,
-            profiling_dict=profiling_dict,
+        galaxies = self.galaxies_via_instance_from(
+            instance=instance, run_time_dict=run_time_dict
         )
-
-    def fit_imaging_via_plane_from(
-        self, plane, preload_overwrite=None, profiling_dict=None
-    ):
-        """
-        Given a `Plane`, which the analysis constructs from a model instance, create a `FitImaging` object.
-
-        This function is used in the `log_likelihood_function` to fit the model to the imaging data and compute the
-        log likelihood.
-
-        Parameters
-        ----------
-        plane
-            The plane of galaxies whose model images are used to fit the imaging data.
-        use_hyper_scaling
-            If false, the scaling of the background sky and noise are not performed irrespective of the model components
-            themselves.
-        preload_overwrite
-            If a `Preload` object is input this is used instead of the preloads stored as an attribute in the analysis.
-        profiling_dict
-            A dictionary which times functions called to fit the model to data, for profiling.
-
-        Returns
-        -------
-        FitImaging
-            The fit of the plane to the imaging dataset, which includes the log likelihood.
-        """
+        dataset_model = self.dataset_model_via_instance_from(instance=instance)
+        adapt_images = self.adapt_images_via_instance_from(instance=instance)
         preloads = self.preloads if (preload_overwrite is None) else preload_overwrite
         return FitImaging(
             dataset=self.dataset,
-            plane=plane,
-            settings_pixelization=self.settings_pixelization,
+            galaxies=galaxies,
+            dataset_model=dataset_model,
+            adapt_images=adapt_images,
             settings_inversion=self.settings_inversion,
             preloads=preloads,
-            profiling_dict=profiling_dict,
+            run_time_dict=run_time_dict,
         )
 
-    @property
-    def fit_func(self):
-        return self.fit_imaging_via_instance_from
-
-    def visualize_before_fit(self, paths, model):
+    def save_attributes(self, paths):
         """
-        PyAutoFit calls this function immediately before the non-linear search begins.
-
-        It visualizes objects which do not change throughout the model fit like the dataset.
-
-        Parameters
-        ----------
-        paths
-            The PyAutoFit paths object which manages all paths, e.g. where the non-linear search outputs are stored,
-            visualization and the pickled objects used by the aggregator output by this function.
-        model
-            The PyAutoFit model object, which includes model components representing the galaxies that are fitted to
-            the imaging data.
-        """
-        if not self.should_visualize(paths=paths):
-            return
-        visualizer = VisualizerImaging(visualize_path=paths.image_path)
-        visualizer.visualize_imaging(imaging=self.imaging)
-        visualizer.visualize_adapt_images(
-            adapt_galaxy_image_path_dict=self.adapt_galaxy_image_path_dict,
-            adapt_model_image=self.adapt_model_image,
-        )
-
-    def visualize(self, paths, instance, during_analysis):
-        """
-        Output images of the maximum log likelihood model inferred by the model-fit. This function is called throughout
-        the non-linear search at regular intervals, and therefore provides on-the-fly visualization of how well the
-        model-fit is going.
-
-        The visualization performed by this function includes:
-
-        - Images of the best-fit `Plane`, including the images of each of its galaxies.
-
-        - Images of the best-fit `FitImaging`, including the model-image, residuals and chi-squared of its fit to
-          the imaging data.
-
-        - The hyper-images of the model-fit showing how the galaxies are used to represent different galaxies in
-          the dataset.
-
-        The images output by this function are customized using the file `config/visualize/plots.ini`.
-
-        Parameters
-        ----------
-        paths
-            The PyAutoFit paths object which manages all paths, e.g. where the non-linear search outputs are stored,
-            visualization, and the pickled objects used by the aggregator output by this function.
-        instance
-            An instance of the model that is being fitted to the data by this analysis (whose parameters have been set
-            via a non-linear search).
-        during_analysis
-            If True the visualization is being performed midway through the non-linear search before it is finished,
-            which may change which images are output.
-        """
-        if not self.should_visualize(paths=paths):
-            return
-        instance = self.instance_with_associated_adapt_images_from(instance=instance)
-        plane = self.plane_via_instance_from(instance=instance)
-        fit = self.fit_imaging_via_plane_from(plane=plane)
-        visualizer = VisualizerImaging(visualize_path=paths.image_path)
-        visualizer.visualize_imaging(imaging=self.imaging)
-        try:
-            visualizer.visualize_fit_imaging(fit=fit, during_analysis=during_analysis)
-        except exc.InversionException:
-            pass
-        plane = fit.plane_linear_light_profiles_to_light_profiles
-        visualizer.visualize_plane(
-            plane=plane, grid=fit.grid, during_analysis=during_analysis
-        )
-        visualizer.visualize_galaxies(
-            galaxies=plane.galaxies, grid=fit.grid, during_analysis=during_analysis
-        )
-        if fit.inversion is not None:
-            visualizer.visualize_inversion(
-                inversion=fit.inversion, during_analysis=during_analysis
-            )
-        visualizer.visualize_adapt_images(
-            adapt_galaxy_image_path_dict=self.adapt_galaxy_image_path_dict,
-            adapt_model_image=self.adapt_model_image,
-        )
-
-    def make_result(self, samples, model, sigma=1.0, use_errors=True, use_widths=False):
-        """
-        After the non-linear search is complete create its `Result`, which includes:
-
-        - The samples of the non-linear search (E.g. MCMC chains, nested sampling samples) which are used to compute
-          the maximum likelihood model, posteriors and other properties.
-
-        - The model used to fit the data, which uses the samples to create specific instances of the model (e.g.
-          an instance of the maximum log likelihood model).
-
-        - The non-linear search used to perform the model fit.
-
-        The `ResultImaging` object contains a number of methods which use the above objects to create the max
-        log likelihood `Plane`, `FitImaging`, adapt-galaxy images,etc.
-
-        Parameters
-        ----------
-        samples
-            A PyAutoFit object which contains the samples of the non-linear search, for example the chains of an MCMC
-            run of samples of the nested sampler.
-        model
-            The PyAutoFit model object, which includes model components representing the galaxies that are fitted to
-            the imaging data.
-        search
-            The non-linear search used to perform this model-fit.
-
-        Returns
-        -------
-        ResultImaging
-            The result of fitting the model to the imaging dataset, via a non-linear search.
-        """
-        return ResultImaging(samples=samples, model=model, analysis=self)
-
-    def save_attributes_for_aggregator(self, paths):
-        """
-         Before the non-linear search begins, this routine saves attributes of the `Analysis` object to the `pickles`
+         Before the non-linear search begins, this routine saves attributes of the `Analysis` object to the `files`
          folder such that they can be loaded after the analysis using PyAutoFit's database and aggregator tools.
 
          For this analysis, it uses the `AnalysisDataset` object's method to output the following:
 
-         - The dataset's data.
-         - The dataset's noise-map.
-         - The settings associated with the dataset.
+         - The imaging dataset (data / noise-map / psf / over sampler / etc.).
+         - The mask applied to the dataset.
          - The settings associated with the inversion.
          - The settings associated with the pixelization.
          - The Cosmology.
-         - The hyper dataset's model image and galaxy images, if used.
+         - The adapt image's model image and galaxy images, if used.
 
          This function also outputs attributes specific to an imaging dataset:
 
@@ -358,9 +212,49 @@ class AnalysisImaging(AnalysisDataset):
          Parameters
          ----------
          paths
-             The PyAutoFit paths object which manages all paths, e.g. where the non-linear search outputs are stored, visualization,
-             and the pickled objects used by the aggregator output by this function.
+             The paths object which manages all paths, e.g. where the non-linear search outputs are stored,
+             visualization, and the pickled objects used by the aggregator output by this function.
         """
-        super().save_attributes_for_aggregator(paths=paths)
-        paths.save_object("psf", self.dataset.psf)
-        paths.save_object("mask", self.dataset.mask)
+        super().save_attributes(paths=paths)
+        paths.save_fits(
+            name="psf", hdu=self.dataset.psf.hdu_for_output, prefix="dataset"
+        )
+        paths.save_fits(
+            name="mask", hdu=self.dataset.mask.hdu_for_output, prefix="dataset"
+        )
+
+    def profile_log_likelihood_function(self, instance, paths=None):
+        """
+        This function is optionally called throughout a model-fit to profile the log likelihood function.
+
+        All function calls inside the `log_likelihood_function` that are decorated with the `profile_func` are timed
+        with their times stored in a dictionary called the `run_time_dict`.
+
+        An `info_dict` is also created which stores information on aspects of the model and dataset that dictate
+        run times, so the profiled times can be interpreted with this context.
+
+        The results of this profiling are then output to hard-disk in the `preloads` folder of the model-fit results,
+        which they can be inspected to ensure run-times are as expected.
+
+        Parameters
+        ----------
+        instance
+            An instance of the model that is being fitted to the data by this analysis (whose parameters have been set
+            via a non-linear search).
+        paths
+            The paths object which manages all paths, e.g. where the non-linear search outputs are stored,
+            visualization and the pickled objects used by the aggregator output by this function.
+
+        Returns
+        -------
+        Two dictionaries, the profiling dictionary and info dictionary, which contain the profiling times of the
+        `log_likelihood_function` and information on the model and dataset used to perform the profiling.
+        """
+        (run_time_dict, info_dict) = super().profile_log_likelihood_function(
+            instance=instance
+        )
+        info_dict["psf_shape_2d"] = self.dataset.psf.shape_native
+        self.output_profiling_info(
+            paths=paths, run_time_dict=run_time_dict, info_dict=info_dict
+        )
+        return (run_time_dict, info_dict)

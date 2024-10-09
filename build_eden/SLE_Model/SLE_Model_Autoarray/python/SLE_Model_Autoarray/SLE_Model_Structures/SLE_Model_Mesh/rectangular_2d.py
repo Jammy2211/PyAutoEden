@@ -1,26 +1,33 @@
 import numpy as np
 from scipy.interpolate import griddata
 from typing import List, Optional, Tuple
-from SLE_Model_Autoconf import cached_property
+from SLE_Model_Autoarray import type as ty
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_LinearObj.neighbors import (
     Neighbors,
 )
-from SLE_Model_Autoarray.SLE_Model_Mask.mask_2d import Mask2D
-from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays.uniform_2d import Array2D
-from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Mesh.abstract_2d import (
-    Abstract2DMesh,
-)
-from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids import grid_2d_util
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mesh import (
     mesh_util,
 )
-from SLE_Model_Autoarray import type as ty
+from SLE_Model_Autoarray.SLE_Model_Mask.mask_2d import Mask2D
+from SLE_Model_Autoarray.SLE_Model_Structures.abstract_structure import Structure
+from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays.uniform_2d import Array2D
+from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids import grid_2d_util
+from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Mesh.abstract_2d import (
+    Abstract2DMesh,
+)
+from SLE_Model_Autoconf import cached_property
 
 
 class Mesh2DRectangular(Abstract2DMesh):
-    def __new__(
-        cls, values, shape_native, pixel_scales, origin=(0.0, 0.0), *args, **kwargs
-    ):
+    @property
+    def slim(self):
+        raise NotImplementedError()
+
+    @property
+    def native(self):
+        raise NotImplementedError()
+
+    def __init__(self, values, shape_native, pixel_scales, origin=(0.0, 0.0)):
         """
         A grid of (y,x) coordinates which represent a uniform rectangular pixelization.
 
@@ -47,18 +54,12 @@ class Mesh2DRectangular(Abstract2DMesh):
             it is converted to a (float, float) structure.
         origin
             The (y,x) origin of the pixelization.
-        nearest_pixelization_index_for_slim_index
-            A 1D array that maps every grid pixel to its nearest pixelization-grid pixel.
         """
         mask = Mask2D.all_false(
-            shape_native=shape_native,
-            pixel_scales=pixel_scales,
-            sub_size=1,
-            origin=origin,
+            shape_native=shape_native, pixel_scales=pixel_scales, origin=origin
         )
-        obj = values.view(cls)
-        obj.mask = mask
-        return obj
+        self.mask = mask
+        super().__init__(array=values)
 
     @classmethod
     def overlay_grid(cls, shape_native, grid, buffer=1e-08):
@@ -92,10 +93,7 @@ class Mesh2DRectangular(Abstract2DMesh):
         )
         origin = (((y_max + y_min) / 2.0), ((x_max + x_min) / 2.0))
         grid_slim = grid_2d_util.grid_2d_slim_via_shape_native_from(
-            shape_native=shape_native,
-            pixel_scales=pixel_scales,
-            sub_size=1,
-            origin=origin,
+            shape_native=shape_native, pixel_scales=pixel_scales, origin=origin
         )
         return Mesh2DRectangular(
             values=grid_slim,

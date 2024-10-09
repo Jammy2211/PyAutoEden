@@ -1,11 +1,9 @@
-from typing import List, Union
 import SLE_Model_Autoarray as aa
 import SLE_Model_Autogalaxy as ag
 import SLE_Model_Autogalaxy.SLE_Model_Plot as aplt
-from SLE_Model_Autogalaxy.SLE_Model_Plot.SLE_Model_GetVisuals import one_d as gv1d
 from SLE_Model_Autogalaxy.SLE_Model_Plot.SLE_Model_GetVisuals import two_d as gv2d
 from SLE_Model_Autolens.SLE_Model_Imaging.fit_imaging import FitImaging
-from SLE_Model_Autolens.SLE_Model_Lens.ray_tracing import Tracer
+from SLE_Model_Autolens.SLE_Model_Lens.tracer import Tracer
 
 
 class GetVisuals2D(gv2d.GetVisuals2D):
@@ -67,7 +65,7 @@ class GetVisuals2D(gv2d.GetVisuals2D):
             A collection of attributes that can be plotted by a `Plotter` object.
         """
         origin = self.get("origin", value=aa.Grid2DIrregular(values=[grid.origin]))
-        border = self.get("border", value=grid.mask.derive_grid.border_sub_1.binned)
+        border = self.get("border", value=grid.mask.derive_grid.border)
         if (border is not None) and (len(border) > 0) and (plane_index > 0):
             border = tracer.traced_grid_2d_list_from(grid=border)[plane_index]
         light_profile_centres = self.get(
@@ -92,11 +90,18 @@ class GetVisuals2D(gv2d.GetVisuals2D):
                 tracer.tangential_critical_curve_list_from(grid=grid),
                 "tangential_critical_curves",
             )
-            radial_critical_curves = self.get(
-                "radial_critical_curves",
-                tracer.radial_critical_curve_list_from(grid=grid),
-                "radial_critical_curves",
+            radial_critical_curves = None
+            radial_critical_curve_area_list = (
+                tracer.radial_critical_curve_area_list_from(grid=grid)
             )
+            if any(
+                [(area > grid.pixel_scale) for area in radial_critical_curve_area_list]
+            ):
+                radial_critical_curves = self.get(
+                    "radial_critical_curves",
+                    tracer.radial_critical_curve_list_from(grid=grid),
+                    "radial_critical_curves",
+                )
         if plane_index > 0:
             tangential_caustics = self.get(
                 "tangential_caustics",
@@ -147,6 +152,6 @@ class GetVisuals2D(gv2d.GetVisuals2D):
         """
         visuals_2d_via_mask = self.via_mask_from(mask=fit.mask)
         visuals_2d_via_tracer = self.via_tracer_from(
-            tracer=fit.tracer, grid=fit.grid, plane_index=0
+            tracer=fit.tracer, grid=fit.grids.uniform, plane_index=0
         )
         return visuals_2d_via_mask + visuals_2d_via_tracer

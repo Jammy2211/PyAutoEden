@@ -1,3 +1,4 @@
+from typing import Optional
 import numpy as np
 from SLE_Model_Autofit import exc
 from SLE_Model_Autofit.SLE_Model_Messages.normal import UniformNormalMessage
@@ -82,8 +83,7 @@ class LogUniformPrior(Prior):
 
     __identifier_fields__ = ("lower_limit", "upper_limit")
 
-    @staticmethod
-    def log_prior_from_value(value):
+    def log_prior_from_value(self, value):
         """
         Returns the log prior of a physical value, so the log likelihood of a model evaluation can be converted to a
         posterior as log_prior + log_likelihood.

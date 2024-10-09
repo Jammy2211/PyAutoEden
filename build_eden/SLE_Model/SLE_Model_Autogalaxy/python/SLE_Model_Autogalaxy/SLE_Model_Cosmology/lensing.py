@@ -206,12 +206,17 @@ class LensingCosmology(cosmo.FLRW):
     ):
         """
         For strong lens systems with more than 2 planes, the deflection angles between different planes must be scaled
-        by the angular diameter distances between the planes in order to properly perform multi-plane ray-tracing.
+        by the angular diameter distances between the planes in order to properly perform multi-plane ray-tracing. This
+        function computes the factor to scale deflections between `redshift_0` and `reshift_final`, to deflections between
+        `redshift_0` and `redshift_1`.
+
+        The second redshift should be strictly larger than the first. The scaling factor is unity when `redshift_1`
+        is `redshift_final`, and 0 when `redshift_0` is equal to `redshift_1`.
 
         For a system with a first lens galaxy l0 at `redshift_0`, second lens galaxy l1 at `redshift_1` and final
         source galaxy at `redshift_final` this scaling factor is given by:
 
-        (D_l0l1 * D_s) / (D_l1* D_l1s)
+        (D_l0l1 * D_s) / (D_l1* D_l0s)
 
         The critical surface density for lensing, often written as $\\sigma_{cr}$, is given by:
 
@@ -220,7 +225,7 @@ class LensingCosmology(cosmo.FLRW):
         D_l0l1 = Angular diameter distance of first lens redshift to second lens redshift.
         D_s = Angular diameter distance of source redshift to earth
         D_l1 = Angular diameter distance of second lens redshift to Earth.
-        D_l1s = Angular diameter distance of second lens redshift to source redshift
+        D_l0s = Angular diameter distance of first lens redshift to source redshift
 
         For systems with more planes this scaling factor is computed multiple times for the different redshift
         combinations and applied recursively when scaling the deflection angles.
@@ -245,7 +250,7 @@ class LensingCosmology(cosmo.FLRW):
         angular_diameter_distance_of_redshift_1_to_earth = (
             self.angular_diameter_distance(z=redshift_1).to("kpc").value
         )
-        angular_diameter_distance_between_redshift_1_and_final = (
+        angular_diameter_distance_between_redshift_0_and_final = (
             self.angular_diameter_distance_z1z2(z1=redshift_0, z2=redshift_final)
             .to("kpc")
             .value
@@ -255,7 +260,7 @@ class LensingCosmology(cosmo.FLRW):
             * angular_diameter_distance_to_redshift_final
         ) / (
             angular_diameter_distance_of_redshift_1_to_earth
-            * angular_diameter_distance_between_redshift_1_and_final
+            * angular_diameter_distance_between_redshift_0_and_final
         )
 
     def velocity_dispersion_from(self, redshift_0, redshift_1, einstein_radius):

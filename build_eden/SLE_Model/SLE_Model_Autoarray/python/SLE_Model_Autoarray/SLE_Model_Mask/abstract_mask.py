@@ -1,6 +1,9 @@
+from __future__ import annotations
 from abc import ABC
 import logging
 import numpy as np
+from pathlib import Path
+from typing import Dict, Union
 from SLE_Model_Autoarray.abstract_ndarray import AbstractNDArray
 from SLE_Model_Autoarray import exc
 from SLE_Model_Autoarray import type as ty
@@ -12,7 +15,7 @@ logger = logging.getLogger(__name__)
 class Mask(AbstractNDArray, ABC):
     pixel_scales = None
 
-    def __new__(cls, mask, origin, pixel_scales, sub_size=1, *args, **kwargs):
+    def __init__(self, mask, origin, pixel_scales, *args, **kwargs):
         """
         An abstract class for a mask that represents data structure that can be in 1D, 2D or other shapes.
 
@@ -20,7 +23,7 @@ class Mask(AbstractNDArray, ABC):
         that are (`False` or 0).
 
         The mask also defines the geometry of the data structure it is paired with, for example how its pixels convert
-        to physical units via the pixel_scales and origin parameters and a sub-grid which is used for
+        to physical units via the pixel_scales and origin parameters and a grid which is used for
         perform calculations via super-sampling.
 
         Parameters
@@ -35,19 +38,19 @@ class Mask(AbstractNDArray, ABC):
             The origin of the mask's coordinate system in scaled units.
         """
         mask = mask.astype("bool")
-        obj = mask.view(cls)
-        obj.sub_size = sub_size
-        obj.pixel_scales = pixel_scales
-        obj.origin = origin
-        return obj
+        super().__init__(mask)
+        self.pixel_scales = pixel_scales
+        self.origin = origin
+
+    @property
+    def mask(self):
+        return self._array
 
     def __array_finalize__(self, obj):
         if isinstance(obj, Mask):
-            self.sub_size = obj.sub_size
             self.pixel_scales = obj.pixel_scales
             self.origin = obj.origin
         else:
-            self.sub_size = 1
             self.pixel_scales = None
 
     @property
@@ -57,33 +60,35 @@ class Mask(AbstractNDArray, ABC):
         single value as a float.
         """
         for pixel_scale in self.pixel_scales:
-            if pixel_scale != self.pixel_scales[0]:
+            if abs((pixel_scale - self.pixel_scales[0])) > 1e-08:
                 raise exc.MaskException(
                     "Cannot return a pixel_scale for a grid where each dimension has a different pixel scale (e.g. pixel_scales[0] != pixel_scales[1])"
                 )
         return self.pixel_scales[0]
 
     @property
+    def pixel_scale_header(self):
+        """
+        Returns the pixel scale of the mask as a header dictionary, which can be written to a .fits file.
+
+        If the array has different pixel scales in 2 dimensions, the header will contain both pixel scales as separate
+        y and x entries.
+
+        Returns
+        -------
+        A dictionary containing the pixel scale of the mask, which can be output to a .fits file.
+        """
+        try:
+            return {"PIXSCALE": self.pixel_scale}
+        except exc.MaskException:
+            return {
+                "PIXSCALEY": self.pixel_scales[0],
+                "PIXSCALEX": self.pixel_scales[1],
+            }
+
+    @property
     def dimensions(self):
         return len(self.shape)
-
-    @property
-    def sub_length(self):
-        """
-        The total number of sub-pixels in a give pixel,
-
-        For example, a sub-size of 3x3 means every pixel has 9 sub-pixels.
-        """
-        return int((self.sub_size**self.dimensions))
-
-    @property
-    def sub_fraction(self):
-        """
-        The fraction of the area of a pixel every sub-pixel contains.
-
-        For example, a sub-size of 3x3 mean every pixel contains 1/9 the area.
-        """
-        return 1.0 / self.sub_length
 
     def output_to_fits(self, file_path, overwrite=False):
         """
@@ -95,7 +100,7 @@ class Mask(AbstractNDArray, ABC):
         """
         The total number of unmasked pixels (values are `False`) in the mask.
         """
-        return int((np.size(self) - np.sum(self)))
+        return int((np.size(self._array) - np.sum(self._array)))
 
     @property
     def is_all_true(self):
@@ -109,14 +114,7 @@ class Mask(AbstractNDArray, ABC):
         """
         Returns `False` if all pixels in a mask are `False`, else returns `True`.
         """
-        return self.pixels_in_mask == np.size(self)
-
-    @property
-    def sub_pixels_in_mask(self):
-        """
-        The total number of unmasked sub-pixels (values are `False`) in the mask.
-        """
-        return (self.sub_size**self.dimensions) * self.pixels_in_mask
+        return self.pixels_in_mask == np.size(self._array)
 
     @property
     def shape_slim(self):
@@ -124,21 +122,3 @@ class Mask(AbstractNDArray, ABC):
         The 1D shape of the mask, which is equivalent to the total number of unmasked pixels in the mask.
         """
         return self.pixels_in_mask
-
-    @property
-    def sub_shape_slim(self):
-        """
-        The 1D shape of the mask's sub-grid, which is equivalent to the total number of unmasked pixels in the mask.
-        """
-        return int((self.pixels_in_mask * (self.sub_size**self.dimensions)))
-
-    def mask_new_sub_size_from(self, mask, sub_size=1):
-        """
-        Returns the mask on the same scaled coordinate system but with a sub-grid of an inputsub_size.
-        """
-        return self.__class__(
-            mask=mask,
-            sub_size=sub_size,
-            pixel_scales=self.pixel_scales,
-            origin=self.origin,
-        )

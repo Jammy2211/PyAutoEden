@@ -1,5 +1,8 @@
 import numpy as np
 from typing import Dict
+from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.dataset_interface import (
+    DatasetInterface,
+)
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.SLE_Model_Imaging.mapping import (
     InversionImagingMapping,
 )
@@ -25,10 +28,9 @@ class MockInversionImaging(InversionImagingMapping):
         settings=SettingsInversion(),
         preloads=Preloads(),
     ):
+        dataset = DatasetInterface(data=data, noise_map=noise_map, convolver=convolver)
         super().__init__(
-            data=data,
-            noise_map=noise_map,
-            convolver=convolver,
+            dataset=dataset,
             linear_obj_list=linear_obj_list,
             settings=settings,
             preloads=preloads,
@@ -75,10 +77,9 @@ class MockInversionImagingWTilde(InversionImagingWTilde):
         settings=SettingsInversion(),
         preloads=Preloads(),
     ):
+        dataset = DatasetInterface(data=data, noise_map=noise_map, convolver=convolver)
         super().__init__(
-            data=data,
-            noise_map=noise_map,
-            convolver=convolver,
+            dataset=dataset,
             w_tilde=(w_tilde or MockWTildeImaging()),
             linear_obj_list=linear_obj_list,
             settings=settings,

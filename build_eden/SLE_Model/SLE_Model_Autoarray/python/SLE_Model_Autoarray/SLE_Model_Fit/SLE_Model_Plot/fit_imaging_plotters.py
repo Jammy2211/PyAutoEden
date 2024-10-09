@@ -61,6 +61,7 @@ class FitImagingPlotterMeta(Plotter):
         residual_map=False,
         normalized_residual_map=False,
         chi_squared_map=False,
+        residual_flux_fraction_map=False,
         suffix="",
     ):
         """
@@ -85,12 +86,14 @@ class FitImagingPlotterMeta(Plotter):
             Whether to make a 2D plot (via `imshow`) of the normalized residual map.
         chi_squared_map
             Whether to make a 2D plot (via `imshow`) of the chi-squared map.
+        residual_flux_fraction_map
+            Whether to make a 2D plot (via `imshow`) of the residual flux fraction map.
         """
         if data:
             self.mat_plot_2d.plot_array(
                 array=self.fit.data,
                 visuals_2d=self.get_visuals_2d(),
-                auto_labels=AutoLabels(title="Image", filename=f"data{suffix}"),
+                auto_labels=AutoLabels(title="Data", filename=f"data{suffix}"),
             )
         if noise_map:
             self.mat_plot_2d.plot_array(
@@ -118,7 +121,7 @@ class FitImagingPlotterMeta(Plotter):
             )
         cmap_original = self.mat_plot_2d.cmap
         if self.residuals_symmetric_cmap:
-            self.mat_plot_2d.cmap = self.mat_plot_2d.cmap.symmetric
+            self.mat_plot_2d.cmap = self.mat_plot_2d.cmap.symmetric_cmap_from()
         if residual_map:
             self.mat_plot_2d.plot_array(
                 array=self.fit.residual_map,
@@ -145,6 +148,15 @@ class FitImagingPlotterMeta(Plotter):
                     title="Chi-Squared Map", filename=f"chi_squared_map{suffix}"
                 ),
             )
+        if residual_flux_fraction_map:
+            self.mat_plot_2d.plot_array(
+                array=self.fit.residual_map,
+                visuals_2d=self.get_visuals_2d(),
+                auto_labels=AutoLabels(
+                    title="Residual Flux Fraction Map",
+                    filename=f"residual_flux_fraction_map{suffix}",
+                ),
+            )
 
     def subplot(
         self,
@@ -155,6 +167,7 @@ class FitImagingPlotterMeta(Plotter):
         residual_map=False,
         normalized_residual_map=False,
         chi_squared_map=False,
+        residual_flux_fraction_map=False,
         auto_filename="subplot_fit",
     ):
         """
@@ -181,6 +194,8 @@ class FitImagingPlotterMeta(Plotter):
             Whether to include a 2D plot (via `imshow`) of the normalized residual map.
         chi_squared_map
             Whether to include a 2D plot (via `imshow`) of the chi-squared map.
+        residual_flux_fraction_map
+            Whether to include a 2D plot (via `imshow`) of the residual flux fraction map.
         auto_filename
             The default filename of the output subplot if written to hard-disk.
         """
@@ -192,6 +207,7 @@ class FitImagingPlotterMeta(Plotter):
             residual_map=residual_map,
             normalized_residual_map=normalized_residual_map,
             chi_squared_map=chi_squared_map,
+            residual_flux_fraction_map=residual_flux_fraction_map,
             auto_labels=AutoLabels(filename=auto_filename),
         )
 

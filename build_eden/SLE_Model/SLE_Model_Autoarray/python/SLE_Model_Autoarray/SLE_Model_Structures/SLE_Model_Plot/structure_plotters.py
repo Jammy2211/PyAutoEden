@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Optional, Union
+from typing import List, Optional, Union
 from SLE_Model_Autoarray.SLE_Model_Plot.abstract_plotters import Plotter
 from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Visuals.one_d import Visuals1D
 from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Visuals.two_d import Visuals2D
@@ -103,7 +103,9 @@ class Grid2DPlotter(Plotter):
     def get_visuals_2d(self):
         return self.get_2d.via_grid_from(grid=self.grid)
 
-    def figure_2d(self, color_array=None):
+    def figure_2d(
+        self, color_array=None, plot_grid_lines=False, plot_over_sampled_grid=False
+    ):
         """
         Plots the plotter's `Grid2D` object in 2D.
 
@@ -111,12 +113,20 @@ class Grid2DPlotter(Plotter):
         ----------
         color_array
             An array of RGB color values which can be used to give the plotted 2D grid a colorscale (w/ colorbar).
+        plot_grid_lines
+            If True, a rectangular grid of lines is plotted on the figure showing the pixels which the grid coordinates
+            are centred on.
+        plot_over_sampled_grid
+            If True, the grid is plotted with over-sampled sub-gridded coordinates based on the `sub_size` attribute
+            of the grid's over-sampling object.
         """
         self.mat_plot_2d.plot_grid(
             grid=self.grid,
             visuals_2d=self.get_visuals_2d(),
             auto_labels=AutoLabels(title="Grid2D", filename="grid"),
             color_array=color_array,
+            plot_grid_lines=plot_grid_lines,
+            plot_over_sampled_grid=plot_over_sampled_grid,
         )
 
 
@@ -128,6 +138,11 @@ class YX1DPlotter(Plotter):
         mat_plot_1d=MatPlot1D(),
         visuals_1d=Visuals1D(),
         include_1d=Include1D(),
+        should_plot_grid=False,
+        should_plot_zero=False,
+        plot_axis_type=None,
+        plot_yx_dict=None,
+        auto_labels=AutoLabels(),
     ):
         """
         Plots two 1D objects using the matplotlib method `plot()` (or a similar method) and many other matplotlib
@@ -154,11 +169,20 @@ class YX1DPlotter(Plotter):
         include_1d
             Specifies which attributes of the `Array1D` are extracted and plotted as visuals for 1D plots.
         """
+        if isinstance(y, list):
+            y = Array1D.no_mask(values=y, pixel_scales=1.0)
+        if isinstance(x, list):
+            x = Array1D.no_mask(values=x, pixel_scales=1.0)
         super().__init__(
             visuals_1d=visuals_1d, include_1d=include_1d, mat_plot_1d=mat_plot_1d
         )
         self.y = y
         self.x = y.grid_radial if (x is None) else x
+        self.should_plot_grid = should_plot_grid
+        self.should_plot_zero = should_plot_zero
+        self.plot_axis_type = plot_axis_type
+        self.plot_yx_dict = plot_yx_dict or {}
+        self.auto_labels = auto_labels
 
     def get_visuals_1d(self):
         return self.get_1d.via_array_1d_from(array_1d=self.x)
@@ -171,5 +195,9 @@ class YX1DPlotter(Plotter):
             y=self.y,
             x=self.x,
             visuals_1d=self.get_visuals_1d(),
-            auto_labels=AutoLabels(),
+            auto_labels=self.auto_labels,
+            should_plot_grid=self.should_plot_grid,
+            should_plot_zero=self.should_plot_zero,
+            plot_axis_type_override=self.plot_axis_type,
+            **self.plot_yx_dict
         )

@@ -1,8 +1,9 @@
 import numpy as np
-from typing import Dict, Optional, Union
-from SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Interferometer.interferometer import (
+from typing import Dict, Optional
+from SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Interferometer.dataset import (
     Interferometer,
 )
+from SLE_Model_Autoarray.SLE_Model_Dataset.dataset_model import DatasetModel
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays.uniform_2d import Array2D
 from SLE_Model_Autoarray.SLE_Model_Structures.visibilities import Visibilities
 from SLE_Model_Autoarray.SLE_Model_Fit.fit_dataset import FitDataset
@@ -11,14 +12,19 @@ from SLE_Model_Autoarray import type as ty
 
 
 class FitInterferometer(FitDataset):
-    def __init__(self, dataset, use_mask_in_fit=False, profiling_dict=None):
-        """Class to fit a masked interferometer dataset.
+    def __init__(
+        self, dataset, dataset_model=None, use_mask_in_fit=False, run_time_dict=None
+    ):
+        """
+        Class to fit a masked interferometer dataset.
 
         Parameters
         ----------
         dataset : MaskedInterferometer
             The masked interferometer dataset that is fitted.
-        model_visibilities : Visibilities
+        dataset_model
+            Attributes which allow for parts of a dataset to be treated as a model (e.g. the background sky level).
+        model_data : Visibilities
             The model visibilities the masked imaging is fitted with.
         inversion : Inversion
             If the fit uses an `Inversion` this is the instance of the object used to perform the fit. This determines
@@ -45,8 +51,9 @@ class FitInterferometer(FitDataset):
         """
         super().__init__(
             dataset=dataset,
+            dataset_model=dataset_model,
             use_mask_in_fit=use_mask_in_fit,
-            profiling_dict=profiling_dict,
+            run_time_dict=run_time_dict,
         )
 
     @property
@@ -54,20 +61,8 @@ class FitInterferometer(FitDataset):
         return np.full(shape=self.data.shape, fill_value=False)
 
     @property
-    def interferometer(self):
-        return self.dataset
-
-    @property
     def transformer(self):
-        return self.interferometer.transformer
-
-    @property
-    def visibilities(self):
-        return self.data
-
-    @property
-    def model_visibilities(self):
-        return self.model_data
+        return self.dataset.transformer
 
     @property
     def normalized_residual_map(self):
@@ -76,8 +71,8 @@ class FitInterferometer(FitDataset):
 
         Normalized_Residual = (Data - Model_Data) / Noise
         """
-        return fit_util.normalized_residual_map_complex_with_mask_from(
-            residual_map=self.residual_map, noise_map=self.noise_map, mask=self.mask
+        return fit_util.normalized_residual_map_complex_from(
+            residual_map=self.residual_map, noise_map=self.noise_map
         )
 
     @property
@@ -87,20 +82,17 @@ class FitInterferometer(FitDataset):
 
         Chi_Squared = ((Residuals) / (Noise)) ** 2.0 = ((Data - Model)**2.0)/(Variances)
         """
-        return fit_util.chi_squared_map_complex_with_mask_from(
-            residual_map=self.residual_map, noise_map=self.noise_map, mask=self.mask
+        return fit_util.chi_squared_map_complex_from(
+            residual_map=self.residual_map, noise_map=self.noise_map
         )
 
     @property
     def signal_to_noise_map(self):
-        "The signal-to-noise_map of the dataset and noise-map which are fitted."
-        signal_to_noise_map_real = np.divide(
-            np.real(self.data), np.real(self.noise_map)
-        )
+        """
+        The signal-to-noise_map of the dataset and noise-map which are fitted."""
+        signal_to_noise_map_real = self.data.real / self.noise_map.real
         signal_to_noise_map_real[(signal_to_noise_map_real < 0)] = 0.0
-        signal_to_noise_map_imag = np.divide(
-            np.imag(self.data), np.imag(self.noise_map)
-        )
+        signal_to_noise_map_imag = self.data.imag / self.noise_map.imag
         signal_to_noise_map_imag[(signal_to_noise_map_imag < 0)] = 0.0
         return signal_to_noise_map_real + (1j * signal_to_noise_map_imag)
 
@@ -109,9 +101,7 @@ class FitInterferometer(FitDataset):
         """
         Returns the chi-squared terms of the model data's fit to an dataset, by summing the chi-squared-map.
         """
-        return fit_util.chi_squared_complex_with_mask_from(
-            chi_squared_map=self.chi_squared_map, mask=self.mask
-        )
+        return fit_util.chi_squared_complex_from(chi_squared_map=self.chi_squared_map)
 
     @property
     def noise_normalization(self):
@@ -120,9 +110,7 @@ class FitInterferometer(FitDataset):
 
         [Noise_Term] = sum(log(2*pi*[Noise]**2.0))
         """
-        return fit_util.noise_normalization_complex_with_mask_from(
-            noise_map=self.noise_map, mask=self.mask
-        )
+        return fit_util.noise_normalization_complex_from(noise_map=self.noise_map)
 
     @property
     def dirty_image(self):
@@ -138,7 +126,7 @@ class FitInterferometer(FitDataset):
 
     @property
     def dirty_model_image(self):
-        return self.transformer.image_from(visibilities=self.model_visibilities)
+        return self.transformer.image_from(visibilities=self.model_data)
 
     @property
     def dirty_residual_map(self):

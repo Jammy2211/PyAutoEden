@@ -1,5 +1,8 @@
 import datetime as dt
 from SLE_Model_Autoconf import conf
+from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.representative import (
+    find_groups,
+)
 from SLE_Model_Autofit.SLE_Model_Text import formatter as frm, samples_text
 from SLE_Model_Autofit.SLE_Model_Tools.util import info_whitespace
 
@@ -66,11 +69,16 @@ def result_info_from(samples):
 """
     ]
     formatter = frm.TextFormatter(line_length=info_whitespace())
-    for (i, prior_path) in enumerate(samples.model.unique_prior_paths):
-        formatter.add(
-            prior_path,
-            format_str().format(samples.max_log_likelihood(as_instance=False)[i]),
-        )
+    max_log_likelihood_sample = samples.max_log_likelihood(as_instance=False)
+    paths = []
+    model = samples.model
+    for ((_, prior), value) in zip(
+        model.unique_path_prior_tuples, max_log_likelihood_sample
+    ):
+        for path in model.all_paths_for_prior(prior):
+            paths.append((path, value))
+    for (path, value) in find_groups(paths):
+        formatter.add(path, format_str().format(value))
     results += [
         (
             formatter.text
@@ -108,8 +116,8 @@ instances
 """
         ]
     formatter = frm.TextFormatter(line_length=info_whitespace())
-    for t in samples.model.path_float_tuples:
-        formatter.add(*t)
+    for (path, value) in find_groups(samples.model.path_float_tuples):
+        formatter.add(path, value)
     results += [
         (
             """
@@ -149,8 +157,23 @@ def search_summary_from_samples(samples):
 def search_summary_to_file(samples, log_likelihood_function_time, filename):
     summary = search_summary_from_samples(samples=samples)
     summary.append(
-        f"Log Likelihood Function Evaluation Time (seconds) = {log_likelihood_function_time}"
+        f"""Log Likelihood Function Evaluation Time (seconds) = {log_likelihood_function_time}
+"""
     )
+    expected_time = dt.timedelta(
+        seconds=float((samples.total_samples * log_likelihood_function_time))
+    )
+    summary.append(
+        f"""Expected Time To Run (seconds) = {expected_time}
+"""
+    )
+    try:
+        speed_up_factor = float(expected_time.total_seconds()) / float(samples.time)
+        summary.append(
+            f"Speed Up Factor (e.g. due to parallelization) = {speed_up_factor}"
+        )
+    except TypeError:
+        pass
     frm.output_list_of_strings_to_file(file=filename, list_of_strings=summary)
 
 

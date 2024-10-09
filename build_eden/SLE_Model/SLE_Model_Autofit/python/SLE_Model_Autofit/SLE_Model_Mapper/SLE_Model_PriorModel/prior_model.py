@@ -1,7 +1,13 @@
-import builtins
+import collections.abc
 import copy
 import inspect
 import logging
+import typing
+from typing import *
+from SLE_Model_Autofit.jax_wrapper import (
+    register_pytree_node_class,
+    register_pytree_node,
+)
 from SLE_Model_Autoconf.class_path import get_class_path
 from SLE_Model_Autoconf.exc import ConfigException
 from SLE_Model_Autofit.SLE_Model_Mapper.model import assert_not_frozen
@@ -12,12 +18,16 @@ from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.tuple_prior import Tuple
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.abstract import (
     AbstractPriorModel,
 )
+from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.util import (
+    gather_namespaces,
+)
 from SLE_Model_Autofit.SLE_Model_Tools.namer import namer
 
 logger = logging.getLogger(__name__)
 class_args_dict = dict()
 
 
+@register_pytree_node_class
 class Model(AbstractPriorModel):
     """
     @DynamicAttrs
@@ -96,18 +106,17 @@ class Model(AbstractPriorModel):
         if not (inspect.isclass(cls) or inspect.isfunction(cls)):
             raise AssertionError(f"{cls} is not a class or function")
         self.cls = cls
-        try:
-            annotations = inspect.getfullargspec(cls).annotations
-            for (key, value) in annotations.items():
-                if isinstance(value, str):
-                    annotations[key] = getattr(builtins, value)
-        except TypeError:
-            annotations = dict()
+        namespaces = gather_namespaces(cls)
+        annotations = typing.get_type_hints(cls.__init__, namespaces, namespaces)
         try:
             arg_spec = inspect.getfullargspec(cls)
             defaults = dict(
                 zip(arg_spec.args[(-len(arg_spec.defaults)) :], arg_spec.defaults)
             )
+            defaults = {
+                key: (value.default if hasattr(value, "default") else value)
+                for (key, value) in defaults.items()
+            }
         except TypeError:
             defaults = {}
         args = self.constructor_argument_names
@@ -128,20 +137,17 @@ class Model(AbstractPriorModel):
                     ls = Collection(keyword_arg)
                     setattr(self, arg, ls)
                 else:
-                    if inspect.isclass(keyword_arg):
-                        keyword_arg = Model(keyword_arg)
+                    keyword_arg = self._convert_value(keyword_arg)
                     setattr(self, arg, keyword_arg)
             elif (arg in defaults) and isinstance(defaults[arg], tuple):
-                tuple_prior = TuplePrior()
-                for i in range(len(defaults[arg])):
-                    attribute_name = "{}_{}".format(arg, i)
-                    setattr(
-                        tuple_prior, attribute_name, self.make_prior(attribute_name)
-                    )
-                setattr(self, arg, tuple_prior)
+                setattr(self, arg, self.make_tuple_prior(arg, len(defaults[arg])))
             elif (arg in annotations) and (annotations[arg] is not float):
                 spec = annotations[arg]
-                if inspect.isclass(spec) and issubclass(spec, float):
+                if isinstance(spec, typing._GenericAlias) and (
+                    spec.__origin__ is tuple
+                ):
+                    setattr(self, arg, self.make_tuple_prior(arg, len(spec.__args__)))
+                elif inspect.isclass(spec) and issubclass(spec, float):
                     from autofit.mapper.prior_model.annotation import (
                         AnnotationPriorModel,
                     )
@@ -150,7 +156,27 @@ class Model(AbstractPriorModel):
                 elif hasattr(spec, "__args__") and (type(None) in spec.__args__):
                     setattr(self, arg, None)
                 else:
-                    setattr(self, arg, Model(annotations[arg]))
+                    annotation = annotations[arg]
+                    if isinstance(annotation, str):
+                        continue
+                    if arg in defaults:
+                        value = self._convert_value(defaults[arg])
+                    elif (
+                        (
+                            hasattr(annotation, "__origin__")
+                            and issubclass(
+                                annotation.__origin__, collections.abc.Collection
+                            )
+                        )
+                        or isinstance(annotation, collections.abc.Collection)
+                        or issubclass(annotation, collections.abc.Collection)
+                    ):
+                        from autofit.mapper.prior_model.collection import Collection
+
+                        value = Collection()
+                    else:
+                        value = Model(annotation)
+                    setattr(self, arg, value)
             else:
                 prior = self.make_prior(arg)
                 if (
@@ -162,16 +188,113 @@ class Model(AbstractPriorModel):
                 setattr(self, arg, prior)
         for (key, value) in kwargs.items():
             if not hasattr(self, key):
-                setattr(self, key, (Model(value) if inspect.isclass(value) else value))
+                setattr(self, key, self._convert_value(value))
+        try:
+            register_pytree_node(
+                self.cls, self.instance_flatten, self.instance_unflatten
+            )
+        except ValueError:
+            pass
+
+    @staticmethod
+    def _convert_value(value):
+        if inspect.isclass(value):
+            value = Model(value)
+        if isinstance(value, int):
+            value = float(value)
+        return value
+
+    @property
+    def direct_argument_names(self):
+        """
+        The names of priors, constants and other attributes that are direct
+        attributes of this model.
+        """
+        return [
+            t.name
+            for t in (
+                (
+                    (
+                        (self.direct_prior_tuples + self.direct_prior_model_tuples)
+                        + self.direct_instance_tuples
+                    )
+                    + self.direct_deferred_tuples
+                )
+                + self.direct_prior_tuples
+            )
+        ]
+
+    def instance_flatten(self, instance):
+        """
+        Flatten an instance of this model as a PyTree.
+        """
+        attribute_names = [
+            name
+            for name in self.direct_argument_names
+            if (
+                hasattr(instance, name)
+                and (name not in self.constructor_argument_names)
+            )
+        ]
+        return (
+            (
+                [getattr(instance, name) for name in self.constructor_argument_names],
+                [getattr(instance, name) for name in attribute_names],
+            ),
+            (attribute_names,),
+        )
+
+    def instance_unflatten(self, aux_data, children):
+        """
+        Unflatten a PyTree into an instance of this model.
+
+        Parameters
+        ----------
+        aux_data
+        children
+
+        Returns
+        -------
+        An instance of this model.
+        """
+        (constructor_arguments, other_arguments) = children
+        attribute_names = aux_data[0]
+        instance = self.cls(*constructor_arguments)
+        for (name, value) in zip(attribute_names, other_arguments):
+            setattr(instance, name, value)
+        return instance
+
+    def tree_flatten(self):
+        """
+        Flatten this model as a PyTree.
+        """
+        (names, priors) = zip(*self.direct_prior_tuples)
+        return (priors, (names, self.cls))
+
+    @classmethod
+    def tree_unflatten(cls, aux_data, children):
+        """
+        Unflatten a PyTree into a model.
+        """
+        (names, cls_) = aux_data
+        arguments = {name: child for (name, child) in zip(names, children)}
+        return cls(cls_, **arguments)
 
     def dict(self):
         return {"class_path": get_class_path(self.cls), **super().dict()}
 
     @property
     def constructor_argument_names(self):
+        """
+        The argument names of the constructor of the class of this model.
+        """
         if self.cls not in class_args_dict:
             try:
-                class_args_dict[self.cls] = inspect.getfullargspec(self.cls).args[1:]
+                class_args_dict[self.cls] = [
+                    arg
+                    for arg in inspect.getfullargspec(self.cls).args
+                    if (arg != "self")
+                ]
             except TypeError:
                 class_args_dict[self.cls] = []
         return class_args_dict[self.cls]
@@ -212,12 +335,21 @@ class Model(AbstractPriorModel):
             If no configuration can be found
         """
         cls = self.cls
+        if isinstance(cls, ConfigException):
+            return cls
         if not inspect.isclass(cls):
             cls = inspect._findclass(cls)
         try:
             return Prior.for_class_and_attribute_name(cls, attribute_name)
         except ConfigException as e:
             return e
+
+    def make_tuple_prior(self, name, length):
+        tuple_prior = TuplePrior()
+        for i in range(length):
+            attribute_name = "{}_{}".format(name, i)
+            setattr(tuple_prior, attribute_name, self.make_prior(attribute_name))
+        return tuple_prior
 
     @assert_not_frozen
     def __setattr__(self, key, value):
@@ -272,7 +404,7 @@ class Model(AbstractPriorModel):
     def is_deferred_arguments(self):
         return len(self.direct_deferred_tuples) > 0
 
-    def _instance_for_arguments(self, arguments):
+    def _instance_for_arguments(self, arguments, ignore_assertions=False):
         """
         Returns an instance of the associated class for a set of arguments
 
@@ -299,7 +431,9 @@ class Model(AbstractPriorModel):
             prior_model = prior_model_tuple.prior_model
             model_arguments[
                 prior_model_tuple.name
-            ] = prior_model.instance_for_arguments(arguments)
+            ] = prior_model.instance_for_arguments(
+                arguments, ignore_assertions=ignore_assertions
+            )
         prior_arguments = dict()
         for (name, prior) in self.direct_prior_tuples:
             try:
@@ -327,7 +461,9 @@ class Model(AbstractPriorModel):
                 and (not key.startswith("_"))
             ):
                 if isinstance(value, Model):
-                    value = value.instance_for_arguments(arguments)
+                    value = value.instance_for_arguments(
+                        arguments, ignore_assertions=ignore_assertions
+                    )
                 elif isinstance(value, Prior):
                     value = arguments[value]
                 try:

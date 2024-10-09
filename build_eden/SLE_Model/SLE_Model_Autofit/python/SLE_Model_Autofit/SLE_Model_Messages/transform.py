@@ -1,3 +1,4 @@
+import warnings
 from abc import ABC, abstractmethod
 from functools import wraps
 from typing import Tuple
@@ -14,7 +15,7 @@ epsilon = 1e-14
 
 
 def ndtri(x):
-    x = np.array(x, dtype=np.float)
+    x = np.array(x, dtype=float)
     x[((x <= 0) & (x >= (-epsilon)))] = epsilon
     x[((x >= 1) & (x <= (1 + epsilon)))] = 1 - epsilon
     return ndtri_(x)
@@ -39,11 +40,11 @@ class AbstractDensityTransform(ABC):
     This class allows the transformation of a probability density function, p(x)
     whilst preserving the measure of the distribution, i.e.
 
-    \\int p(x) dx = 1
+    int p(x) dx = 1
 
     p'(f) = p(f(x)) * |df/dx|
 
-    \\inf p'(f) df = 1
+    inf p'(f) df = 1
 
     Methods
     -------
@@ -171,7 +172,9 @@ class LinearShiftTransform(LinearTransform):
         super().__init__(DiagonalMatrix(np.reciprocal(self.scale)))
 
     def inv_transform(self, x):
-        return (x * self.scale) + self.shift
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return (x * self.scale) + self.shift
 
     def transform(self, x):
         return (x - self.shift) / self.scale
@@ -190,17 +193,23 @@ class FunctionTransform(AbstractDensityTransform):
         self.func_grad_hess = func_grad_hess
 
     def transform(self, x):
-        return self.func(x, *self.args)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return self.func(x, *self.args)
 
     def inv_transform(self, x):
-        return self.inv_func(x, *self.args)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return self.inv_func(x, *self.args)
 
     def jacobian(self, x):
         return DiagonalMatrix(self.grad(x, *self.args))
 
     def log_det(self, x):
-        gs = self.grad(x, *self.args)
-        return np.log(gs)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            gs = self.grad(x, *self.args)
+            return np.log(gs)
 
     def log_det_grad(self, x):
         if self.func_grad_hess:
@@ -240,7 +249,21 @@ def _log_10_inv(x):
     return 10**x
 
 
-log_10_transform = FunctionTransform(np.log10, _log_10_inv, np.reciprocal)
+LOG10 = np.log(10)
+
+
+def _log10_recip(x):
+    return np.reciprocal(x) / LOG10
+
+
+def log10_3(x):
+    ix = _log10_recip(x)
+    return (np.log10(x), ix, ((-ix) / x))
+
+
+log_10_transform = FunctionTransform(
+    np.log10, _log_10_inv, _log10_recip, func_grad_hess=log10_3
+)
 
 
 def sigmoid(x, scale=1, shift=0):
@@ -340,7 +363,9 @@ class MultinomialLogitTransform(AbstractDensityTransform):
 
     def inv_transform(self, x):
         expx = np.exp(x)
-        return expx / (expx.sum(axis=self.axis, keepdims=True) + 1)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return expx / (expx.sum(axis=self.axis, keepdims=True) + 1)
 
     def jacobian(self, p):
         p = np.asanyarray(p)

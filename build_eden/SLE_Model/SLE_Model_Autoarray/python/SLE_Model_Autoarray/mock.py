@@ -2,6 +2,9 @@ from SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Mock.mock_dataset import (
     MockDataset,
 )
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Mock.mock_mesh import MockMesh
+from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Mock.mock_image_mesh import (
+    MockImageMesh,
+)
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Mock.mock_regularization import (
     MockRegularization,
 )
@@ -45,15 +48,15 @@ from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Mock.mock_grid import (
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Mock.mock_grid import (
     MockMeshGrid,
 )
-from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Mock.mock_structure_decorators import (
+from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Mock.mock_decorators import (
     MockGridRadialMinimum,
 )
-from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Mock.mock_structure_decorators import (
+from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Mock.mock_decorators import (
     MockGrid1DLikeObj,
 )
-from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Mock.mock_structure_decorators import (
+from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Mock.mock_decorators import (
     MockGrid2DLikeObj,
 )
-from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Mock.mock_structure_decorators import (
+from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Mock.mock_decorators import (
     MockGridLikeIteratorObj,
 )

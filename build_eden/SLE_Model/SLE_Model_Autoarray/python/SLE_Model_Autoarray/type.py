@@ -12,23 +12,21 @@ from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays.uniform_2d import
 Array1D2DLike = Union[(Array1D, Array2D)]
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.uniform_1d import Grid1D
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.uniform_2d import Grid2D
-from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.iterate_2d import (
-    Grid2DIterate,
-)
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.irregular_2d import (
     Grid2DIrregular,
 )
 
-Grid1D2DLike = Union[(np.ndarray, Grid1D, Grid2D, Grid2DIterate, Grid2DIrregular)]
-Grid2DLike = Union[(np.ndarray, Grid2D, Grid2DIterate, Grid2DIrregular)]
+Grid1D2DLike = Union[(np.ndarray, Grid1D, Grid2D, Grid2DIrregular)]
+Grid2DLike = Union[(np.ndarray, Grid2D, Grid2DIrregular)]
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays.irregular import (
     ArrayIrregular,
 )
 from SLE_Model_Autoarray.SLE_Model_Structures.visibilities import Visibilities
 from SLE_Model_Autoarray.SLE_Model_Structures.visibilities import VisibilitiesNoiseMap
 
-DataLike = Union[(Array1D, Array2D, ArrayIrregular, Visibilities)]
-NoiseMapLike = Union[(Array1D, Array2D, ArrayIrregular, VisibilitiesNoiseMap)]
+DataLike = Union[
+    (np.ndarray, Array1D, Array2D, ArrayIrregular, Visibilities, VisibilitiesNoiseMap)
+]
 from SLE_Model_Autoarray.SLE_Model_Operators.transformer import TransformerDFT
 from SLE_Model_Autoarray.SLE_Model_Operators.transformer import TransformerNUFFT
 

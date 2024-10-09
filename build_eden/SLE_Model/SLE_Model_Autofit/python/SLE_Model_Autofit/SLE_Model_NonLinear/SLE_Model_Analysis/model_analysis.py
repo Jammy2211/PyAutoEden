@@ -1,3 +1,4 @@
+from typing import Optional
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.abstract import (
     AbstractPriorModel,
 )
@@ -8,6 +9,7 @@ from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Analysis.analysis import An
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Analysis.indexed import (
     IndexCollectionAnalysis,
 )
+from SLE_Model_Autofit import SamplesSummary, AbstractPaths, SamplesPDF
 
 
 class ModelAnalysis(Analysis):
@@ -24,22 +26,28 @@ class ModelAnalysis(Analysis):
         self.model = model
 
     def __getattr__(self, item):
+        if item in ("__getstate__", "__setstate__"):
+            raise AttributeError(item)
         return getattr(self.analysis, item)
 
     def log_likelihood_function(self, instance):
         return self.analysis.log_likelihood_function(instance)
 
-    def make_result(self, samples, model, sigma=1.0, use_errors=True, use_widths=False):
+    def make_result(
+        self, samples_summary, paths, samples=None, search_internal=None, analysis=None
+    ):
         """
         Return the correct type of result by calling the underlying analysis.
         """
-        return self.analysis.make_result(
-            samples=samples,
-            model=model,
-            sigma=sigma,
-            use_errors=use_errors,
-            use_widths=use_widths,
-        )
+        try:
+            return self.analysis.make_result(
+                samples_summary=samples_summary,
+                paths=paths,
+                samples=samples,
+                search_internal=search_internal,
+            )
+        except TypeError:
+            raise
 
 
 class CombinedModelAnalysis(IndexCollectionAnalysis):

@@ -175,3 +175,13 @@ class MockChildTuplex3(MockChildTuple):
         self.one = one
         self.two = two
         self.three = three
+
+
+class Parameter:
+    def __init__(self, value=0.5):
+        self.value = value
+
+
+class WithString:
+    def __init__(self, arg):
+        self.arg = arg

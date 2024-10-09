@@ -256,7 +256,7 @@ def reconstruction_positive_only_from(
             reconstruction = fnnls_cholesky(
                 curvature_reg_matrix, data_vector.T, P_initial=P_initial
             )
-        except (RuntimeError, np.linalg.LinAlgError) as e:
+        except (RuntimeError, np.linalg.LinAlgError, ValueError) as e:
             raise exc.InversionException() from e
     else:
         raise exc.InversionException()

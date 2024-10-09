@@ -1,11 +1,9 @@
 import cProfile
 import logging
+import warnings
 import multiprocessing as mp
 import os
-from os import path
-from typing import Iterable
-from dynesty.dynesty import _function_wrapper
-from emcee.ensemble import _FunctionWrapper
+from typing import Iterable, Optional, Callable
 from SLE_Model_Autoconf import conf
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Paths.abstract import AbstractPaths
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Parallel.process import (
@@ -34,11 +32,13 @@ def _is_likelihood_function(function):
     -------
     Is the object a log likelihood function?
     """
-    from SLE_Model_Autofit.SLE_Model_NonLinear.abstract_search import NonLinearSearch
+    from SLE_Model_Autofit.SLE_Model_NonLinear.fitness import Fitness
+    from dynesty.dynesty import _function_wrapper
+    from emcee.ensemble import _FunctionWrapper
 
     return any(
         [
-            isinstance(function, NonLinearSearch.Fitness),
+            isinstance(function, Fitness),
             (
                 isinstance(function, _function_wrapper)
                 and (function.name == "loglikelihood")
@@ -168,7 +168,7 @@ class SneakyProcess(Process):
                 os.makedirs(self.paths.profile_path)
             except FileExistsError:
                 pass
-            sneaky_path = path.join(self.paths.profile_path, f"sneaky_{self.pid}.prof")
+            sneaky_path = self.paths.profile_path / f"sneaky_{self.pid}.prof"
             pr.dump_stats(sneaky_path)
             pr.disable()
 
@@ -196,7 +196,7 @@ class SneakyPool:
         initializer
         initargs
         """
-        logger.debug(f"Creating SneakyPool with {processes} processes")
+        logger.info(f"Creating pool with {processes} processes")
         self._processes = [
             SneakyProcess(
                 str(number),
@@ -214,7 +214,7 @@ class SneakyPool:
     def processes(self):
         return self._processes
 
-    def map(self, function, args_list):
+    def map(self, function, args_list, log_info=True):
         """
         Execute the function with the given arguments across all of the
         processes. The likelihood  argument is removed from each args in
@@ -238,7 +238,8 @@ class SneakyPool:
             )
             for args in args_list
         ]
-        logger.debug(f"Running {len(jobs)} jobs across {self.processes} processes")
+        if log_info:
+            logger.info(f"Running {len(jobs)} jobs across {self.processes} processes")
         for (i, job) in enumerate(jobs):
             process = self.processes[(i % len(self.processes))]
             process.job_queue.put(job)
@@ -275,3 +276,164 @@ class SneakyPool:
                 process.join(0.5)
             except Exception as e:
                 logger.exception(e)
+
+
+class FunctionCache:
+    """
+    Singleton class to cache the functions and optional arguments between calls
+    """
+
+
+def initializer(
+    fitness,
+    prior_transform,
+    fitness_args,
+    fitness_kwargs,
+    prior_transform_args,
+    prior_transform_kwargs,
+):
+    """
+    Initialized function used to initialize the
+    singleton object inside each worker of the pool
+    """
+    FunctionCache.fitness = fitness
+    FunctionCache.prior_transform = prior_transform
+    FunctionCache.fitness_args = fitness_args
+    FunctionCache.fitness_kwargs = fitness_kwargs
+    FunctionCache.prior_transform_args = prior_transform_args
+    FunctionCache.prior_transform_kwargs = prior_transform_kwargs
+
+
+def fitness_cache(x):
+    """
+    Likelihood function call
+    """
+    return FunctionCache.fitness(
+        x, *FunctionCache.fitness_args, **FunctionCache.fitness_kwargs
+    )
+
+
+def prior_transform_cache(x):
+    """
+    Prior transform call
+    """
+    return FunctionCache.prior_transform(
+        x, *FunctionCache.prior_transform_args, **FunctionCache.prior_transform_kwargs
+    )
+
+
+class SneakierPool:
+    def __init__(
+        self,
+        processes,
+        fitness,
+        prior_transform=None,
+        fitness_args=None,
+        fitness_kwargs=None,
+        prior_transform_args=None,
+        prior_transform_kwargs=None,
+    ):
+        self.fitness_init = fitness
+        self.prior_transform_init = prior_transform
+        self.fitness = fitness_cache
+        self.prior_transform = prior_transform_cache
+        self.fitness_args = fitness_args or ()
+        self.fitness_kwargs = fitness_kwargs or {}
+        self.prior_transform_args = prior_transform_args or ()
+        self.prior_transform_kwargs = prior_transform_kwargs or {}
+        self.processes = processes
+        self.pool = None
+        try:
+            from mpi4py import MPI
+
+            self.comm = MPI.COMM_WORLD
+            self._processes = self.comm.size
+        except ModuleNotFoundError:
+            self._processes = 1
+        init_args = (
+            self.fitness_init,
+            self.prior_transform_init,
+            self.fitness_args,
+            self.fitness_kwargs,
+            self.prior_transform_args,
+            self.prior_transform_kwargs,
+        )
+        initializer(*init_args)
+
+    def check_if_mpi(self):
+        return self._processes > 1
+
+    def is_master(self):
+        is_mpi = self.check_if_mpi()
+        if is_mpi:
+            return_value = self.comm.rank == 0
+        else:
+            return_value = True
+        return return_value
+
+    def wait(self):
+        is_mpi = self.check_if_mpi()
+        if is_mpi:
+            self.pool.wait()
+        else:
+            pass
+            warnings.warn("Cannot wait for pool to finish if not using MPI")
+
+    def __enter__(self):
+        """
+        Activate the mp / mpi pool
+        """
+        use_mpi = self.check_if_mpi()
+        if use_mpi:
+            from schwimmbad import MPIPool
+
+            if self.is_master():
+                logger.info("... using Schwimmbad MPIPool")
+            self.pool = MPIPool(use_pickle=True)
+        else:
+            if self.is_master():
+                logger.info("... using multiprocessing")
+            self.pool = mp.Pool(processes=self.processes)
+        return self
+
+    def map(self, function, iterable):
+        """
+        Map a function over an iterable using the map method
+        of the initialized pool.
+
+        Parameters
+        ----------
+        function
+            A function to map
+        iterable
+            An iterable to map over
+
+        """
+        return self.pool.map(function, iterable)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            self.pool.terminate()
+        except:
+            pass
+        try:
+            del (
+                FunctionCache.fitness,
+                FunctionCache.prior_transform,
+                FunctionCache.fitness_args,
+                FunctionCache.fitness_kwargs,
+                FunctionCache.prior_transform_args,
+                FunctionCache.prior_transform_kwargs,
+            )
+        except:
+            pass
+
+    @property
+    def size(self):
+        return self.njobs
+
+    def close(self):
+        self.pool.close()
+
+    def join(self):
+        self.pool.join()

@@ -52,9 +52,14 @@ class AbstractPlotter:
         if self.mat_plot_2d is not None:
             self.mat_plot_2d.output._format = format
 
-    def set_mat_plot_1d_for_multi_plot(self, is_for_multi_plot, color):
+    def set_mat_plot_1d_for_multi_plot(
+        self, is_for_multi_plot, color, xticks=None, yticks=None
+    ):
         self.mat_plot_1d.set_for_multi_plot(
-            is_for_multi_plot=is_for_multi_plot, color=color
+            is_for_multi_plot=is_for_multi_plot,
+            color=color,
+            xticks=xticks,
+            yticks=yticks,
         )
 
     def set_mat_plots_for_subplot(
@@ -82,7 +87,11 @@ class AbstractPlotter:
         return False
 
     def open_subplot_figure(
-        self, number_subplots, subplot_shape=None, subplot_figsize=None
+        self,
+        number_subplots,
+        subplot_shape=None,
+        subplot_figsize=None,
+        subplot_title=None,
     ):
         """
         Setup a figure for plotting an image.
@@ -102,6 +111,7 @@ class AbstractPlotter:
         self.subplot_figsize = subplot_figsize
         figsize = self.get_subplot_figsize(number_subplots=number_subplots)
         plt.figure(figsize=figsize)
+        plt.suptitle(subplot_title, fontsize=40, y=0.93)
 
     def close_subplot_figure(self):
         try:
@@ -158,6 +168,15 @@ class AbstractPlotter:
                     self.figures_2d(**{key: True})
                 except AttributeError:
                     self.figures_1d(**{key: True})
+            try:
+                self.mat_plot_2d.subplot_index = max(
+                    self.mat_plot_1d.subplot_index, self.mat_plot_2d.subplot_index
+                )
+                self.mat_plot_1d.subplot_index = max(
+                    self.mat_plot_1d.subplot_index, self.mat_plot_2d.subplot_index
+                )
+            except AttributeError:
+                pass
         try:
             self.mat_plot_2d.output.subplot_to_figure(
                 auto_filename=kwargs["auto_labels"].filename

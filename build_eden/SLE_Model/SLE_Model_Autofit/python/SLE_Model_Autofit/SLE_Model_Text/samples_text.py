@@ -1,4 +1,7 @@
 import logging
+from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.representative import (
+    find_groups,
+)
 from SLE_Model_Autofit.SLE_Model_Text import formatter as frm
 
 logger = logging.getLogger(__name__)
@@ -19,20 +22,26 @@ def summary(samples, sigma=3.0, median_pdf_model=True, indent=1, line_length=Non
     Parameters
     ----------
     sigma
-        The sigma within which the PDF is used to estimate errors (e.g. sigma = 1.0 uses 0.6826 of the PDF)."""
+        The sigma within which the PDF is used to estimate errors (e.g. sigma = 1.0 uses 0.6826 of the PDF).
+    """
     values = values_from_samples(samples=samples, median_pdf_model=median_pdf_model)
     values_at_sigma = samples.values_at_sigma(sigma=sigma, as_instance=False)
     parameter_names = samples.model.parameter_names
     if line_length is None:
         line_length = len(max(parameter_names, key=len)) + 8
     sigma_formatter = frm.TextFormatter(indent=indent, line_length=line_length)
-    for (i, prior_path) in enumerate(samples.model.unique_prior_paths):
-        value_result = frm.value_result_string_from(
+    prior_result_map = {}
+    for (i, (_, prior)) in enumerate(samples.model.unique_path_prior_tuples):
+        prior_result_map[prior] = frm.value_result_string_from(
             parameter_name=parameter_names[i],
             value=values[i],
             values_at_sigma=values_at_sigma[i],
         )
-        sigma_formatter.add(prior_path, value_result)
+    paths = []
+    for (path, prior) in samples.model.path_priors_tuples:
+        paths.append((path, prior_result_map[prior]))
+    for (path, value) in find_groups(paths):
+        sigma_formatter.add(path, value)
     return f"""
 
 Summary ({sigma} sigma limits):
@@ -58,7 +67,8 @@ def latex(
     Parameters
     ----------
     sigma
-        The sigma within which the PDF is used to estimate errors (e.g. sigma = 1.0 uses 0.6826 of the PDF)."""
+        The sigma within which the PDF is used to estimate errors (e.g. sigma = 1.0 uses 0.6826 of the PDF).
+    """
     values = values_from_samples(samples=samples, median_pdf_model=median_pdf_model)
     errors_at_sigma = samples.errors_at_sigma(sigma=sigma, as_instance=False)
     table = []

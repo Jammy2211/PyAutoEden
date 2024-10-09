@@ -33,11 +33,19 @@ class PowerLaw(PowerLawCore):
             core_radius=0.0,
         )
 
-    @aa.grid_dec.grid_2d_to_vector_yx
-    @aa.grid_dec.grid_2d_to_structure
+    @aa.grid_dec.to_array
+    def potential_2d_from(self, grid, **kwargs):
+        alpha = self.deflections_yx_2d_from(aa.Grid2DIrregular(grid), **kwargs)
+        alpha_x = alpha[:, 1]
+        alpha_y = alpha[:, 0]
+        x = grid[:, 1] - self.centre[1]
+        y = grid[:, 0] - self.centre[0]
+        return ((x * alpha_x) + (y * alpha_y)) / (3 - self.slope)
+
+    @aa.grid_dec.to_vector_yx
     @aa.grid_dec.transform
     @aa.grid_dec.relocate_to_radial_minimum
-    def deflections_yx_2d_from(self, grid):
+    def deflections_yx_2d_from(self, grid, **kwargs):
         """
         Calculate the deflection angles on a grid of (y,x) arc-second coordinates.
 
@@ -119,13 +127,12 @@ class PowerLawSph(PowerLaw):
             slope=slope,
         )
 
-    @aa.grid_dec.grid_2d_to_vector_yx
-    @aa.grid_dec.grid_2d_to_structure
+    @aa.grid_dec.to_vector_yx
     @aa.grid_dec.transform
     @aa.grid_dec.relocate_to_radial_minimum
-    def deflections_yx_2d_from(self, grid):
-        eta = self.radial_grid_from(grid)
+    def deflections_yx_2d_from(self, grid, **kwargs):
+        eta = self.radial_grid_from(grid=grid, **kwargs)
         deflection_r = (2.0 * self.einstein_radius_rescaled) * np.divide(
             np.power(eta, (3.0 - self.slope)), np.multiply((3.0 - self.slope), eta)
         )
-        return self._cartesian_grid_via_radial_from(grid, deflection_r)
+        return self._cartesian_grid_via_radial_from(grid=grid, radius=deflection_r)

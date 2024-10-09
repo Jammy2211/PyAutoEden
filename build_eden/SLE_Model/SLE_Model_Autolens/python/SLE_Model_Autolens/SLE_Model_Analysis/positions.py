@@ -6,9 +6,11 @@ import SLE_Model_Autoarray as aa
 import SLE_Model_Autofit as af
 from SLE_Model_Autofit.SLE_Model_Tools.util import open_
 import SLE_Model_Autogalaxy as ag
-from SLE_Model_Autogalaxy.SLE_Model_Analysis.analysis import AnalysisDataset
-from SLE_Model_Autolens.SLE_Model_Lens.ray_tracing import Tracer
-from SLE_Model_Autolens.SLE_Model_Point.SLE_Model_FitPoint.max_separation import (
+from SLE_Model_Autogalaxy.SLE_Model_Analysis.SLE_Model_Analysis.dataset import (
+    AnalysisDataset,
+)
+from SLE_Model_Autolens.SLE_Model_Lens.tracer import Tracer
+from SLE_Model_Autolens.SLE_Model_Point.SLE_Model_Fit.SLE_Model_Positions.SLE_Model_Source.max_separation import (
     FitPositionsSourceMaxSeparation,
 )
 from SLE_Model_Autolens import exc
@@ -57,7 +59,7 @@ Please input more positions into the Positions."""
         - The arc second coordinates of the lensed source multiple images used for the model-fit.
         - The radial distance of these coordinates from (0.0, 0.0).
         - The threshold value used by the likelihood penalty.
-        - The maximum source plane seperation of the maximum likelihood tracer.
+        - The maximum source plane separation of the maximum likelihood tracer.
 
         Parameters
         ----------
@@ -69,9 +71,9 @@ Please input more positions into the Positions."""
 
         """
         positions_fit = FitPositionsSourceMaxSeparation(
-            positions=self.positions, noise_map=None, tracer=tracer
+            data=self.positions, noise_map=None, tracer=tracer
         )
-        distances = positions_fit.positions.distances_to_coordinate_from(
+        distances = positions_fit.data.distances_to_coordinate_from(
             coordinate=(0.0, 0.0)
         )
         with open_(path.join(output_path, "positions.info"), "w+") as f:
@@ -92,7 +94,7 @@ Please input more positions into the Positions."""
 """
             )
             f.write(
-                f"Max Source Plane Seperation of Maximum Likelihood Model = {positions_fit.max_separation_of_source_plane_positions}"
+                f"Max Source Plane Separation of Maximum Likelihood Model = {positions_fit.max_separation_of_source_plane_positions}"
             )
 
 
@@ -140,7 +142,7 @@ class PositionsLHResample(AbstractPositionsLH):
         if (not tracer.has(cls=ag.mp.MassProfile)) or (len(tracer.planes) == 1):
             return
         positions_fit = FitPositionsSourceMaxSeparation(
-            positions=self.positions, noise_map=None, tracer=tracer
+            data=self.positions, noise_map=None, tracer=tracer
         )
         if not positions_fit.max_separation_within_threshold(self.threshold):
             if os.environ.get("PYAUTOFIT_TEST_MODE") == "1":
@@ -244,7 +246,7 @@ class PositionsLHPenalty(AbstractPositionsLH):
         if (not tracer.has(cls=ag.mp.MassProfile)) or (len(tracer.planes) == 1):
             return
         positions_fit = FitPositionsSourceMaxSeparation(
-            positions=self.positions, noise_map=None, tracer=tracer
+            data=self.positions, noise_map=None, tracer=tracer
         )
         if not positions_fit.max_separation_within_threshold(self.threshold):
             return self.log_likelihood_penalty_factor * (

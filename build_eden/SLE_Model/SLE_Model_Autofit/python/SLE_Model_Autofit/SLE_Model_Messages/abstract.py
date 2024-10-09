@@ -54,6 +54,15 @@ class AbstractMessage(MessageInterface, ABC):
     def broadcast(self):
         return self._broadcast
 
+    @property
+    def _init_kwargs(self):
+        return dict(
+            log_norm=self.log_norm,
+            id_=self.id,
+            lower_limit=self.lower_limit,
+            upper_limit=self.upper_limit,
+        )
+
     def check_support(self):
         if self._parameter_support is not None:
             return reduce(
@@ -150,6 +159,9 @@ class AbstractMessage(MessageInterface, ABC):
         cls_ = cls._projection_class or cls._Base_class or cls
         args = cls_.invert_natural_parameters(natural_parameters)
         return cls_(*args, **kwargs)
+
+    def zeros_like(self):
+        return self**0.0
 
     @classmethod
     @abstractmethod

@@ -1,6 +1,11 @@
+import logging
 import math
-from typing import List, Optional, Tuple, Union
+import pathlib
+import warnings
+from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
+from SLE_Model_Autoconf import conf
+from SLE_Model_Autoconf.output import should_output
 from SLE_Model_Autofit.SLE_Model_Mapper.model import ModelInstance
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.abstract import (
     AbstractPriorModel,
@@ -9,35 +14,24 @@ from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.sample import (
     Sample,
     load_from_table,
 )
-from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.samples import (
-    to_instance,
-    to_instance_sigma,
-    to_instance_input,
-)
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.samples import to_instance
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.samples import Samples
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.summary import (
+    SamplesSummary,
+)
 
 
 class SamplesPDF(Samples):
-    def __init__(
-        self,
-        model,
-        sample_list,
-        unconverged_sample_size=100,
-        time=None,
-        results_internal=None,
-    ):
+    def __init__(self, model, sample_list, samples_info=None):
         """
-        The `Samples` classes in **PyAutoFit** provide an interface between the results_internal of
-        a `NonLinearSearch` (e.g. as files on your hard-disk) and Python.
+        Contains the samples of the non-linear search, including parameter values, log likelihoods,
+        weights and other quantites.
 
         For example, the output class can be used to load an instance of the best-fit model, get an instance of any
         individual sample by the `NonLinearSearch` and return information on the likelihoods, errors, etc.
 
         This class stores samples of searches which provide the probability distribution function (PDF) of the
         model fit (e.g. nested samplers, MCMC).
-
-        To use a library's in-built visualization tools results are optionally stored in their native internal format
-        using the `results_internal` attribute.
 
         Parameters
         ----------
@@ -46,25 +40,34 @@ class SamplesPDF(Samples):
         sample_list
             The list of `Samples` which contains the paramoeters, likelihood, weights, etc. of every sample taken
             by the non-linear search.
-        unconverged_sample_size
-            If the samples are for a search that is yet to convergence, a reduced set of samples are used to provide
-            a rough estimate of the parameters. The number of samples is set by this parameter.
-        time
-            The time taken to perform the model-fit, which is passed around `Samples` objects for outputting
-            information on the overall fit.
-        results_internal
-            The nested sampler's results in their native internal format for interfacing its visualization library.
+        samples_info
+            Contains information on the samples (e.g. total iterations, time to run the search, etc.).
         """
         super().__init__(
-            model=model,
-            sample_list=sample_list,
-            time=time,
-            results_internal=results_internal,
+            model=model, sample_list=sample_list, samples_info=samples_info
         )
-        self._unconverged_sample_size = int(unconverged_sample_size)
+
+    def summary(self):
+        median_pdf_sample = Sample.from_lists(
+            model=self.model,
+            parameter_lists=[self.median_pdf(as_instance=False)],
+            log_likelihood_list=[self.max_log_likelihood_sample.log_likelihood],
+            log_prior_list=[self.max_log_likelihood_sample.log_prior],
+            weight_list=[self.max_log_likelihood_sample.weight],
+        )[0]
+        return SamplesSummary(
+            model=self.model,
+            max_log_likelihood_sample=self.max_log_likelihood_sample,
+            median_pdf_sample=median_pdf_sample,
+            log_evidence=self.log_evidence,
+            errors_at_sigma_1=self.errors_at_sigma(sigma=1.0, as_instance=False),
+            errors_at_sigma_3=self.errors_at_sigma(sigma=3.0, as_instance=False),
+            values_at_sigma_1=self.values_at_sigma(sigma=1.0, as_instance=False),
+            values_at_sigma_3=self.values_at_sigma(sigma=3.0, as_instance=False),
+        )
 
     @classmethod
-    def from_table(cls, filename, model, number_live_points=None):
+    def from_table(cls, filename, model):
         """
         Write a table of parameters, posteriors, priors and likelihoods
 
@@ -83,15 +86,17 @@ class SamplesPDF(Samples):
     @property
     def unconverged_sample_size(self):
         """
-        If a set of samples are unconverged, alternative methods to compute their means, errors, etc are used as
-        an alternative to corner.py.
+        If a set of samples are unconverged, alternative methods to compute their means, errors, etc are used.
 
         These use a subset of samples spanning the range from the most recent sample to the valaue of the
         unconverted_sample_size. However, if there are fewer samples than this size, we change the size to be the
         the size of the total number of samples.
         """
-        if self.total_samples > self._unconverged_sample_size:
-            return self._unconverged_sample_size
+        unconverged_sample_size = conf.instance["general"]["output"][
+            "unconverged_sample_size"
+        ]
+        if self.total_samples > unconverged_sample_size:
+            return unconverged_sample_size
         return self.total_samples
 
     @property
@@ -112,7 +117,7 @@ class SamplesPDF(Samples):
         return True
 
     @to_instance
-    def median_pdf(self, as_instance=True):
+    def median_pdf(self):
         """
         The median of the probability density function (PDF) of every parameter marginalized in 1D, returned
         as a model instance or list of values.
@@ -124,8 +129,8 @@ class SamplesPDF(Samples):
             ]
         return self.max_log_likelihood(as_instance=False)
 
-    @to_instance_sigma
-    def values_at_sigma(self, sigma, as_instance=True):
+    @to_instance
+    def values_at_sigma(self, sigma):
         """
         The value of every parameter marginalized in 1D at an input sigma value of its probability density function
         (PDF), returned as two lists of values corresponding to the lower and upper values parameter values.
@@ -137,7 +142,7 @@ class SamplesPDF(Samples):
         whereby x decreases as y gets larger to give the same PDF, this function will still return both at their
         upper values. Thus, caution is advised when using the function to reperform a model-fits.
 
-        For Dynesty, this is estimated using corner.py if the samples have converged, by sampling the density
+        This is estimated using the `quantile` function if the samples have converged, by sampling the density
         function at an input PDF %. If not converged, a crude estimate using the range of values of the current
         physical live points is used.
 
@@ -160,18 +165,18 @@ class SamplesPDF(Samples):
                 (lower, upper) for (lower, upper) in zip(lower_errors, upper_errors)
             ]
         parameters_min = list(
-            np.min(self.parameter_lists[(-self.unconverged_sample_size) :], axis=0)
+            np.min(self.parameter_lists[(-int(self.unconverged_sample_size)) :], axis=0)
         )
         parameters_max = list(
-            np.max(self.parameter_lists[(-self.unconverged_sample_size) :], axis=0)
+            np.max(self.parameter_lists[(-int(self.unconverged_sample_size)) :], axis=0)
         )
         return [
             (parameters_min[index], parameters_max[index])
             for index in range(len(parameters_min))
         ]
 
-    @to_instance_sigma
-    def values_at_upper_sigma(self, sigma, as_instance=True):
+    @to_instance
+    def values_at_upper_sigma(self, sigma):
         """
         The upper value of every parameter marginalized in 1D at an input sigma value of its probability density
         function (PDF), returned as a list.
@@ -189,8 +194,8 @@ class SamplesPDF(Samples):
             )
         )
 
-    @to_instance_sigma
-    def values_at_lower_sigma(self, sigma, as_instance=True):
+    @to_instance
+    def values_at_lower_sigma(self, sigma):
         """
         The lower value of every parameter marginalized in 1D at an input sigma value of its probability density
         function (PDF), returned as a list.
@@ -208,7 +213,7 @@ class SamplesPDF(Samples):
             )
         )
 
-    @to_instance_sigma
+    @to_instance
     def errors_at_sigma(self, sigma, as_instance=True):
         """
         The lower and upper error of every parameter marginalized in 1D at an input sigma value of its probability
@@ -228,7 +233,7 @@ class SamplesPDF(Samples):
             for (lower, upper) in zip(error_vector_lower, error_vector_upper)
         ]
 
-    @to_instance_sigma
+    @to_instance
     def errors_at_upper_sigma(self, sigma, as_instance=True):
         """
         The upper error of every parameter marginalized in 1D at an input sigma value of its probability density
@@ -250,8 +255,8 @@ class SamplesPDF(Samples):
             )
         )
 
-    @to_instance_sigma
-    def errors_at_lower_sigma(self, sigma, as_instance=True):
+    @to_instance
+    def errors_at_lower_sigma(self, sigma):
         """
         The lower error of every parameter marginalized in 1D at an input sigma value of its probability density
         function (PDF), returned as a list.
@@ -272,8 +277,8 @@ class SamplesPDF(Samples):
             )
         )
 
-    @to_instance_sigma
-    def error_magnitudes_at_sigma(self, sigma, as_instance=True):
+    @to_instance
+    def error_magnitudes_at_sigma(self, sigma):
         """
         The magnitude of every error after marginalization in 1D at an input sigma value of the probability density
         function (PDF), returned as two lists of values corresponding to the lower and upper errors.
@@ -290,34 +295,8 @@ class SamplesPDF(Samples):
         lowers = self.values_at_lower_sigma(sigma=sigma, as_instance=False)
         return list(map((lambda upper, lower: (upper - lower)), uppers, lowers))
 
-    def gaussian_priors_at_sigma(self, sigma):
-        """
-        `GaussianPrior`s of every parameter used to link its inferred values and errors to priors used to sample the
-        same (or similar) parameters in a subsequent search, where:
-
-        - The mean is given by their most-probable values (using median_pdf(as_instance=False)).
-        - Their errors are computed at an input sigma value (using errors_at_sigma).
-
-        Parameters
-        ----------
-        sigma
-            The sigma within which the PDF is used to estimate errors (e.g. sigma = 1.0 uses 0.6826 of the PDF).
-        """
-        means = self.median_pdf(as_instance=False)
-        uppers = self.values_at_upper_sigma(sigma=sigma, as_instance=False)
-        lowers = self.values_at_lower_sigma(sigma=sigma, as_instance=False)
-        sigmas = list(
-            map(
-                (lambda mean, upper, lower: max([(upper - mean), (mean - lower)])),
-                means,
-                uppers,
-                lowers,
-            )
-        )
-        return list(map((lambda mean, sigma: (mean, sigma)), means, sigmas))
-
     @to_instance
-    def draw_randomly_via_pdf(self, as_instance=True):
+    def draw_randomly_via_pdf(self):
         """
         The parameter vector of an individual sample of the non-linear search drawn randomly from the PDF, returned as
         a 1D list.
@@ -325,15 +304,13 @@ class SamplesPDF(Samples):
         The draw is weighted by the sample weights to ensure that the sample is drawn from the PDF (which is important
         for non-linear searches like nested sampling).
         """
-        print(self.sample_list)
-        print(self.weight_list)
         sample_index = np.random.choice(
             a=range(len(self.sample_list)), p=self.weight_list
         )
         return self.parameter_lists[sample_index][:]
 
-    @to_instance_input
-    def offset_values_via_input_values(self, input_vector, as_instance=True):
+    @to_instance
+    def offset_values_via_input_values(self, input_vector):
         """
         The values of an input_vector offset by the median_pdf(as_instance=False) (the PDF medians).
 
@@ -355,6 +332,7 @@ class SamplesPDF(Samples):
             )
         )
 
+    @property
     def covariance_matrix(self):
         """
         Compute the covariance matrix of the non-linear search samples, using the method `np.cov()` which is described
@@ -364,13 +342,40 @@ class SamplesPDF(Samples):
 
         Follow that link for a description of what the covariance matrix is.
 
+        This function may be called during a non-linear search, before the samples contain high likelihood regions
+        that enable a robust covariance matrix to be computed. To reduce command line noise, the warning associated
+        with this behaviour is suppressed.
+
         Returns
         -------
         ndarray
             A covariance matrix of shape [total_parameters, total_parameters] for the model parameters of the
             non-linear search.
         """
-        return np.cov(m=self.parameter_lists, rowvar=False, aweights=self.weight_list)
+        if len(self.parameter_lists) == 1:
+            return np.eye(1)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return np.cov(
+                m=self.parameter_lists, rowvar=False, aweights=self.weight_list
+            )
+
+    def save_covariance_matrix(self, filename):
+        """
+        Save the covariance matrix as a CSV file.
+
+        Parameters
+        ----------
+        filename
+            The filename the covariance matrix is saved to.
+        """
+        if not should_output("covariance"):
+            return
+        np.savetxt(filename, self.covariance_matrix, delimiter=",")
+
+    @property
+    def log_evidence(self):
+        return None
 
 
 def marginalize(parameter_list, sigma, weight_list=None):

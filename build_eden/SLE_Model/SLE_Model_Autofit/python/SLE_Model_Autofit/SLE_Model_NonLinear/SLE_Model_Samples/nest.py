@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import List, Optional
+from typing import Dict, List, Optional
 import warnings
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.abstract import (
     AbstractPriorModel,
@@ -11,25 +11,13 @@ from SLE_Model_Autofit import exc
 
 
 class SamplesNest(SamplesPDF):
-    def __init__(
-        self,
-        model,
-        sample_list,
-        number_live_points=None,
-        unconverged_sample_size=100,
-        time=None,
-        results_internal=None,
-    ):
+    def __init__(self, model, sample_list, samples_info=None):
         """
-        The `Samples` classes in **PyAutoFit** provide an interface between the results_internal of
-        a `NonLinearSearch` (e.g. as files on your hard-disk) and Python.
+        Contains the samples of the non-linear search, including parameter values, log likelihoods,
+        weights and other quantites.
 
         For example, the output class can be used to load an instance of the best-fit model, get an instance of any
         individual sample by the `NonLinearSearch` and return information on the likelihoods, errors, etc.
-
-        This class stores the samples of nested sampler model-fit (e.g. `dynesty`, `UltraNest`). To use a library's
-        in-built visualization tools results are optionally stored in their native internal format using the
-        `results_internal` attribute.
 
         Parameters
         ----------
@@ -40,31 +28,17 @@ class SamplesNest(SamplesPDF):
             by the non-linear search.
         number_live_points
             The number of live points used by the nested sampler.
-        unconverged_sample_size
-            If the samples are for a search that is yet to convergence, a reduced set of samples are used to provide
-            a rough estimate of the parameters. The number of samples is set by this parameter.
-        time
-            The time taken to perform the model-fit, which is passed around `Samples` objects for outputting
-            information on the overall fit.
-        results_internal
-            The nested sampler's results in their native internal format for interfacing its visualization library.
+        samples_info
+            Contains information on the samples (e.g. total iterations, time to run the search, etc.).
         """
-        self._number_live_points = number_live_points
         super().__init__(
-            model=model,
-            sample_list=sample_list,
-            unconverged_sample_size=unconverged_sample_size,
-            time=time,
-            results_internal=results_internal,
+            model=model, sample_list=sample_list, samples_info=samples_info
         )
 
     def __add__(self, other):
         """
         Samples can be added together, which combines their `sample_list` meaning that inferred parameters are
         computed via their joint PDF.
-
-        For UltraNest samples there are no tools for combining results in their native format, therefore these
-        `results_internal` are set to None and support for visualization is disabled.
 
         Parameters
         ----------
@@ -83,42 +57,27 @@ class SamplesNest(SamplesPDF):
         return self.__class__(
             model=self.model,
             sample_list=(self.sample_list + other.sample_list),
-            number_live_points=self._number_live_points,
-            unconverged_sample_size=self.unconverged_sample_size,
-            time=self.time,
-            results_internal=None,
+            samples_info=self.samples_info,
         )
 
     @property
     def number_live_points(self):
-        return self._number_live_points
+        return self.samples_info["number_live_points"]
 
     @property
-    @abstractmethod
     def log_evidence(self):
-        pass
+        return self.samples_info["log_evidence"]
 
     @property
-    @abstractmethod
     def total_samples(self):
-        pass
-
-    @property
-    def info_json(self):
-        return {
-            "log_evidence": self.log_evidence,
-            "total_samples": self.total_samples,
-            "unconverged_sample_size": self.unconverged_sample_size,
-            "time": self.time,
-            "number_live_points": self.number_live_points,
-        }
+        return self.samples_info["total_samples"]
 
     @property
     def total_accepted_samples(self):
         """
         The total number of accepted samples performed by the nested sampler.
         """
-        return len(self.log_likelihood_list)
+        return self.samples_info["total_accepted_samples"]
 
     @property
     def acceptance_ratio(self):
@@ -171,7 +130,5 @@ class SamplesNest(SamplesPDF):
             weight_list=weight_list,
         )
         return SamplesStored(
-            model=self.model,
-            sample_list=sample_list,
-            unconverged_sample_size=self.unconverged_sample_size,
+            model=self.model, sample_list=sample_list, samples_info=self.samples_info
         )

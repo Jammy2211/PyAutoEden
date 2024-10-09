@@ -1,5 +1,4 @@
 import SLE_Model_Autoarray as aa
-from SLE_Model_Autolens.SLE_Model_Lens.to_inversion import TracerToInversion
 from SLE_Model_Autolens.SLE_Model_Lens.SLE_Model_Mock.mock_to_inversion import (
     MockTracerToInversion,
 )
@@ -21,12 +20,22 @@ class MockFitImaging(aa.m.MockFitImaging):
             noise_map=noise_map,
             blurred_image=blurred_image,
         )
+        self._grid = grid
         self.tracer = tracer
-        self.grid = grid
+
+    @property
+    def grid(self):
+        if self._grid is not None:
+            return self._grid
+        return super().grids.uniform
+
+    @property
+    def grids(self):
+        return aa.GridsInterface(uniform=self.grid, pixelization=self.grid)
 
     @property
     def tracer_to_inversion(self):
         return MockTracerToInversion(
             tracer=self.tracer,
-            sparse_image_plane_grid_pg_list=self.tracer.sparse_image_plane_grid_pg_list,
+            image_plane_mesh_grid_pg_list=self.tracer.image_plane_mesh_grid_pg_list,
         )

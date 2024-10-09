@@ -49,13 +49,13 @@ class Chameleon(MassProfile, StellarProfile):
         self.core_radius_0 = core_radius_0
         self.core_radius_1 = core_radius_1
 
-    def deflections_yx_2d_from(self, grid):
-        return self.deflections_2d_via_analytic_from(grid=grid)
+    def deflections_yx_2d_from(self, grid, **kwargs):
+        return self.deflections_2d_via_analytic_from(grid=grid, **kwargs)
 
-    @aa.grid_dec.grid_2d_to_structure
+    @aa.grid_dec.to_vector_yx
     @aa.grid_dec.transform
     @aa.grid_dec.relocate_to_radial_minimum
-    def deflections_2d_via_analytic_from(self, grid):
+    def deflections_2d_via_analytic_from(self, grid, **kwargs):
         """
         Calculate the deflection angles at a given set of arc-second gridded coordinates.
         Following Eq. (15) and (16), but the parameters are slightly different.
@@ -115,23 +115,26 @@ class Chameleon(MassProfile, StellarProfile):
             np.multiply(factor, np.vstack((deflection_y, deflection_x)).T)
         )
 
-    @aa.grid_dec.grid_2d_to_structure
+    @aa.over_sample
+    @aa.grid_dec.to_array
     @aa.grid_dec.transform
     @aa.grid_dec.relocate_to_radial_minimum
-    def convergence_2d_from(self, grid):
+    def convergence_2d_from(self, grid, **kwargs):
         """Calculate the projected convergence at a given set of arc-second gridded coordinates.
         Parameters
         ----------
         grid
             The grid of (y,x) arc-second coordinates the convergence is computed on.
         """
-        return self.convergence_func(self.elliptical_radii_grid_from(grid))
+        return self.convergence_func(
+            self.elliptical_radii_grid_from(grid=grid, **kwargs)
+        )
 
     def convergence_func(self, grid_radius):
         return self.mass_to_light_ratio * self.image_2d_via_radii_from(grid_radius)
 
-    @aa.grid_dec.grid_2d_to_structure
-    def potential_2d_from(self, grid):
+    @aa.grid_dec.to_array
+    def potential_2d_from(self, grid, **kwargs):
         return np.zeros(shape=grid.shape[0])
 
     def image_2d_via_radii_from(self, grid_radii):
@@ -176,11 +179,6 @@ class Chameleon(MassProfile, StellarProfile):
     def axis_ratio(self):
         axis_ratio = super().axis_ratio
         return axis_ratio if (axis_ratio < 0.99999) else 0.99999
-
-    def with_new_normalization(self, normalization):
-        mass_profile = copy.copy(self)
-        mass_profile.mass_to_light_ratio = normalization
-        return mass_profile
 
 
 class ChameleonSph(Chameleon):

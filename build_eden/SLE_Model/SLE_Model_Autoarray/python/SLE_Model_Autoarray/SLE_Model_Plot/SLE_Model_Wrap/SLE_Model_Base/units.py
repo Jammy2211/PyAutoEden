@@ -9,6 +9,7 @@ class Units:
     def __init__(
         self,
         use_scaled=None,
+        use_raw=False,
         ticks_convert_factor=None,
         ticks_label=None,
         colorbar_convert_factor=None,
@@ -48,6 +49,7 @@ class Units:
                 ]
             except KeyError:
                 self.use_scaled = True
+        self.use_raw = use_raw
         self.colorbar_convert_factor = colorbar_convert_factor
         self.colorbar_label = colorbar_label
         self.kwargs = kwargs

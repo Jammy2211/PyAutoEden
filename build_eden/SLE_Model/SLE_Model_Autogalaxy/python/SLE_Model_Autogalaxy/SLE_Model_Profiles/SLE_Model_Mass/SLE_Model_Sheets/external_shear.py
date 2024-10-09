@@ -35,19 +35,23 @@ class ExternalShear(MassProfile):
     def average_convergence_of_1_radius(self):
         return 0.0
 
-    @aa.grid_dec.grid_2d_to_structure
-    def convergence_2d_from(self, grid):
+    @aa.grid_dec.to_array
+    def convergence_2d_from(self, grid, **kwargs):
         return np.zeros(shape=grid.shape[0])
 
-    @aa.grid_dec.grid_2d_to_structure
-    def potential_2d_from(self, grid):
-        return np.zeros(shape=grid.shape[0])
+    @aa.grid_dec.to_array
+    def potential_2d_from(self, grid, **kwargs):
+        shear_angle = self.angle - 90
+        phig = np.deg2rad(shear_angle)
+        shear_amp = self.magnitude
+        phicoord = np.arctan2(grid[:, 0], grid[:, 1])
+        rcoord = np.sqrt(((grid[:, 0] ** 2.0) + (grid[:, 1] ** 2.0)))
+        return (((-0.5) * shear_amp) * (rcoord**2)) * np.cos((2 * (phicoord - phig)))
 
-    @aa.grid_dec.grid_2d_to_vector_yx
-    @aa.grid_dec.grid_2d_to_structure
+    @aa.grid_dec.to_vector_yx
     @aa.grid_dec.transform
     @aa.grid_dec.relocate_to_radial_minimum
-    def deflections_yx_2d_from(self, grid):
+    def deflections_yx_2d_from(self, grid, **kwargs):
         """
         Calculate the deflection angles at a given set of arc-second gridded coordinates.
 

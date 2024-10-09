@@ -51,7 +51,10 @@ class TuplePrior(ModelObject):
         """
         return list(
             sorted(
-                filter((lambda t: isinstance(t[1], float)), self.__dict__.items()),
+                filter(
+                    (lambda t: (isinstance(t[1], float) and (t[0] != "id"))),
+                    self.__dict__.items(),
+                ),
                 key=(lambda tup: tup[0]),
             )
         )

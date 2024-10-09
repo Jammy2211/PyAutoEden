@@ -27,7 +27,7 @@ class LightProfileSNR:
         """
         self.signal_to_noise_ratio = signal_to_noise_ratio
 
-    def image_2d_from(self, grid, operated_only=None):
+    def image_2d_from(self, grid, operated_only=None, **kwargs):
         """
         Abstract method for obtaining intensity at a grid of Cartesian (y,x) coordinates.
 

@@ -31,7 +31,7 @@ class HierarchicalResult(AbstractResult):
         results
             Results from hierarchical factor optimisations
         """
-        super().__init__(results[0].sigma)
+        super().__init__(samples_summary=None, paths=None)
         self.results = results
 
     @property
@@ -60,7 +60,7 @@ class HierarchicalResult(AbstractResult):
         Return the instance (e.g. prior) describing the distribution
         from which samples are drawn.
         """
-        return super().instance.distribution_model
+        return self.samples.instance.distribution_model
 
 
 class EPResult:

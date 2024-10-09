@@ -45,7 +45,7 @@ class AbstractMatPlot:
         - `Line`: using `plt.plot`, `plt.semilogy`, `plt.loglog` or `plt.scatter`.
         - `VectorField`: using `plt.quiver`.
         - `RectangularMapper`: using `plt.imshow`.
-        - `MapperVoronoiNoInterp`: using `plt.fill`.
+        - `MapperVorono`: using `plt.fill`.
 
         Parameters
         ----------
@@ -91,7 +91,10 @@ class AbstractMatPlot:
         self.figure = figure or wb.Figure(is_default=True)
         self.axis = axis or wb.Axis(is_default=True)
         self.cmap = cmap or wb.Cmap(is_default=True)
-        self.colorbar = colorbar or wb.Colorbar(is_default=True)
+        if colorbar is not False:
+            self.colorbar = colorbar or wb.Colorbar(is_default=True)
+        else:
+            self.colorbar = False
         self.colorbar_tickparams = colorbar_tickparams or wb.ColorbarTickParams(
             is_default=True
         )

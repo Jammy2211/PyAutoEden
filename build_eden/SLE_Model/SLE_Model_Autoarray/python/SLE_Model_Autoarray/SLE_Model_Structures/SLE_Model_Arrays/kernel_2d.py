@@ -1,6 +1,8 @@
+from astropy.io import fits
 from astropy import units
 import numpy as np
 import scipy.signal
+from pathlib import Path
 from typing import List, Tuple, Union
 from SLE_Model_Autoarray.SLE_Model_Mask.mask_2d import Mask2D
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays.uniform_2d import (
@@ -15,8 +17,8 @@ from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays import array_2d_u
 
 
 class Kernel2D(AbstractArray2D):
-    def __new__(
-        cls,
+    def __init__(
+        self,
         values,
         mask,
         header=None,
@@ -26,8 +28,8 @@ class Kernel2D(AbstractArray2D):
         **kwargs
     ):
         """
-        An array of values, which are paired to a uniform 2D mask of pixels and sub-pixels. Each entry
-        on the array corresponds to a value at the centre of a sub-pixel in an unmasked pixel. See the ``Array2D`` class
+        An array of values, which are paired to a uniform 2D mask of pixels. Each entry
+        on the array corresponds to a value at the centre of a pixel in an unmasked pixel. See the ``Array2D`` class
         for a full description of how Arrays work.
 
         The ``Kernel2D`` class is an ``Array2D`` but with additioonal methods that allow it to be convolved with data.
@@ -42,12 +44,11 @@ class Kernel2D(AbstractArray2D):
         normalize
             If True, the Kernel2D's array values are normalized such that they sum to 1.0.
         """
-        obj = super().__new__(
-            cls=cls, values=values, mask=mask, header=header, store_native=store_native
+        super().__init__(
+            values=values, mask=mask, header=header, store_native=store_native
         )
         if normalize:
-            obj[:] = np.divide(obj, np.sum(obj))
-        return obj
+            self._array[:] = np.divide(self._array, np.sum(self._array))
 
     @classmethod
     def no_mask(
@@ -61,15 +62,13 @@ class Kernel2D(AbstractArray2D):
         Parameters
         ----------
         values
-            The values of the array input as an ndarray of shape [total_unmasked_pixels*(sub_size**2)] or a list of
+            The values of the array input as an ndarray of shape [total_unmasked_pixels] or a list of
             lists.
         shape_native
             The 2D shape of the mask the array is paired with.
         pixel_scales
-            The (y,x) scaled units to pixel units conversion factors of every pixel. If this is input as a ``float``,
-            it is converted to a (float, float) structure.
-        sub_size
-            The size (sub_size x sub_size) of each unmasked pixels sub-array.
+            The (y,x) arcsecond-to-pixel units conversion factor of every pixel. If this is input as a `float`,
+            it is converted to a (float, float).
         origin
             The (y,x) scaled units origin of the mask's coordinate system.
         normalize
@@ -101,10 +100,8 @@ class Kernel2D(AbstractArray2D):
         shape_native
             The 2D shape of the mask the array is paired with.
         pixel_scales
-            The (y,x) scaled units to pixel units conversion factors of every pixel. If this is input as a ``float``,
-            it is converted to a (float, float) structure.
-        sub_size
-            The size (sub_size x sub_size) of each unmasked pixels sub-array.
+            The (y,x) arcsecond-to-pixel units conversion factor of every pixel. If this is input as a `float`,
+            it is converted to a (float, float).
         origin
             The (y,x) scaled units origin of the mask's coordinate system.
         normalize
@@ -131,10 +128,8 @@ class Kernel2D(AbstractArray2D):
         shape_native
             The 2D shape of the mask the array is paired with.
         pixel_scales
-            The (y,x) scaled units to pixel units conversion factors of every pixel. If this is input as a ``float``,
-            it is converted to a (float, float) structure.
-        sub_size
-            The size (sub_size x sub_size) of each unmasked pixels sub-array.
+            The (y,x) arcsecond-to-pixel units conversion factor of every pixel. If this is input as a `float`,
+            it is converted to a (float, float).
         origin
             The (y,x) scaled units origin of the mask's coordinate system.
         normalize
@@ -162,10 +157,8 @@ class Kernel2D(AbstractArray2D):
         shape_native
             The 2D shape of the mask the array is paired with.
         pixel_scales
-            The (y,x) scaled units to pixel units conversion factors of every pixel. If this is input as a ``float``,
-            it is converted to a (float, float) structure.
-        sub_size
-            The size (sub_size x sub_size) of each unmasked pixels sub-array.
+            The (y,x) arcsecond-to-pixel units conversion factor of every pixel. If this is input as a `float`,
+            it is converted to a (float, float).
         origin
             The (y,x) scaled units origin of the mask's coordinate system.
         normalize
@@ -188,8 +181,8 @@ class Kernel2D(AbstractArray2D):
         Parameters
         ----------
         pixel_scales
-            The (y,x) scaled units to pixel units conversion factors of every pixel. If this is input as a ``float``,
-            it is converted to a (float, float) structure.
+            The (y,x) arcsecond-to-pixel units conversion factor of every pixel. If this is input as a `float`,
+            it is converted to a (float, float).
         """
         array = np.array([[0.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]])
         return cls.no_mask(values=array, pixel_scales=pixel_scales)
@@ -216,8 +209,8 @@ class Kernel2D(AbstractArray2D):
         shape_native
             The 2D shape of the mask the array is paired with.
         pixel_scales
-            The (y,x) scaled units to pixel units conversion factors of every pixel. If this is input as a ``float``,
-            it is converted to a (float, float) structure.
+            The (y,x) arcsecond-to-pixel units conversion factor of every pixel. If this is input as a `float`,
+            it is converted to a (float, float).
         sigma
             The value of sigma in the equation, describing the size and full-width half maximum of the Gaussian.
         centre
@@ -301,8 +294,8 @@ class Kernel2D(AbstractArray2D):
         hdu
             The Header-Data Unit of the .fits file the array data is loaded from.
         pixel_scales
-            The (y,x) scaled units to pixel units conversion factors of every pixel. If this is input as a ``float``,
-            it is converted to a (float, float) structure.
+            The (y,x) arcsecond-to-pixel units conversion factor of every pixel. If this is input as a `float`,
+            it is converted to a (float, float).
         origin
             The (y,x) scaled units origin of the mask's coordinate system.
         normalize
@@ -318,6 +311,46 @@ class Kernel2D(AbstractArray2D):
             mask=array.mask,
             normalize=normalize,
             header=Header(header_sci_obj=header_sci_obj, header_hdu_obj=header_hdu_obj),
+        )
+
+    @classmethod
+    def from_primary_hdu(cls, primary_hdu, origin=(0.0, 0.0)):
+        """
+        Returns an ``Kernel2D`` by from a `PrimaryHDU` object which has been loaded via `astropy.fits`
+
+        This assumes that the `header` of the `PrimaryHDU` contains an entry named `PIXSCALE` which gives the
+        pixel-scale of the array.
+
+        For a full description of ``Kernel2D`` objects, including a description of the ``slim`` and ``native`` attribute
+        used by the API, see
+        the :meth:`Kernel2D class API documentation <autoarray.structures.arrays.uniform_2d.AbstractKernel2D.__new__>`.
+
+        Parameters
+        ----------
+        primary_hdu
+            The `PrimaryHDU` object which has already been loaded from a .fits file via `astropy.fits` and contains
+            the array data and the pixel-scale in the header with an entry named `PIXSCALE`.
+        origin
+            The (y,x) scaled units origin of the coordinate system.
+
+        Examples
+        --------
+
+        .. code-block:: python
+
+            from astropy.io import fits
+            import autoarray as aa
+
+            primary_hdu = fits.open("path/to/file.fits")
+
+            array_2d = aa.Kernel2D.from_primary_hdu(
+                primary_hdu=primary_hdu,
+            )
+        """
+        return cls.no_mask(
+            values=cls.flip_hdu_for_ds9(primary_hdu.data.astype("float")),
+            pixel_scales=primary_hdu.header["PIXSCALE"],
+            origin=origin,
         )
 
     def rescaled_with_odd_dimensions_from(self, rescale_factor, normalize=False):
@@ -342,13 +375,18 @@ class Kernel2D(AbstractArray2D):
         """
         from skimage.transform import resize, rescale
 
-        kernel_rescaled = rescale(
-            self.native,
-            rescale_factor,
-            anti_aliasing=False,
-            mode="constant",
-            multichannel=False,
-        )
+        try:
+            kernel_rescaled = rescale(
+                self.native,
+                rescale_factor,
+                anti_aliasing=False,
+                mode="constant",
+                channel_axis=None,
+            )
+        except TypeError:
+            kernel_rescaled = rescale(
+                self.native, rescale_factor, anti_aliasing=False, mode="constant"
+            )
         if ((kernel_rescaled.shape[0] % 2) == 0) and (
             (kernel_rescaled.shape[1] % 2) == 0
         ):
@@ -421,14 +459,12 @@ class Kernel2D(AbstractArray2D):
         """
         if ((self.mask.shape[0] % 2) == 0) or ((self.mask.shape[1] % 2) == 0):
             raise exc.KernelException("Kernel2D Kernel2D must be odd")
-        array_binned_2d = array.binned.native
-        convolved_array_2d = scipy.signal.convolve2d(
-            array_binned_2d, self.native, mode="same"
-        )
+        array_2d = array.native
+        convolved_array_2d = scipy.signal.convolve2d(array_2d, self.native, mode="same")
         convolved_array_1d = array_2d_util.array_2d_slim_from(
-            mask_2d=array_binned_2d.mask, array_2d_native=convolved_array_2d, sub_size=1
+            mask_2d=np.array(array_2d.mask), array_2d_native=convolved_array_2d
         )
-        return Array2D(values=convolved_array_1d, mask=array_binned_2d.mask)
+        return Array2D(values=convolved_array_1d, mask=array_2d.mask)
 
     def convolved_array_with_mask_from(self, array, mask):
         """
@@ -452,6 +488,6 @@ class Kernel2D(AbstractArray2D):
             raise exc.KernelException("Kernel2D Kernel2D must be odd")
         convolved_array_2d = scipy.signal.convolve2d(array, self.native, mode="same")
         convolved_array_1d = array_2d_util.array_2d_slim_from(
-            mask_2d=mask, array_2d_native=convolved_array_2d, sub_size=1
+            mask_2d=np.array(mask), array_2d_native=np.array(convolved_array_2d)
         )
-        return Array2D(values=convolved_array_1d, mask=mask.derive_mask.sub_1)
+        return Array2D(values=convolved_array_1d, mask=mask)

@@ -22,6 +22,7 @@ from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Total impo
 from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Dark import (
     gNFW,
     gNFWSph,
+    gNFWVirialMassConcSph,
     NFWTruncatedSph,
     NFWTruncatedMCRDuffySph,
     NFWTruncatedMCRLudlowSph,
@@ -34,9 +35,11 @@ from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Dark impor
     NFWMCRScatterLudlowSph,
     NFWMCRLudlow,
     gNFWMCRLudlow,
+    NFWVirialMassConcSph,
 )
 from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Stellar import (
     Gaussian,
+    GaussianGradient,
     Sersic,
     SersicSph,
     Exponential,
@@ -45,8 +48,8 @@ from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Stellar im
     DevVaucouleursSph,
     SersicCore,
     SersicCoreSph,
-    SersicRadialGradient,
-    SersicRadialGradientSph,
+    SersicGradient,
+    SersicGradientSph,
     Chameleon,
     ChameleonSph,
 )

@@ -12,7 +12,7 @@ def w_f_approx(z):
     :rtype: ``complex``
 
     # This function is copied from
-    # "https://github.com/sibirrer/lenstronomy/tree/master/lenstronomy/LensModel/Profiles"
+    # "https://github.com/sibirrer/lenstronomy/tree/main/lenstronomy/LensModel/Profiles"
     # written by Anowar J. Shajib (see 1906.08263)
     """
     reg_minus_imag = z.imag < 0.0
@@ -97,8 +97,8 @@ class MassProfileMGE:
         output_grid_final = np.zeros(grid.shape[0], dtype="complex128")
         q2 = axis_ratio**2.0
         scale_factor = axis_ratio / (sigmas[0] * np.sqrt((2.0 * (1.0 - q2))))
-        xs = (grid[:, 1] * scale_factor).copy()
-        ys = (grid[:, 0] * scale_factor).copy()
+        xs = np.array((grid[:, 1] * scale_factor).copy())
+        ys = np.array((grid[:, 0] * scale_factor).copy())
         ys_minus = ys < 0.0
         ys[ys_minus] *= -1
         z = xs + (1j * ys)

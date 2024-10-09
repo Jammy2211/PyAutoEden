@@ -1,7 +1,6 @@
 import math
-from typing import Dict
-import numpy as np
-from SLE_Model_Autoconf.dictable import Dictable
+from typing import Tuple
+from SLE_Model_Autofit.jax_wrapper import numpy as np
 
 """
 The `Gaussian` class in this module is the model components that is fitted to data using a non-linear search. The
@@ -9,11 +8,11 @@ inputs of its __init__ constructor are the parameters which can be fitted for.
 
 The log_likelihood_function in the Analysis class receives an instance of this classes where the values of its
 parameters have been set up according to the non-linear search. Because instances of the classes are used, this means
-their methods (e.g. model_data_1d_via_xvalues_from) can be used in the log likelihood function.
+their methods (e.g. model_data_from) can be used in the log likelihood function.
 """
 
 
-class Gaussian(Dictable):
+class Gaussian:
     def __init__(self, centre=0.0, normalization=0.1, sigma=0.01):
         """
         Represents a 1D `Gaussian` profile, which may be treated as a model-component of PyAutoFit the
@@ -32,7 +31,26 @@ class Gaussian(Dictable):
         self.normalization = normalization
         self.sigma = sigma
 
-    def model_data_1d_via_xvalues_from(self, xvalues):
+    @property
+    def fwhm(self):
+        return (2 * np.sqrt((2 * np.log(2)))) * self.sigma
+
+    def _tree_flatten(self):
+        return ((self.centre, self.normalization, self.sigma), None)
+
+    @classmethod
+    def _tree_unflatten(cls, aux_data, children):
+        return Gaussian(*children)
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, Gaussian)
+            and (self.centre == other.centre)
+            and (self.normalization == other.normalization)
+            and (self.sigma == other.sigma)
+        )
+
+    def model_data_from(self, xvalues):
         """
         Calculate the normalization of the profile on a 1D grid of Cartesian x coordinates.
 
@@ -49,6 +67,11 @@ class Gaussian(Dictable):
             np.exp(((-0.5) * np.square(np.divide(transformed_xvalues, self.sigma)))),
         )
 
+    def f(self, x):
+        return (self.normalization / (self.sigma * np.sqrt((2 * math.pi)))) * np.exp(
+            ((-0.5) * (((x - self.centre) / self.sigma) ** 2))
+        )
+
     def __call__(self, xvalues):
         """
         For certain graphical models, the `__call__` function is overwritten for producing the model-fit.
@@ -59,21 +82,7 @@ class Gaussian(Dictable):
         xvalues
             The x coordinates in the original reference frame of the grid.
         """
-        return self.model_data_1d_via_xvalues_from(xvalues=xvalues)
-
-    def dict(self):
-        """
-        Returns the `Gaussian` as a dictionary which can be straight forwardly written to a `.json` file via the
-        code:
-
-        with open(model_file, "w+") as f:
-            json.dump(gaussian.dict(), f, indent=4)
-
-        Returns
-        -------
-        The `Gaussian` type and model parameters as a dictionary.
-        """
-        return super().dict()
+        return self.model_data_from(xvalues=xvalues)
 
     def inverse(self, y):
         """
@@ -84,7 +93,7 @@ class Gaussian(Dictable):
         return self.centre + (self.sigma * math.sqrt(b))
 
 
-class Exponential(Dictable):
+class Exponential:
     def __init__(self, centre=0.0, normalization=0.1, rate=0.01):
         """
         Represents a 1D Exponential profile, which may be treated as a model-component of PyAutoFit the
@@ -103,7 +112,7 @@ class Exponential(Dictable):
         self.normalization = normalization
         self.rate = rate
 
-    def model_data_1d_via_xvalues_from(self, xvalues):
+    def model_data_from(self, xvalues):
         """
         Calculate the 1D Gaussian profile on a 1D grid of Cartesian x coordinates.
 
@@ -130,19 +139,12 @@ class Exponential(Dictable):
         values
             The x coordinates in the original reference frame of the grid.
         """
-        return self.model_data_1d_via_xvalues_from(xvalues=xvalues)
+        return self.model_data_from(xvalues=xvalues)
 
-    def dict(self):
-        """
-        Returns the `Gaussian` as a dictionary which can be straight forwardly written to a `.json` file via the
-        code:
 
-        with open(model_file, "w+") as f:
-            json.dump(gaussian.dict(), f, indent=4)
-
-        Returns
-        -------
-        The `Gaussian` type and model parameters as a dictionary.
-
-        """
-        return super().dict()
+class PhysicalNFW:
+    def __init__(self, centre, ell_comps, log10m, concentration):
+        self.centre = centre
+        self.ell_comps = ell_comps
+        self.log10m = log10m
+        self.concentration = concentration

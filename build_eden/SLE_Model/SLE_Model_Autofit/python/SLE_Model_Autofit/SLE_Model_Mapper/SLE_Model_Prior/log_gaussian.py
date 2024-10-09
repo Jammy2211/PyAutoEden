@@ -1,3 +1,5 @@
+from typing import Optional
+import numpy as np
 from SLE_Model_Autofit.SLE_Model_Messages.normal import NormalMessage
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.abstract import Prior
 from SLE_Model_Autofit.SLE_Model_Messages.composed_transform import TransformedMessage
@@ -6,12 +8,13 @@ from SLE_Model_Autofit.SLE_Model_Messages.transform import log_transform
 
 class LogGaussianPrior(Prior):
     __identifier_fields__ = ("lower_limit", "upper_limit", "mean", "sigma")
+    __database_args__ = ("mean", "sigma", "lower_limit", "upper_limit", "id_")
 
     def __init__(
         self, mean, sigma, lower_limit=0.0, upper_limit=float("inf"), id_=None
     ):
         """
-        A prior with a log base 10 uniform distribution, defined between a lower limit and upper limit.
+        A prior for a variable whose logarithm is gaussian distributed. Work in natural log.
 
         The conversion of an input unit value, ``u``, to a physical value, ``p``, via the prior is as follows:
 
@@ -27,13 +30,14 @@ class LogGaussianPrior(Prior):
         Parameters
         ----------
         mean
-            The mean of the Gaussian distribution defining the prior.
+            The *natural log* of the distribution's mean.
         sigma
-            The sigma value of the Gaussian distribution defining the prior.
+            The spread of this distribution in *natural log* space, e.g. sigma=1.0 means P(ln x) has a
+            standard deviation of 1.
         lower_limit
-            A lower limit of the Gaussian distribution; physical values below this value are rejected.
+            A lower limit in *real space* (not log); physical values below this are rejected.
         upper_limit
-            A upper limit of the Gaussian distribution; physical values below this value are rejected.
+            A upper limit in *real space* (not log); physical values above this are rejected.
 
         Examples
         --------
@@ -84,3 +88,10 @@ class LogGaussianPrior(Prior):
     @property
     def parameter_string(self):
         return f"mean = {self.mean}, sigma = {self.sigma}"
+
+    def log_prior_from_value(self, value):
+        if value <= 0:
+            return float("-inf")
+        return self.message.base_message.log_prior_from_value(np.log(value)) - np.log(
+            value
+        )

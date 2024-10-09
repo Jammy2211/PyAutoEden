@@ -6,7 +6,7 @@ from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Include.two_d import Include2D
 from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_MatPlot.one_d import MatPlot1D
 from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_MatPlot.two_d import MatPlot2D
 from SLE_Model_Autoarray.SLE_Model_Plot.auto_labels import AutoLabels
-from SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Interferometer.interferometer import (
+from SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Interferometer.dataset import (
     Interferometer,
 )
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.irregular_2d import (
@@ -114,13 +114,13 @@ class InterferometerPlotter(Plotter):
         """
         if data:
             self.mat_plot_2d.plot_grid(
-                grid=self.dataset.visibilities.in_grid,
+                grid=self.dataset.data.in_grid,
                 visuals_2d=self.visuals_2d,
                 auto_labels=AutoLabels(title="Visibilities", filename="data"),
             )
         if noise_map:
             self.mat_plot_2d.plot_grid(
-                grid=self.dataset.visibilities.in_grid,
+                grid=self.dataset.data.in_grid,
                 visuals_2d=self.visuals_2d,
                 color_array=self.dataset.noise_map.real,
                 auto_labels=AutoLabels(title="Noise-Map", filename="noise_map"),
@@ -168,8 +168,8 @@ class InterferometerPlotter(Plotter):
                 auto_labels=AutoLabels(
                     title="Amplitudes vs UV-distances",
                     filename="amplitudes_vs_uv_distances",
-                    ylabel="amplitude (Jy)",
-                    xlabel="U-Wavelengths ($\\lambda$)",
+                    yunit="Jy",
+                    xunit="k$\\lambda$",
                 ),
                 plot_axis_type_override="scatter",
             )
@@ -181,8 +181,8 @@ class InterferometerPlotter(Plotter):
                 auto_labels=AutoLabels(
                     title="Phases vs UV-distances",
                     filename="phases_vs_uv_distances",
-                    ylabel="phase (deg)",
-                    xlabel="UV$_{distance}$ (k$\\lambda$)",
+                    yunit="deg",
+                    xunit="k$\\lambda$",
                 ),
                 plot_axis_type_override="scatter",
             )
@@ -190,14 +190,14 @@ class InterferometerPlotter(Plotter):
             self.mat_plot_2d.plot_array(
                 array=self.dataset.dirty_image,
                 visuals_2d=self.get_visuals_2d_real_space(),
-                auto_labels=AutoLabels(title="Dirty Image", filename="dirty_image_2d"),
+                auto_labels=AutoLabels(title="Dirty Image", filename="dirty_image"),
             )
         if dirty_noise_map:
             self.mat_plot_2d.plot_array(
                 array=self.dataset.dirty_noise_map,
                 visuals_2d=self.get_visuals_2d_real_space(),
                 auto_labels=AutoLabels(
-                    title="Dirty Noise Map", filename="dirty_noise_map_2d"
+                    title="Dirty Noise Map", filename="dirty_noise_map"
                 ),
             )
         if dirty_signal_to_noise_map:
@@ -206,7 +206,7 @@ class InterferometerPlotter(Plotter):
                 visuals_2d=self.get_visuals_2d_real_space(),
                 auto_labels=AutoLabels(
                     title="Dirty Signal-To-Noise Map",
-                    filename="dirty_signal_to_noise_map_2d",
+                    filename="dirty_signal_to_noise_map",
                 ),
             )
 
@@ -274,6 +274,8 @@ class InterferometerPlotter(Plotter):
             uv_wavelengths=True,
             amplitudes_vs_uv_distances=True,
             phases_vs_uv_distances=True,
+            dirty_image=True,
+            dirty_signal_to_noise_map=True,
             auto_filename="subplot_dataset",
         )
 

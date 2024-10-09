@@ -35,9 +35,6 @@ class NFWMCRDuffySph(NFWSph):
         )
         super().__init__(centre=centre, kappa_s=kappa_s, scale_radius=scale_radius)
 
-    def with_new_normalization(self, normalization):
-        raise NotImplementedError()
-
 
 class NFWMCRLudlow(NFW):
     def __init__(

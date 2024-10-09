@@ -1,27 +1,48 @@
-import json
-import os
 import shutil
-from os import path
-from typing import Optional
 import pickle
+import json
+import numpy as np
+import os
+from os import path
+from pathlib import Path
+from typing import Optional, Union, cast, Type
+import logging
 from SLE_Model_Autoconf import conf
+from SLE_Model_Autoconf.class_path import get_class
+from SLE_Model_Autoconf.dictable import to_dict, from_dict
+from SLE_Model_Autoconf.output import conditional_output, should_output
 from SLE_Model_Autofit.SLE_Model_Text import formatter
 from SLE_Model_Autofit.SLE_Model_Tools.util import open_
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.samples import Samples
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Paths.abstract import AbstractPaths
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples import load_from_table
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.pdf import SamplesPDF
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.summary import (
+    SamplesSummary,
+)
+from SLE_Model_Autofit.visualise import VisualiseGraph
+
+logger = logging.getLogger(__name__)
 
 
 class DirectoryPaths(AbstractPaths):
-    def save_named_instance(self, name, instance):
-        """
-        Save an instance, such as that at a given sigma
-        """
-        self.save_object(name, instance)
+    def _path_for_pickle(self, name, prefix=""):
+        return (self._files_path / prefix) / f"{name}.pickle"
 
-    def _path_for_pickle(self, name):
-        return path.join(self._pickle_path, f"{name}.pickle")
+    def _path_for_json(self, name, prefix=""):
+        if isinstance(name, Path):
+            return name
+        return (self._files_path / prefix) / f"{name}.json"
 
-    def save_object(self, name, obj):
+    def _path_for_csv(self, name):
+        return self._files_path / f"{name}.csv"
+
+    def _path_for_fits(self, name, prefix=""):
+        os.makedirs((self._files_path / prefix), exist_ok=True)
+        return (self._files_path / prefix) / f"{name}.fits"
+
+    @conditional_output
+    def save_object(self, name, obj, prefix=""):
         """
         Serialise an object using pickle and save it to the pickles
         directory of the search.
@@ -32,11 +53,86 @@ class DirectoryPaths(AbstractPaths):
             The name of the object
         obj
             A serialisable object
+        prefix
+            A prefix to add to the path which is the name of the folder the file is saved in.
         """
-        with open_(self._path_for_pickle(name), "wb") as f:
+        with open_(self._path_for_pickle(name, prefix), "wb") as f:
             pickle.dump(obj, f)
 
-    def load_object(self, name):
+    @conditional_output
+    def save_json(self, name, object_dict, prefix=""):
+        """
+        Save a dictionary as a json file in the jsons directory of the search.
+
+        Parameters
+        ----------
+        name
+            The name of the json file
+        object_dict
+            The dictionary to save
+        prefix
+            A prefix to add to the path which is the name of the folder the file is saved in.
+        """
+        with open_(self._path_for_json(name, prefix), "w+") as f:
+            json.dump(object_dict, f, indent=4)
+
+    def load_json(self, name, prefix=""):
+        with open_(self._path_for_json(name, prefix)) as f:
+            return json.load(f)
+
+    @conditional_output
+    def save_array(self, name, array):
+        """
+        Save a numpy array as a csv file in the csvs directory of the search.
+
+        Parameters
+        ----------
+        name
+            The name of the csv file
+        array
+            The numpy array to save
+        """
+        np.savetxt(self._path_for_csv(name), array, delimiter=",")
+
+    def load_array(self, name):
+        return np.loadtxt(self._path_for_csv(name), delimiter=",")
+
+    @conditional_output
+    def save_fits(self, name, hdu, prefix=""):
+        """
+        Save an HDU as a fits file in the fits directory of the search.
+
+        Parameters
+        ----------
+        name
+            The name of the fits file
+        hdu
+            The HDU to save
+        prefix
+            A prefix to add to the path which is the name of the folder the file is saved in.
+        """
+        hdu.writeto(self._path_for_fits(name, prefix), overwrite=True)
+
+    def load_fits(self, name, prefix=""):
+        """
+        Load an HDU from a fits file in the fits directory of the search.
+
+        Parameters
+        ----------
+        name
+            The name of the fits file
+        prefix
+            A prefix to add to the path which is the name of the folder the file is saved in.
+
+        Returns
+        -------
+        The loaded HDU.
+        """
+        from astropy.io import fits
+
+        return fits.open(self._path_for_fits(name, prefix))[0]
+
+    def load_object(self, name, prefix=""):
         """
         Load a serialised object with the given name.
 
@@ -46,12 +142,14 @@ class DirectoryPaths(AbstractPaths):
         ----------
         name
             The name of a serialised object
+        prefix
+            A prefix to add to the path which is the name of the folder the file is saved in.
 
         Returns
         -------
         The deserialised object
         """
-        with open_(self._path_for_pickle(name), "rb") as f:
+        with open_(self._path_for_pickle(name, prefix), "rb") as f:
             return pickle.load(f)
 
     def remove_object(self, name):
@@ -81,6 +179,48 @@ class DirectoryPaths(AbstractPaths):
         """
         return path.exists(self._has_completed_path)
 
+    def save_search_internal(self, obj):
+        """
+        Save the internal representation of a non-linear search as pickle file.
+
+        The results in this representation are required to use a search's in-built tools for visualization,
+        analysing samples and other tasks.
+        """
+        filename = self.search_internal_path / "search_internal.pickle"
+        with open_(filename, "wb") as f:
+            pickle.dump(obj, f)
+
+    def load_search_internal(self):
+        """
+        Load the internal representation of a non-linear search from a pickle or pickle file.
+
+        The results in this representation are required to use a search's in-built tools for visualization,
+        analysing samples and other tasks.
+
+        Returns
+        -------
+        The results of the non-linear search in its internal representation.
+        """
+        import emcee
+
+        backend_filename = self.search_internal_path / "search_internal.hdf"
+        if os.path.isfile(backend_filename):
+            return emcee.backends.HDFBackend(filename=str(backend_filename))
+        filename = self.search_internal_path / "search_internal.pickle"
+        with open_(filename, "rb") as f:
+            return pickle.load(f)
+
+    def remove_search_internal(self):
+        """
+        Remove the internal representation of a non-linear search.
+
+        This deletes the entire `search_internal` folder, including a .pickle / .pickle file containing the interal
+        results and files with the timer values.
+
+        This folder can often have a large filesize, thus deleting it can reduce hard-disk use of the model-fit.
+        """
+        shutil.rmtree(self.search_internal_path)
+
     def completed(self):
         """
         Mark the search as complete by saving a file
@@ -90,35 +230,108 @@ class DirectoryPaths(AbstractPaths):
     def load_samples(self):
         return load_from_table(filename=self._samples_file)
 
-    def save_samples(self, samples):
-        pass
+    @property
+    def samples(self):
+        """
+        Load the samples associated with the search from the output directory.
+        """
+        sample_list = self.load_samples()
+        samples_info = self.load_samples_info()
+        cls = cast(Type[Samples], get_class(samples_info["class_path"]))
+        return cls.from_list_info_and_model(
+            sample_list=sample_list, samples_info=samples_info, model=self.model
+        )
 
-    def samples_to_csv(self, samples):
+    def save_latent_samples(self, latent_samples):
+        """
+        Write out the latent variables of the model to a file.
+
+        Parameters
+        ----------
+        latent_samples
+            Samples describing the latent variables of the model
+        """
+        self._save_samples(latent_samples, name="latent")
+
+    def save_samples(self, samples):
         """
         Save the final-result samples associated with the phase as a pickle
         """
-        if conf.instance["general"]["output"]["samples_to_csv"]:
-            samples.write_table(filename=self._samples_file)
-            samples.info_to_json(filename=self._info_file)
+        self._save_samples(samples)
+
+    def _save_samples(self, samples, name=None):
+        """
+        Save the final-result samples associated with the phase as a pickle
+        """
+        if name is not None:
+            directory = self._files_path / name
+        else:
+            directory = self._files_path
+            name = "samples"
+        if conf.instance["general"]["output"]["samples_to_csv"] and should_output(name):
+            self.save_json((directory / "samples_info.json"), samples.samples_info)
+            if isinstance(samples, SamplesPDF):
+                try:
+                    samples.save_covariance_matrix((directory / "covariance.csv"))
+                except (ValueError, ZeroDivisionError) as e:
+                    logger.warning(
+                        f"""Could not save covariance matrix because of the following error:
+{e}"""
+                    )
+            samples.write_table(filename=(directory / "samples.csv"))
+
+    def save_samples_summary(self, samples_summary):
+        model = samples_summary.model
+        filter_args = tuple(
+            (
+                name
+                for name in (
+                    "errors_at_sigma_1",
+                    "errors_at_sigma_3",
+                    "values_at_sigma_1",
+                    "values_at_sigma_3",
+                    "max_log_likelihood_sample",
+                    "median_pdf_sample",
+                )
+                if (not should_output(name))
+            )
+        )
+        samples_summary.model = None
+        self.save_json(
+            "samples_summary", to_dict(samples_summary, filter_args=filter_args)
+        )
+        samples_summary.model = model
+
+    def load_samples_summary(self):
+        samples_summary = from_dict(self.load_json(name="samples_summary"))
+        samples_summary.model = self.model
+        return samples_summary
+
+    def load_latent_samples(self):
+        return load_from_table(filename=(self._files_path / "latent/samples.csv"))
 
     def load_samples_info(self):
         with open_(self._info_file) as infile:
             return json.load(infile)
 
-    def save_all(self, search_config_dict=None, info=None, pickle_files=None):
-        search_config_dict = search_config_dict or {}
+    def save_all(self, search_config_dict=None, info=None):
         info = info or {}
-        pickle_files = pickle_files or []
         self.save_identifier()
         self.save_parent_identifier()
-        self._save_search(config_dict=search_config_dict)
         self._save_model_info(model=self.model)
-        self._save_parameter_names_file(model=self.model)
-        self.save_object("info", info)
-        self.save_object("search", self.search)
-        self.save_object("model", self.model)
+        VisualiseGraph(model=self.model).save(
+            str((self.output_path / "model_graph.html"))
+        )
+        if info:
+            self.save_json("info", info)
+        self.save_json("search", to_dict(self.search))
+        try:
+            info_start = self.search.initializer.info_from_model(model=self.model)
+            self._save_model_start_point(info=info_start)
+        except (NotImplementedError, AttributeError):
+            pass
+        self.save_json("model", to_dict(self.model))
         self._save_metadata(search_name=type(self.search).__name__.lower())
-        self._move_pickle_files(pickle_files=pickle_files)
 
     @AbstractPaths.parent.setter
     def parent(self, parent):
@@ -142,11 +355,11 @@ class DirectoryPaths(AbstractPaths):
 
     @property
     def _parent_identifier_path(self):
-        return path.join(self.output_path, ".parent_identifier")
+        return self.output_path / ".parent_identifier"
 
     @property
     def _grid_search_path(self):
-        return path.join(self.output_path, ".is_grid_search")
+        return self.output_path / ".is_grid_search"
 
     @property
     def is_grid_search(self):
@@ -204,40 +417,31 @@ class DirectoryPaths(AbstractPaths):
 
         return SubDirectoryPaths(parent=self, analysis_name=analysis_name)
 
-    @property
-    def _pickle_path(self):
-        """
-        This is private for a reason, use the save_object etc. methods to save and load pickles
-        """
-        return path.join(self.output_path, "pickles")
-
     def _save_metadata(self, search_name):
         """
         Save metadata associated with the phase, such as the name of the pipeline, the
         name of the phase and the name of the dataset being fit
         """
-        with open_(path.join(self.output_path, "metadata"), "a") as f:
+        with open_((self.output_path / "metadata"), "a") as f:
             f.write(
                 f"""name={self.name}
-            non_linear_search={search_name}
+non_linear_search={search_name}
             """
             )
-
-    def _move_pickle_files(self, pickle_files):
-        """
-        Move extra files a user has input the full path + filename of from the location specified to the
-        pickles folder of the Aggregator, so that they can be accessed via the aggregator.
-        """
-        os.makedirs(self._pickle_path, exist_ok=True)
-        if pickle_files is not None:
-            [shutil.copy(file, self._pickle_path) for file in pickle_files]
 
     def _save_model_info(self, model):
         """
         Save the model.info file, which summarizes every parameter and prior.
         """
-        with open_(path.join(self.output_path, "model.info"), "w+") as f:
+        with open_((self.output_path / "model.info"), "w+") as f:
             f.write(model.info)
+
+    def _save_model_start_point(self, info):
+        """
+        Save the model.start file, which summarizes the start point of every parameter.
+        """
+        with open_((self.output_path / "model.start"), "w+") as f:
+            f.write(info)
 
     def _save_parameter_names_file(self, model):
         """
@@ -265,20 +469,20 @@ class DirectoryPaths(AbstractPaths):
 """
             ]
         formatter.output_list_of_strings_to_file(
-            file=path.join(self.samples_path, "model.paramnames"),
+            file=(self._files_path / "model.paramnames"),
             list_of_strings=parameter_name_and_label,
         )
 
     @property
     def _info_file(self):
-        return path.join(self.samples_path, "info.json")
+        return self._files_path / "samples_info.json"
 
     @property
     def _has_completed_path(self):
         """
         A file indicating that a `NonLinearSearch` has been completed previously
         """
-        return path.join(self.output_path, ".completed")
+        return self.output_path / ".completed"
 
     def _make_path(self):
         """
@@ -287,7 +491,7 @@ class DirectoryPaths(AbstractPaths):
         The path terminates with the identifier, unless the identifier has already
         been added to the path.
         """
-        path_ = path.join(conf.instance.output_path, self.path_prefix, self.name)
+        path_ = Path(path.join(conf.instance.output_path, self.path_prefix, self.name))
         if self.is_identifier_in_paths:
-            path_ = path.join(path_, self.identifier)
+            path_ = path_ / self.identifier
         return path_

@@ -1,17 +1,10 @@
 import numpy as np
-from typing import Dict, Optional
 from SLE_Model_Autoconf import cached_property
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.abstract import (
     AbstractMapper,
 )
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.abstract import (
     PixSubWeights,
-)
-from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.mapper_grids import (
-    MapperGrids,
-)
-from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Regularization.abstract import (
-    AbstractRegularization,
 )
 from SLE_Model_Autoarray.numba_util import profile_func
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers import (
@@ -20,61 +13,55 @@ from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Ma
 
 
 class MapperDelaunay(AbstractMapper):
-    def __init__(self, mapper_grids, regularization, profiling_dict=None):
-        """
-        To understand a `Mapper` one must be familiar `Mesh` objects and the `mesh` and `pixelization` packages, where
-        the four grids grouped in a `MapperGrids` object are explained (`image_plane_data_grid`, `source_plane_data_grid`,
-        `image_plane_mesh_grid`,`source_plane_mesh_grid`)
+    """
+    To understand a `Mapper` one must be familiar `Mesh` objects and the `mesh` and `pixelization` packages, where
+    the four grids grouped in a `MapperGrids` object are explained (`image_plane_data_grid`, `source_plane_data_grid`,
+    `image_plane_mesh_grid`,`source_plane_mesh_grid`)
 
-        If you are unfamliar withe above objects, read through the docstrings of the `pixelization`, `mesh` and
-        `mapper_grids` packages.
+    If you are unfamliar withe above objects, read through the docstrings of the `pixelization`, `mesh` and
+    `mapper_grids` packages.
 
-        A `Mapper` determines the mappings between the masked data grid's pixels (`image_plane_data_grid` and
-        `source_plane_data_grid`) and the pxelization's pixels (`image_plane_mesh_grid` and `source_plane_mesh_grid`).
+    A `Mapper` determines the mappings between the masked data grid's pixels (`image_plane_data_grid` and
+    `source_plane_data_grid`) and the pxelization's pixels (`image_plane_mesh_grid` and `source_plane_mesh_grid`).
 
-        The 1D Indexing of each grid is identical in the `data` and `source` frames (e.g. the transformation does not
-        change the indexing, such that `source_plane_data_grid[0]` corresponds to the transformed value
-        of `image_plane_data_grid[0]` and so on).
+    The 1D Indexing of each grid is identical in the `data` and `source` frames (e.g. the transformation does not
+    change the indexing, such that `source_plane_data_grid[0]` corresponds to the transformed value
+    of `image_plane_data_grid[0]` and so on).
 
-        A mapper therefore only needs to determine the index mappings between the `grid_slim` and `mesh_grid`,
-        noting that associations are made by pairing `source_plane_mesh_grid` with `source_plane_data_grid`.
+    A mapper therefore only needs to determine the index mappings between the `grid_slim` and `mesh_grid`,
+    noting that associations are made by pairing `source_plane_mesh_grid` with `source_plane_data_grid`.
 
-        Mappings are represented in the 2D ndarray `pix_indexes_for_sub_slim_index`, whereby the index of
-        a pixel on the `mesh_grid` maps to the index of a pixel on the `grid_slim` as follows:
+    Mappings are represented in the 2D ndarray `pix_indexes_for_sub_slim_index`, whereby the index of
+    a pixel on the `mesh_grid` maps to the index of a pixel on the `grid_slim` as follows:
 
-        - pix_indexes_for_sub_slim_index[0, 0] = 0: the data's 1st sub-pixel maps to the pixelization's 1st pixel.
-        - pix_indexes_for_sub_slim_index[1, 0] = 3: the data's 2nd sub-pixel maps to the pixelization's 4th pixel.
-        - pix_indexes_for_sub_slim_index[2, 0] = 1: the data's 3rd sub-pixel maps to the pixelization's 2nd pixel.
+    - pix_indexes_for_sub_slim_index[0, 0] = 0: the data's 1st sub-pixel maps to the pixelization's 1st pixel.
+    - pix_indexes_for_sub_slim_index[1, 0] = 3: the data's 2nd sub-pixel maps to the pixelization's 4th pixel.
+    - pix_indexes_for_sub_slim_index[2, 0] = 1: the data's 3rd sub-pixel maps to the pixelization's 2nd pixel.
 
-        The second dimension of this array (where all three examples above are 0) is used for cases where a
-        single pixel on the `grid_slim` maps to multiple pixels on the `mesh_grid`. For example, using a
-        `Delaunay` pixelization, where every `grid_slim` pixel maps to three Delaunay pixels (the corners of the
-        triangles):
+    The second dimension of this array (where all three examples above are 0) is used for cases where a
+    single pixel on the `grid_slim` maps to multiple pixels on the `mesh_grid`. For example, using a
+    `Delaunay` pixelization, where every `grid_slim` pixel maps to three Delaunay pixels (the corners of the
+    triangles):
 
-        - pix_indexes_for_sub_slim_index[0, 0] = 0: the data's 1st sub-pixel maps to the pixelization's 1st pixel.
-        - pix_indexes_for_sub_slim_index[0, 1] = 3: the data's 1st sub-pixel also maps to the pixelization's 4th pixel.
-        - pix_indexes_for_sub_slim_index[0, 2] = 5: the data's 1st sub-pixel also maps to the pixelization's 6th pixel.
+    - pix_indexes_for_sub_slim_index[0, 0] = 0: the data's 1st sub-pixel maps to the pixelization's 1st pixel.
+    - pix_indexes_for_sub_slim_index[0, 1] = 3: the data's 1st sub-pixel also maps to the pixelization's 4th pixel.
+    - pix_indexes_for_sub_slim_index[0, 2] = 5: the data's 1st sub-pixel also maps to the pixelization's 6th pixel.
 
-        The mapper allows us to create a mapping matrix, which is a matrix representing the mapping between every
-        unmasked data pixel annd the pixels of a pixelization. This matrix is the basis of performing an `Inversion`,
-        which reconstructs the data using the `source_plane_mesh_grid`.
+    The mapper allows us to create a mapping matrix, which is a matrix representing the mapping between every
+    unmasked data pixel annd the pixels of a pixelization. This matrix is the basis of performing an `Inversion`,
+    which reconstructs the data using the `source_plane_mesh_grid`.
 
-        Parameters
-        ----------
-        mapper_grids
-            An object containing the data grid and mesh grid in both the data-frame and source-frame used by the
-            mapper to map data-points to linear object parameters.
-        regularization
-            The regularization scheme which may be applied to this linear object in order to smooth its solution,
-            which for a mapper smooths neighboring pixels on the mesh.
-        profiling_dict
-            A dictionary which contains timing of certain functions calls which is used for profiling.
-        """
-        super().__init__(
-            mapper_grids=mapper_grids,
-            regularization=regularization,
-            profiling_dict=profiling_dict,
-        )
+    Parameters
+    ----------
+    mapper_grids
+        An object containing the data grid and mesh grid in both the data-frame and source-frame used by the
+        mapper to map data-points to linear object parameters.
+    regularization
+        The regularization scheme which may be applied to this linear object in order to smooth its solution,
+        which for a mapper smooths neighboring pixels on the mesh.
+    run_time_dict
+        A dictionary which contains timing of certain functions calls which is used for profiling.
+    """
 
     @property
     def delaunay(self):
@@ -131,7 +118,7 @@ class MapperDelaunay(AbstractMapper):
         )
         pix_indexes_for_simplex_index = delaunay.simplices
         (mappings, sizes) = mapper_util.pix_indexes_for_sub_slim_index_delaunay_from(
-            source_plane_data_grid=self.source_plane_data_grid,
+            source_plane_data_grid=np.array(self.source_plane_data_grid),
             simplex_index_for_sub_slim_index=simplex_index_for_sub_slim_index,
             pix_indexes_for_simplex_index=pix_indexes_for_simplex_index,
             delaunay_points=delaunay.points,
@@ -139,8 +126,8 @@ class MapperDelaunay(AbstractMapper):
         mappings = mappings.astype("int")
         sizes = sizes.astype("int")
         weights = mapper_util.pixel_weights_delaunay_from(
-            source_plane_data_grid=self.source_plane_data_grid,
-            source_plane_mesh_grid=self.source_plane_mesh_grid,
+            source_plane_data_grid=np.array(self.source_plane_data_grid),
+            source_plane_mesh_grid=np.array(self.source_plane_mesh_grid),
             slim_index_for_sub_slim_index=self.slim_index_for_sub_slim_index,
             pix_indexes_for_sub_slim_index=mappings,
         )
@@ -175,7 +162,7 @@ class MapperDelaunay(AbstractMapper):
         )
         splitted_weights = mapper_util.pixel_weights_delaunay_from(
             source_plane_data_grid=self.source_plane_mesh_grid.split_cross,
-            source_plane_mesh_grid=self.source_plane_mesh_grid,
+            source_plane_mesh_grid=np.array(self.source_plane_mesh_grid),
             slim_index_for_sub_slim_index=self.source_plane_mesh_grid.split_cross,
             pix_indexes_for_sub_slim_index=splitted_mappings.astype("int"),
         )

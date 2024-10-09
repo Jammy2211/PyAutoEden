@@ -10,7 +10,7 @@ In scipy the interface is defined for minimisations.
 import warnings
 from typing import Optional, Dict, Tuple
 import numpy as np
-from scipy.optimize import linesearch
+from scipy.optimize import _linesearch as linesearch
 from SLE_Model_Autoconf import cached_property
 from SLE_Model_Autofit.SLE_Model_Graphical.SLE_Model_FactorGraphs.abstract import (
     FactorValue,

@@ -2,6 +2,7 @@ from astropy import units
 import numpy as np
 from typing import Tuple
 import SLE_Model_Autoarray as aa
+from SLE_Model_Autogalaxy import convert
 from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Abstract.abstract import (
     MassProfile,
 )
@@ -30,42 +31,14 @@ def radial_and_angle_grid_from(grid, centre=(0.0, 0.0)):
     return (radial_grid, angle_grid)
 
 
-def multipole_parameters_from(ell_comps_multipole):
-    """
-    Converts the multipole elliptical components to their normalizartion value `k_m` and angle `phi`,
-    which are given by:
-
-    .. math::
-        \\phi^{\rm mass}_m = \x07rctan{\x0crac{\\epsilon_{\rm 2}^{\rm mp}}{\\epsilon_{\rm 2}^{\rm mp}}}, \\, \\,
-        k^{\rm mass}_m = \\sqrt{{\\epsilon_{\rm 1}^{\rm mp}}^2 + {\\epsilon_{\rm 2}^{\rm mp}}^2} \\, .
-
-    Parameters
-    ----------
-    ell_comps_multipole
-        The first and second ellipticity components of the multipole.
-
-
-    Returns
-    -------
-    The normalization parameters of the multipole.
-    """
-    angle_m = np.arctan(
-        (ell_comps_multipole[0] / ell_comps_multipole[1])
-    ) * units.rad.to(units.deg)
-    k_m = np.sqrt(((ell_comps_multipole[1] ** 2) + (ell_comps_multipole[0] ** 2)))
-    if angle_m < 0.0:
-        return (k_m, (angle_m + 90.0))
-    return (k_m, angle_m)
-
-
 class PowerLawMultipole(MassProfile):
     def __init__(
         self,
-        m,
+        m=4,
         centre=(0.0, 0.0),
         einstein_radius=1.0,
         slope=2.0,
-        ell_comps_multipole=(0.0, 0.0),
+        multipole_comps=(0.0, 0.0),
     ):
         """
         A multipole extension with multipole order M to the power-law total mass distribution.
@@ -101,7 +74,7 @@ class PowerLawMultipole(MassProfile):
             The arc-second Einstein radius.
         slope
             The density slope of the power-law (lower value -> shallower profile, higher value -> steeper profile).
-        ell_comps_multipole
+        multipole_comps
             The first and second ellipticity components of the multipole.
 
         Examples
@@ -118,7 +91,7 @@ class PowerLawMultipole(MassProfile):
             centre=(0.0, 0.0),
             einstein_radius=1.0,
             slope=2.2,
-            ell_comps_multipole=(0.3, 0.2)
+            multipole_comps=(0.3, 0.2)
         )
 
         galaxy = al.Galaxy(
@@ -137,9 +110,9 @@ class PowerLawMultipole(MassProfile):
         self.m = int(m)
         self.einstein_radius = einstein_radius
         self.slope = slope
-        self.ell_comps_multipole = ell_comps_multipole
-        (self.k_m, self.angle_m) = multipole_parameters_from(
-            ell_comps_multipole=ell_comps_multipole
+        self.multipole_comps = multipole_comps
+        (self.k_m, self.angle_m) = convert.multipole_k_m_and_phi_m_from(
+            multipole_comps=multipole_comps, m=m
         )
         self.angle_m *= units.deg.to(units.rad)
 
@@ -161,11 +134,10 @@ class PowerLawMultipole(MassProfile):
             ((a_r * np.cos(polar_angle_grid)) - (a_angle * np.sin(polar_angle_grid))),
         )
 
-    @aa.grid_dec.grid_2d_to_vector_yx
-    @aa.grid_dec.grid_2d_to_structure
+    @aa.grid_dec.to_vector_yx
     @aa.grid_dec.transform
     @aa.grid_dec.relocate_to_radial_minimum
-    def deflections_yx_2d_from(self, grid):
+    def deflections_yx_2d_from(self, grid, **kwargs):
         """
         Calculate the deflection angles on a grid of (y,x) arc-second coordinates.
 
@@ -208,10 +180,11 @@ class PowerLawMultipole(MassProfile):
             axis=(-1),
         )
 
-    @aa.grid_dec.grid_2d_to_structure
+    @aa.over_sample
+    @aa.grid_dec.to_array
     @aa.grid_dec.transform
     @aa.grid_dec.relocate_to_radial_minimum
-    def convergence_2d_from(self, grid):
+    def convergence_2d_from(self, grid, **kwargs):
         """
         Returns the two dimensional projected convergence on a grid of (y,x) arc-second coordinates.
 
@@ -225,8 +198,8 @@ class PowerLawMultipole(MassProfile):
             ((1.0 / 2.0) * ((self.einstein_radius / r) ** (self.slope - 1))) * self.k_m
         ) * np.cos((self.m * (angle - self.angle_m)))
 
-    @aa.grid_dec.grid_2d_to_structure
-    def potential_2d_from(self, grid):
+    @aa.grid_dec.to_array
+    def potential_2d_from(self, grid, **kwargs):
         """
         Calculate the potential on a grid of (y,x) arc-second coordinates.
 

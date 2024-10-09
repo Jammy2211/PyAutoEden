@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import re
@@ -7,9 +6,14 @@ import zipfile
 from abc import ABC, abstractmethod
 from configparser import NoSectionError
 from os import path
+from pathlib import Path
 from typing import Optional
+import numpy as np
 from SLE_Model_Autoconf import conf
 from SLE_Model_Autofit.SLE_Model_Mapper.identifier import Identifier, IdentifierField
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.summary import (
+    SamplesSummary,
+)
 from SLE_Model_Autofit.SLE_Model_Text import text_util
 from SLE_Model_Autofit.SLE_Model_Tools.util import open_, zip_directory
 
@@ -26,6 +30,7 @@ class AbstractPaths(ABC):
         parent=None,
         unique_tag=None,
         identifier=None,
+        image_path_suffix="",
     ):
         """
         Manages the path structure for `NonLinearSearch` output, for analyses both not using and using the search
@@ -57,12 +62,23 @@ class AbstractPaths(ABC):
         is_identifier_in_paths
             If True output path and symlink path terminate with an identifier generated from the
             search and model
+        parent
+            The parent paths object of this paths object.
+        unique_tag
+            A unique tag for the search, used to differentiate between searches with the same name.
+        identifier
+            A custom identifier for the search, if this is not None it will be used instead of the automatically
+            generated identifier
+        image_path_suffix
+            A suffix which is appended to the image path. This is used to differentiate between different
+            image outputs, for example the image of the starting point of an MLE.
         """
         self.name = name or ""
         self.path_prefix = path_prefix or ""
         self.unique_tag = unique_tag
         self._non_linear_name = None
-        self.__identifier = identifier or None
+        self.__custom_identifier = identifier
+        self.__identifier = None
         self.is_identifier_in_paths = is_identifier_in_paths
         self._parent = None
         self.parent = parent
@@ -72,6 +88,12 @@ class AbstractPaths(ABC):
                 self.remove_files = True
         except NoSectionError as e:
             logger.exception(e)
+        self.image_path_suffix = image_path_suffix
+
+    @property
+    @abstractmethod
+    def samples(self):
+        pass
 
     def save_parent_identifier(self):
         pass
@@ -80,7 +102,7 @@ class AbstractPaths(ABC):
         pass
 
     def __str__(self):
-        return self.output_path
+        return str(self.output_path)
 
     def __repr__(self):
         return f"<{self.__class__.__name__} {self}>"
@@ -133,12 +155,6 @@ class AbstractPaths(ABC):
     model = IdentifierField()
     unique_tag = IdentifierField()
 
-    @abstractmethod
-    def save_named_instance(self, name, instance):
-        """
-        Save an instance, such as that at a given sigma
-        """
-
     @property
     def non_linear_name(self):
         if self._non_linear_name is None:
@@ -150,6 +166,8 @@ class AbstractPaths(ABC):
 
     @property
     def _identifier(self):
+        if self.__custom_identifier is not None:
+            return self.__custom_identifier
         if self.__identifier is None:
             if None in (self.model, self.search):
                 logger.debug(
@@ -170,29 +188,32 @@ class AbstractPaths(ABC):
         return str(self._identifier)
 
     def save_identifier(self):
-        with open_(f"{self.output_path}/.identifier", "w+") as f:
+        with open_((self.output_path / ".identifier"), "w+") as f:
             f.write(self._identifier.description)
 
     @property
-    def samples_path(self):
+    def search_internal_path(self):
         """
         The path to the samples folder.
         """
-        return path.join(self.output_path, "samples")
+        os.makedirs((self._files_path / "search_internal"), exist_ok=True)
+        return self._files_path / "search_internal"
 
     @property
     def image_path(self):
         """
         The path to the image folder.
         """
-        return path.join(self.output_path, "image")
+        if not os.path.exists((self.output_path / f"image{self.image_path_suffix}")):
+            os.makedirs((self.output_path / f"image{self.image_path_suffix}"))
+        return self.output_path / f"image{self.image_path_suffix}"
 
     @property
     def profile_path(self):
         """
         The path to the profile folder.
         """
-        return path.join(self.output_path, "profile")
+        return self.output_path / "profile"
 
     @property
     def output_path(self):
@@ -200,11 +221,31 @@ class AbstractPaths(ABC):
         The path to the output information for a search.
         """
         strings = list(
-            filter(len, [str(conf.instance.output_path), self.path_prefix, self.name])
+            filter(
+                None,
+                [
+                    str(conf.instance.output_path),
+                    str(self.path_prefix),
+                    self.unique_tag,
+                    str(self.name),
+                ],
+            )
         )
         if self.is_identifier_in_paths:
             strings.append(self.identifier)
-        return path.join("", *strings)
+        return Path(path.join("", *strings))
+
+    @property
+    def _files_path(self):
+        """
+        This is private for a reason, use the save_json etc. methods to save and load json
+        """
+        files_path = self.output_path / "files"
+        try:
+            os.makedirs(files_path, exist_ok=True)
+        except FileExistsError:
+            pass
+        return files_path
 
     def zip_remove(self):
         """
@@ -251,11 +292,11 @@ class AbstractPaths(ABC):
         Nuclear mode is dangerous, and must be used with CAUTION AND CARE!
         """
         if os.environ.get("PYAUTOFIT_NUCLEAR_MODE") == "1":
-            file_path = os.path.split(self.output_path)[0]
+            file_path = Path(os.path.split(self.output_path)[0])
             file_list = os.listdir(file_path)
             file_list = [file for file in file_list if (self.identifier not in file)]
             for file in file_list:
-                file_to_remove = path.join(file_path, file)
+                file_to_remove = file_path / file
                 try:
                     os.remove(file_to_remove)
                     logger.info(f"NUCLEAR MODE -- Removed {file_to_remove}")
@@ -274,13 +315,19 @@ class AbstractPaths(ABC):
         if path.exists(self._zip_path):
             shutil.rmtree(self.output_path, ignore_errors=True)
             try:
-                with zipfile.ZipFile(self._zip_path, "r") as f:
-                    f.extractall(self.output_path)
+                try:
+                    with zipfile.ZipFile(self._zip_path, "r") as f:
+                        f.extractall(self.output_path)
+                except FileExistsError:
+                    pass
             except zipfile.BadZipFile as e:
                 raise zipfile.BadZipFile(
                     f"Unable to restore the zip file at the path {self._zip_path}"
                 ) from e
-            os.remove(self._zip_path)
+            try:
+                os.remove(self._zip_path)
+            except FileNotFoundError:
+                pass
 
     def __eq__(self, other):
         return isinstance(other, AbstractPaths) and all(
@@ -296,11 +343,35 @@ class AbstractPaths(ABC):
         return f"{self.output_path}.zip"
 
     @abstractmethod
-    def save_object(self, name, obj):
+    def save_json(self, name, object_dict, prefix=""):
         pass
 
     @abstractmethod
-    def load_object(self, name):
+    def load_json(self, name, prefix=""):
+        pass
+
+    @abstractmethod
+    def save_array(self, name, array):
+        pass
+
+    @abstractmethod
+    def load_array(self, name):
+        pass
+
+    @abstractmethod
+    def save_fits(self, name, hdu, prefix=""):
+        pass
+
+    @abstractmethod
+    def load_fits(self, name, prefix=""):
+        pass
+
+    @abstractmethod
+    def save_object(self, name, obj, prefix=""):
+        pass
+
+    @abstractmethod
+    def load_object(self, name, prefix=""):
         pass
 
     @abstractmethod
@@ -310,6 +381,15 @@ class AbstractPaths(ABC):
     @abstractmethod
     def is_object(self, name):
         pass
+
+    def save_search_internal(self, obj):
+        raise NotImplementedError
+
+    def load_search_internal(self):
+        raise NotImplementedError
+
+    def remove_search_internal(self):
+        raise NotImplementedError
 
     @property
     @abstractmethod
@@ -321,7 +401,7 @@ class AbstractPaths(ABC):
         pass
 
     @abstractmethod
-    def save_all(self, search_config_dict=None, info=None, pickle_files=None):
+    def save_all(self, search_config_dict=None, info=None):
         pass
 
     @abstractmethod
@@ -336,34 +416,55 @@ class AbstractPaths(ABC):
         Save samples to the database
         """
 
-    def samples_to_csv(self, samples):
+    def save_samples_summary(self, samples_summary):
         """
-        Save the final-result samples associated with the phase as a pickle
+        Save samples summary to the database.
+        """
+
+    def load_samples_summary(self):
+        """
+        Load samples summary from the database.
+        """
+
+    @abstractmethod
+    def save_latent_samples(self, latent_samples):
+        """
+        Save latent variables. These are values computed from an instance and output
+        during analysis.
         """
 
     @abstractmethod
     def load_samples_info(self):
         pass
 
-    def _save_search(self, config_dict):
-        with open_(path.join(self.output_path, "search.json"), "w+") as f:
-            json.dump(dict(config_dict), f, indent=4)
-
-    def save_summary(self, samples, log_likelihood_function_time):
+    def save_summary(self, samples, latent_samples, log_likelihood_function_time):
         result_info = text_util.result_info_from(samples=samples)
-        filename = path.join(self.output_path, "model.results")
+        filename = self.output_path / "model.results"
         with open_(filename, "w") as f:
             f.write(result_info)
+        if latent_samples:
+            result_info = text_util.result_info_from(samples=latent_samples)
+            filename = self.output_path / "latent.results"
+            with open_(filename, "w") as f:
+                f.write(result_info)
         text_util.search_summary_to_file(
             samples=samples,
             log_likelihood_function_time=log_likelihood_function_time,
-            filename=path.join(self.output_path, "search.summary"),
+            filename=(self.output_path / "search.summary"),
         )
 
     @property
     def _samples_file(self):
-        return path.join(self.samples_path, "samples.csv")
+        return self._files_path / "samples.csv"
+
+    @property
+    def _latent_variables_file(self):
+        return self._files_path / "latent.csv"
+
+    @property
+    def _covariance_file(self):
+        return self._files_path / "covariance.csv"
 
     @property
     def _info_file(self):
-        return path.join(self.samples_path, "info.json")
+        return self._files_path / "samples_info.json"

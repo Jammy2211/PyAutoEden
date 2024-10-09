@@ -1,3 +1,5 @@
+from SLE_Model_Autofit.jax_wrapper import register_pytree_node_class
+from typing import Optional
 from SLE_Model_Autofit.SLE_Model_Messages.normal import UniformNormalMessage
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.abstract import Prior
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.abstract import epsilon
@@ -5,6 +7,7 @@ from SLE_Model_Autofit.SLE_Model_Messages.composed_transform import TransformedM
 from SLE_Model_Autofit.SLE_Model_Messages.transform import LinearShiftTransform
 
 
+@register_pytree_node_class
 class UniformPrior(Prior):
     __identifier_fields__ = ("lower_limit", "upper_limit")
 
@@ -47,6 +50,9 @@ class UniformPrior(Prior):
             message, lower_limit=lower_limit, upper_limit=upper_limit, id_=id_
         )
 
+    def tree_flatten(self):
+        return ((self.lower_limit, self.upper_limit), (self.id,))
+
     def logpdf(self, x):
         if x == self.lower_limit:
             x += epsilon
@@ -79,12 +85,11 @@ class UniformPrior(Prior):
 
         physical_value = prior.value_for(unit=0.2)
         """
-        return round(
-            super().value_for(unit, ignore_prior_limits=ignore_prior_limits), 14
+        return float(
+            round(super().value_for(unit, ignore_prior_limits=ignore_prior_limits), 14)
         )
 
-    @staticmethod
-    def log_prior_from_value(value):
+    def log_prior_from_value(self, value):
         """
         Returns the log prior of a physical value, so the log likelihood of a model evaluation can be converted to a
         posterior as log_prior + log_likelihood.

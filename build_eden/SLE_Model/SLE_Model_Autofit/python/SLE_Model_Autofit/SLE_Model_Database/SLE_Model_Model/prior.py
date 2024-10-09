@@ -6,19 +6,26 @@ from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel import collection
 from SLE_Model_Autofit.SLE_Model_Database.SLE_Model_Model.model import Object
 
 
+def extra_children(source):
+    return [(f"_assertions", source.assertions)]
+
+
 class Collection(Object):
     """
     A collection
     """
 
     __tablename__ = "collection_prior_model"
-    id = sa.Column(sa.Integer, sa.ForeignKey("object.id"), primary_key=True)
+    id = sa.Column(sa.Integer, sa.ForeignKey("object.id"), primary_key=True, index=True)
     __mapper_args__ = {"polymorphic_identity": "collection_prior_model"}
 
     @classmethod
     def _from_object(cls, source):
         instance = cls()
-        if not isinstance(source, collection.Collection):
+        if isinstance(source, collection.Collection):
+            extra_children_ = extra_children(source)
+            instance._add_children(extra_children_)
+        else:
             source = collection.Collection(source)
         instance._add_children(source.items())
         instance.cls = collection.Collection
@@ -31,14 +38,14 @@ class Model(Object):
     """
 
     __tablename__ = "prior_model"
-    id = sa.Column(sa.Integer, sa.ForeignKey("object.id"), primary_key=True)
+    id = sa.Column(sa.Integer, sa.ForeignKey("object.id"), primary_key=True, index=True)
     __mapper_args__ = {"polymorphic_identity": "prior_model"}
 
     @classmethod
     def _from_object(cls, model):
         instance = cls()
         instance.cls = model.cls
-        instance._add_children(model.items())
+        instance._add_children((model.items() + extra_children(model)))
         return instance
 
     def _make_instance(self):
@@ -54,7 +61,7 @@ class Prior(Object):
     """
 
     __tablename__ = "prior"
-    id = sa.Column(sa.Integer, sa.ForeignKey("object.id"), primary_key=True)
+    id = sa.Column(sa.Integer, sa.ForeignKey("object.id"), primary_key=True, index=True)
     __mapper_args__ = {"polymorphic_identity": "prior"}
 
     @classmethod
@@ -62,11 +69,7 @@ class Prior(Object):
         instance = cls()
         instance.cls = type(model)
         instance._add_children(
-            [
-                (key, value)
-                for (key, value) in model.__dict__.items()
-                if (key in model.__database_args__)
-            ]
+            [(key, getattr(model, key)) for key in model.__database_args__]
         )
         return instance
 

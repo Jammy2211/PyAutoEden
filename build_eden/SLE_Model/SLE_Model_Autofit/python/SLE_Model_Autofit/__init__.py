@@ -1,12 +1,14 @@
 import abc
 import pickle
 
+from SLE_Model_Autoconf.dictable import register_parser
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Grid.SLE_Model_GridSearch import (
     GridSearch as SearchGridSearch,
 )
 from SLE_Model_Autoconf import conf
 from SLE_Model_Autofit import exc
 from SLE_Model_Autofit import mock as m
+from SLE_Model_Autofit.SLE_Model_Aggregator.base import AggBase
 from SLE_Model_Autofit.SLE_Model_Database.SLE_Model_Aggregator.aggregator import (
     GridSearchAggregator,
 )
@@ -23,7 +25,11 @@ from SLE_Model_Autofit.SLE_Model_Graphical.SLE_Model_Declarative.SLE_Model_Facto
     HierarchicalFactor,
 )
 from SLE_Model_Autofit.SLE_Model_Graphical.SLE_Model_Laplace import LaplaceOptimiser
-from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples import SamplesMCMC
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Grid.grid_list import GridList
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.summary import (
+    SamplesSummary,
+)
+
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples import SamplesNest
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples import Samples
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples import SamplesPDF
@@ -79,28 +85,17 @@ from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.abstract import (
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.annotation import (
     AnnotationPriorModel,
 )
-from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.attribute_pair import (
-    AttributeNameValue,
-)
-from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.attribute_pair import (
-    InstanceNameValue,
-)
-from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.attribute_pair import (
-    PriorNameValue,
-)
-from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.attribute_pair import (
-    cast_collection,
-)
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.collection import (
     Collection,
 )
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.prior_model import Model
-from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.prior_model import Model
-from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.util import (
-    PriorModelNameValue,
+from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.array import Array
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Search.abstract_search import (
+    NonLinearSearch,
 )
-from SLE_Model_Autofit.SLE_Model_NonLinear.abstract_search import NonLinearSearch
-from SLE_Model_Autofit.SLE_Model_NonLinear.abstract_search import PriorPasser
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Analysis.visualize import (
+    Visualizer,
+)
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Analysis.analysis import Analysis
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Analysis.combined import (
     CombinedAnalysis,
@@ -108,39 +103,59 @@ from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Analysis.combined import (
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Grid.SLE_Model_GridSearch import (
     GridSearchResult,
 )
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Grid.SLE_Model_Sensitivity import (
+    Sensitivity,
+)
 from SLE_Model_Autofit.SLE_Model_NonLinear.initializer import InitializerBall
 from SLE_Model_Autofit.SLE_Model_NonLinear.initializer import InitializerPrior
-from SLE_Model_Autofit.SLE_Model_NonLinear.initializer import SpecificRangeInitializer
-from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Mcmc.auto_correlations import (
-    AutoCorrelationsSettings,
+from SLE_Model_Autofit.SLE_Model_NonLinear.initializer import InitializerParamBounds
+from SLE_Model_Autofit.SLE_Model_NonLinear.initializer import (
+    InitializerParamStartPoints,
 )
 
 
-from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Nest.SLE_Model_Dynesty import (
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Search.SLE_Model_Nest.SLE_Model_Nautilus.search import (
+    Nautilus,
+)
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Search.SLE_Model_Nest.SLE_Model_Dynesty.SLE_Model_Search.dynamic import (
     DynestyDynamic,
 )
-from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Nest.SLE_Model_Dynesty import (
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Search.SLE_Model_Nest.SLE_Model_Dynesty.SLE_Model_Search.static import (
     DynestyStatic,
 )
 
-from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Optimize.SLE_Model_Drawer.drawer import (
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Search.SLE_Model_Mle.SLE_Model_Drawer.search import (
     Drawer,
 )
-from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Optimize.SLE_Model_Lbfgs.lbfgs import (
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Search.SLE_Model_Mle.SLE_Model_Bfgs.search import (
+    BFGS,
+)
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Search.SLE_Model_Mle.SLE_Model_Bfgs.search import (
     LBFGS,
 )
-
-
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Search.SLE_Model_Mle.SLE_Model_Pyswarms.SLE_Model_Search.globe import (
+    PySwarmsGlobal,
+)
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Search.SLE_Model_Mle.SLE_Model_Pyswarms.SLE_Model_Search.local import (
+    PySwarmsLocal,
+)
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Paths.abstract import AbstractPaths
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Paths import DirectoryPaths
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Paths import DatabasePaths
 from SLE_Model_Autofit.SLE_Model_NonLinear.result import Result
 from SLE_Model_Autofit.SLE_Model_NonLinear.result import ResultsCollection
 from SLE_Model_Autofit.SLE_Model_NonLinear.settings import SettingsSearch
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.pdf import marginalize
-from SLE_Model_Autofit.SLE_Model_Example.model import Gaussian
+from SLE_Model_Autofit.SLE_Model_Example.model import Gaussian, Exponential
 from SLE_Model_Autofit.SLE_Model_Text import formatter
 from SLE_Model_Autofit.SLE_Model_Text import samples_text
-from SLE_Model_Autofit.interpolator import LinearInterpolator, SplineInterpolator
+from SLE_Model_Autofit.visualise import VisualiseGraph
+from SLE_Model_Autofit.SLE_Model_Interpolator import (
+    LinearInterpolator,
+    SplineInterpolator,
+    CovarianceInterpolator,
+    LinearRelationship,
+)
 from SLE_Model_Autofit.SLE_Model_Tools import util
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.SLE_Model_Arithmetic.compound import (
     SumPrior as Add,
@@ -169,6 +184,20 @@ from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.SLE_Model_Arithmetic.com
 from SLE_Model_Autofit import SLE_Model_Example as ex
 from SLE_Model_Autofit import SLE_Model_Database as db
 
+for type_ in (
+    "model",
+    "collection",
+    "tuple_prior",
+    "dict",
+    "instance",
+    "Uniform",
+    "LogUniform",
+    "Gaussian",
+    "LogGaussian",
+    "compound",
+):
+    register_parser(type_, ModelObject.from_dict)
+
 
 conf.instance.register(__file__)
-__version__ = "2023.3.27.1"
+__version__ = "2024.9.21.2"

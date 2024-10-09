@@ -66,7 +66,7 @@ class LightProfilePlotter(Plotter):
 
         if isinstance(light_profile, LightProfileLinear):
             raise exc.raise_linear_light_profile_in_plot(
-                plotter_type=self.__class__.__name__, model_obj="Plane"
+                plotter_type=self.__class__.__name__
             )
         self.light_profile = light_profile
         self.grid = grid
@@ -115,9 +115,8 @@ class LightProfilePlotter(Plotter):
                 x=image_1d.grid_radial,
                 visuals_1d=self.get_visuals_1d(),
                 auto_labels=aplt.AutoLabels(
-                    title="Image vs Radius",
-                    ylabel="Image",
-                    xlabel="Radius",
+                    title="Image ($\\mathrm{e^{-}}\\,\\mathrm{s^{-1}}$) vs Radius (arcsec)",
+                    yunit="",
                     legend=self.light_profile.__class__.__name__,
                     filename="image_1d",
                 ),
@@ -266,11 +265,10 @@ class LightProfilePDFPlotter(LightProfilePlotter):
                 x=image_1d_list[0].grid_radial,
                 visuals_1d=visuals_1d,
                 auto_labels=aplt.AutoLabels(
-                    title="Image vs Radius",
-                    ylabel="Image",
-                    xlabel="Radius",
+                    title="Image ($\\mathrm{e^{-}}\\,\\mathrm{s^{-1}}$) vs Radius (arcsec)",
+                    yunit="",
                     legend=self.light_profile_pdf_list[0].__class__.__name__,
-                    filename="image_1d",
+                    filename="image_1d_pdf",
                 ),
                 plot_axis_type_override=plot_axis_type_override,
             )

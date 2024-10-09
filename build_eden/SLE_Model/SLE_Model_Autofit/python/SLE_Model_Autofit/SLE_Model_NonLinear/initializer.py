@@ -3,13 +3,15 @@ import logging
 import os
 import random
 from abc import ABC, abstractmethod
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Optional
 import numpy as np
 from SLE_Model_Autofit import exc
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Paths.abstract import AbstractPaths
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.abstract import Prior
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.abstract import (
     AbstractPriorModel,
 )
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Parallel import SneakyPool
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +25,29 @@ class AbstractInitializer(ABC):
     def _generate_unit_parameter_list(self, model):
         pass
 
+    def info_from_model(self, model):
+        raise NotImplementedError
+
+    @staticmethod
+    def figure_of_metric(args):
+        (fitness, parameter_list) = args
+        try:
+            figure_of_merit = fitness(parameters=parameter_list)
+            if np.isnan(figure_of_merit) or (figure_of_merit < (-1e98)):
+                return None
+            return figure_of_merit
+        except exc.FitException:
+            return None
+
     def samples_from_model(
         self,
         total_points,
         model,
-        fitness_function,
+        fitness,
+        paths,
         use_prior_medians=False,
         test_mode_samples=True,
+        n_cores=1,
     ):
         """
         Generate the initial points of the non-linear search, by randomly drawing unit values from a uniform
@@ -45,33 +63,41 @@ class AbstractInitializer(ABC):
         """
         if (os.environ.get("PYAUTOFIT_TEST_MODE") == "1") and test_mode_samples:
             return self.samples_in_test_mode(total_points=total_points, model=model)
-        logger.info(
-            "Generating initial samples of model, which are subject to prior limits and other constraints."
-        )
         unit_parameter_lists = []
         parameter_lists = []
         figures_of_merit_list = []
-        point_index = 0
-        while point_index < total_points:
-            if not use_prior_medians:
-                unit_parameter_list = self._generate_unit_parameter_list(model)
-            else:
-                unit_parameter_list = [0.5] * model.prior_count
-            parameter_list = model.vector_from_unit_vector(
-                unit_vector=unit_parameter_list
-            )
-            try:
-                figure_of_merit = fitness_function.figure_of_merit_from(
-                    parameter_list=parameter_list
+        sneaky_pool = SneakyPool(n_cores, fitness, paths)
+        logger.info(f"Generating initial samples of model using {n_cores} cores")
+        while len(figures_of_merit_list) < total_points:
+            remaining_points = total_points - len(figures_of_merit_list)
+            batch_size = min(remaining_points, n_cores)
+            parameter_lists_ = []
+            unit_parameter_lists_ = []
+            for _ in range(batch_size):
+                if not use_prior_medians:
+                    unit_parameter_list = self._generate_unit_parameter_list(model)
+                else:
+                    unit_parameter_list = [0.5] * model.prior_count
+                parameter_list = model.vector_from_unit_vector(
+                    unit_vector=unit_parameter_list
                 )
-                if np.isnan(figure_of_merit):
-                    raise exc.FitException
-                unit_parameter_lists.append(unit_parameter_list)
-                parameter_lists.append(parameter_list)
-                figures_of_merit_list.append(figure_of_merit)
-                point_index += 1
-            except exc.FitException:
-                pass
+                parameter_lists_.append(parameter_list)
+                unit_parameter_lists_.append(unit_parameter_list)
+            for (figure_of_merit, unit_parameter_list, parameter_list) in zip(
+                sneaky_pool.map(
+                    function=self.figure_of_metric,
+                    args_list=[
+                        (fitness, parameter_list) for parameter_list in parameter_lists_
+                    ],
+                    log_info=False,
+                ),
+                unit_parameter_lists_,
+                parameter_lists_,
+            ):
+                if figure_of_merit is not None:
+                    unit_parameter_lists.append(unit_parameter_list)
+                    parameter_lists.append(parameter_list)
+                    figures_of_merit_list.append(figure_of_merit)
         if (total_points > 1) and np.allclose(
             a=figures_of_merit_list[0], b=figures_of_merit_list[1:]
         ):
@@ -88,6 +114,7 @@ class AbstractInitializer(ABC):
                 - The`log_likelihood_function`  is always returning `nan` values.            
                 """
             )
+        logger.info(f"Initial samples generated, starting non-linear search")
         return (unit_parameter_lists, parameter_lists, figures_of_merit_list)
 
     def samples_in_test_mode(self, total_points, model):
@@ -133,17 +160,17 @@ class AbstractInitializer(ABC):
         return (unit_parameter_lists, parameter_lists, figure_of_merit_list)
 
 
-class SpecificRangeInitializer(AbstractInitializer):
+class InitializerParamBounds(AbstractInitializer):
     def __init__(self, parameter_dict, lower_limit=0.0, upper_limit=1.0):
         """
-        Initializer that allows the range of possible starting points for each prior
-        to be specified explicitly.
+        Initializer which uses the bounds on input parameters as the starting point for the search (e.g. where
+        an MLE optimization starts or MCMC walkers are initialized).
 
         Parameters
         ----------
         parameter_dict
-            A dictionary mapping priors to inclusive ranges of physical values that
-            the initial values for that dimension in the search may take
+            A dictionary mapping each parameter path to bounded ranges of physical values that
+            are where the search begins.
         lower_limit
             A default, unit lower limit used when a prior is not specified
         upper_limit
@@ -152,6 +179,7 @@ class SpecificRangeInitializer(AbstractInitializer):
         self.parameter_dict = parameter_dict
         self.lower_limit = lower_limit
         self.upper_limit = upper_limit
+        self._generated_warnings = set()
 
     def _generate_unit_parameter_list(self, model):
         """
@@ -173,14 +201,95 @@ class SpecificRangeInitializer(AbstractInitializer):
                 (lower, upper) = map(prior.unit_value_for, self.parameter_dict[prior])
                 value = random.uniform(lower, upper)
             except KeyError:
-                logger.warning(
-                    f"Range for {'.'.join(model.path_for_prior(prior))} not set in the SpecificRangeInitializer. Using defaults."
-                )
+                key = ".".join(model.path_for_prior(prior))
+                if key not in self._generated_warnings:
+                    logger.warning(
+                        f"Range for {key} not set in the InitializerParamBounds. Using defaults."
+                    )
+                    self._generated_warnings.add(key)
                 lower = self.lower_limit
                 upper = self.upper_limit
                 value = prior.unit_value_for(prior.random(lower, upper))
             unit_parameter_list.append(value)
         return unit_parameter_list
+
+    def info_from_model(self, model):
+        """
+        Returns a string showing the bounds of the parameters in the initializer.
+        """
+        info = (
+            ("Total Free Parameters = " + str(model.prior_count))
+            + """
+"""
+        )
+        info += (
+            ("Total Starting Points = " + str(len(self.parameter_dict)))
+            + """
+
+"""
+        )
+        for prior in model.priors_ordered_by_id:
+            key = ".".join(model.path_for_prior(prior))
+            try:
+                value = self.info_value_from(self.parameter_dict[prior])
+                info += f"""{key}: Start[{value}]
+"""
+            except KeyError:
+                info += f"""{key}: {prior})
+"""
+        return info
+
+    def info_value_from(self, value):
+        """
+        Returns the value that is used to display the bounds of the parameters in the initializer.
+
+        This function simply returns the input value, but it can be overridden in subclasses for diffferent
+        initializers.
+
+        Parameters
+        ----------
+        value
+            The value to be displayed in the initializer info which is a tuple of the lower and upper bounds of the
+            parameter.
+        """
+        return value
+
+
+class InitializerParamStartPoints(InitializerParamBounds):
+    def __init__(self, parameter_dict):
+        """
+        Initializer which input values of the parameters as the starting point for the search (e.g. where
+        an MLE optimization starts or MCMC walkers are initialized).
+
+        Parameters
+        ----------
+        parameter_dict
+            A dictionary mapping each parameter path to the starting point physical values that
+            are where the search begins.
+        lower_limit
+            A default, unit lower limit used when a prior is not specified
+        upper_limit
+            A default, unit upper limit used when a prior is not specified
+        """
+        parameter_dict_new = {}
+        for (key, value) in parameter_dict.items():
+            parameter_dict_new[key] = ((value - 1e-08), (value + 1e-08))
+        super().__init__(parameter_dict=parameter_dict_new)
+
+    def info_value_from(self, value):
+        """
+        Returns the value that is used to display the starting point of the parameters in the initializer.
+
+        This function returns the mean of the input value, as the starting point is a single value in the center of the
+        bounds.
+
+        Parameters
+        ----------
+        value
+            The value to be displayed in the initializer info which is a tuple of the lower and upper bounds of the
+            parameter.
+        """
+        return (value[1] + value[0]) / 2.0
 
 
 class Initializer(AbstractInitializer):

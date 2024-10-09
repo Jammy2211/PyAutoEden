@@ -1,14 +1,13 @@
 import copy
-import csv
 import logging
 import os
 from os import path
 from typing import List, Tuple, Union, Type, Optional, Dict
+from SLE_Model_Autoconf.dictable import to_dict
 from SLE_Model_Autofit import exc
 from SLE_Model_Autofit.SLE_Model_Mapper import SLE_Model_Prior as p
-from SLE_Model_Autofit.SLE_Model_NonLinear.abstract_search import NonLinearSearch
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Parallel import Process
-from SLE_Model_Autofit.SLE_Model_Text.text_util import padding
+from SLE_Model_Autofit.SLE_Model_Text.formatter import write_table
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Grid.SLE_Model_GridSearch.job import (
     Job,
 )
@@ -44,7 +43,6 @@ class GridSearch:
         """
         self.number_of_steps = number_of_steps
         self.search = search
-        self.prior_passer = search.prior_passer
         self._logger = None
         self.logger.info("Creating grid search")
         self.number_of_cores = number_of_cores or 1
@@ -138,16 +136,14 @@ class GridSearch:
             arguments = self.make_arguments(values, grid_priors)
             (yield model.mapper_from_partial_prior_arguments(arguments))
 
-    def fit(self, model, analysis, grid_priors, info=None, parent=None):
+    def fit(self, model, analysis, grid_priors, info=None):
         """
         Fit an analysis with a set of grid priors. The grid priors are priors associated with the model mapper
         of this instance that are replaced by uniform priors for each step of the grid search.
 
         Parameters
         ----------
-        parent
-            Optionally specify a parent, for example a search performed prior
-            to this grid search
+        info
         model
         analysis: autofit.non_linear.non_linear.Analysis
             An analysis used to determine the fitness of a given model instance
@@ -161,8 +157,6 @@ class GridSearch:
         """
         self.paths.model = model
         self.paths.search = self
-        if parent is not None:
-            self.paths.parent = parent.paths
         self.logger.info("Running grid search...")
         process_class = Process if self.parallel else Sequential
         return self._fit(
@@ -203,32 +197,36 @@ class GridSearch:
         self.logger.info("...in parallel")
         grid_priors = model.sort_priors_alphabetically(set(grid_priors))
         lists = self.make_lists(grid_priors)
-        builder = ResultBuilder(lists=lists, grid_priors=grid_priors)
+        jobs = self.make_jobs(model, analysis, grid_priors, info)
+        builder = ResultBuilder(
+            lists=lists,
+            grid_priors=grid_priors,
+            paths=[j.search_instance.paths for j in jobs],
+        )
         self.save_metadata()
 
         def save_results():
-            self.paths.save_object("result", builder())
+            self.paths.save_json("result", to_dict(builder()))
 
         def write_results():
             self.logger.debug("Writing results")
-            with open(path.join(self.paths.output_path, "results.csv"), "w+") as f:
-                writer = csv.writer(f)
-                writer.writerow(
-                    [
-                        (
-                            (["index"] + list(map(model.name_for_prior, grid_priors)))
-                            + ["likelihood_merit"]
-                        )
-                    ]
-                )
-                for results in results_list:
-                    writer.writerow([padding(f"{value:.2f}") for value in results])
+            os.makedirs(self.paths.output_path, exist_ok=True)
+            is_evidence = any(((row[(-1)] is not None) for row in results_list))
+            headers = [
+                "index",
+                *map(model.name_for_prior, grid_priors),
+                "log_likelihood_increase",
+            ]
+            rows = results_list
+            if is_evidence:
+                headers.append("log_evidence")
+            else:
+                rows = [row[:(-1)] for row in rows]
+            write_table(headers, rows, (self.paths.output_path / "results.csv"))
 
         results_list = []
         for (i, job_result) in enumerate(
-            process_class.run_jobs(
-                self.make_jobs(model, analysis, grid_priors, info), self.number_of_cores
-            )
+            process_class.run_jobs(jobs, self.number_of_cores)
         ):
             builder.add(job_result)
             results_list.append(job_result.result_list_row)
@@ -240,7 +238,6 @@ class GridSearch:
         return builder()
 
     def save_metadata(self):
-        self.paths.save_parent_identifier()
         self.paths.save_unique_tag(is_grid_search=True)
         self.paths.zip_remove_nuclear()
 
@@ -294,25 +291,24 @@ class GridSearch:
             )
         )
         for (key, value) in self.__dict__.items():
-            if key not in ("model", "instance", "paths", "search"):
+            if key not in ("model", "instance", "paths", "search", "number_of_cores"):
                 try:
                     setattr(search_instance, key, value)
                 except AttributeError:
                     pass
-        search_instance.number_of_cores = self.number_of_cores
         if self.number_of_cores > 1:
             search_instance.number_of_cores = 1
         return search_instance
 
 
-def grid(fitness_function, no_dimensions, step_size):
+def grid(fitness, no_dimensions, step_size):
     """
     Grid2D search using a fitness function over a given number of dimensions and a given step size between inclusive
     limits of 0 and 1.
 
     Parameters
     ----------
-    fitness_function: function
+    fitness: function
         A function that takes a tuple of floats as an argument
     no_dimensions: int
         The number of dimensions of the grid search
@@ -327,7 +323,7 @@ def grid(fitness_function, no_dimensions, step_size):
     best_fitness = float("-inf")
     best_arguments = None
     for arguments in make_lists(no_dimensions, step_size):
-        fitness = fitness_function(tuple(arguments))
+        fitness = fitness(tuple(arguments))
         if fitness > best_fitness:
             best_fitness = fitness
             best_arguments = tuple(arguments)

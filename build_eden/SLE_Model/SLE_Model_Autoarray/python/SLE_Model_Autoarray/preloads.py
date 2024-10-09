@@ -1,10 +1,8 @@
 import logging
 import numpy as np
+import os
 from typing import List
 from SLE_Model_Autoconf import conf
-from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.SLE_Model_Imaging.abstract import (
-    AbstractInversionImaging,
-)
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_LinearObj.func_list import (
     AbstractLinearObjFuncList,
 )
@@ -25,7 +23,7 @@ class Preloads:
         self,
         w_tilde=None,
         use_w_tilde=None,
-        sparse_image_plane_grid_pg_list=None,
+        image_plane_mesh_grid_pg_list=None,
         relocated_grid=None,
         mapper_list=None,
         operated_mapping_matrix=None,
@@ -37,12 +35,12 @@ class Preloads:
         curvature_matrix_mapper_diag=None,
         regularization_matrix=None,
         log_det_regularization_matrix_term=None,
-        traced_sparse_grids_list_of_planes=None,
-        sparse_image_plane_grid_list=None,
+        traced_mesh_grids_list_of_planes=None,
+        image_plane_mesh_grid_list=None,
     ):
         self.w_tilde = w_tilde
         self.use_w_tilde = use_w_tilde
-        self.sparse_image_plane_grid_pg_list = sparse_image_plane_grid_pg_list
+        self.image_plane_mesh_grid_pg_list = image_plane_mesh_grid_pg_list
         self.relocated_grid = relocated_grid
         self.mapper_list = mapper_list
         self.operated_mapping_matrix = operated_mapping_matrix
@@ -56,8 +54,8 @@ class Preloads:
         self.curvature_matrix_mapper_diag = curvature_matrix_mapper_diag
         self.regularization_matrix = regularization_matrix
         self.log_det_regularization_matrix_term = log_det_regularization_matrix_term
-        self.traced_sparse_grids_list_of_planes = traced_sparse_grids_list_of_planes
-        self.sparse_image_plane_grid_list = sparse_image_plane_grid_list
+        self.traced_mesh_grids_list_of_planes = traced_mesh_grids_list_of_planes
+        self.image_plane_mesh_grid_list = image_plane_mesh_grid_list
 
     @property
     def check_threshold(self):
@@ -99,9 +97,11 @@ class Preloads:
                 indexes,
                 lengths,
             ) = inversion_imaging_util.w_tilde_curvature_preload_imaging_from(
-                noise_map_native=fit_0.noise_map.native,
-                kernel_native=fit_0.dataset.psf.native,
-                native_index_for_slim_index=fit_0.dataset.mask.derive_indexes.native_for_slim,
+                noise_map_native=np.array(fit_0.noise_map.native),
+                kernel_native=np.array(fit_0.dataset.psf.native),
+                native_index_for_slim_index=np.array(
+                    fit_0.dataset.mask.derive_indexes.native_for_slim
+                ),
             )
             self.w_tilde = WTildeImaging(
                 curvature_preload=preload,
@@ -120,7 +120,7 @@ class Preloads:
         This function compares the relocated grids of the mappers of two fit corresponding to two model instances, and
         preloads the grid if the grids of both fits are the same.
 
-        The preload is typically used in adapt searches, where the mass model is fixed and the hyper-parameters are
+        The preload is typically used in adapt searches, where the mass model is fixed and the parameters are
         varied.
 
         Parameters
@@ -267,12 +267,22 @@ class Preloads:
         fit_1
             The second fit corresponding to a model with a different set of unit-values.
         """
+        from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.pixelization import (
+            Pixelization,
+        )
+
         self.linear_func_operated_mapping_matrix_dict = None
         inversion_0 = fit_0.inversion
         inversion_1 = fit_1.inversion
         if inversion_0 is None:
             return
+        if not inversion_0.has(cls=AbstractMapper):
+            return
         if not inversion_0.has(cls=AbstractLinearObjFuncList):
+            return
+        try:
+            inversion_0.linear_func_operated_mapping_matrix_dict
+        except NotImplementedError:
             return
         if not hasattr(inversion_0, "linear_func_operated_mapping_matrix_dict"):
             return
@@ -420,6 +430,8 @@ class Preloads:
             preloads=self.__class__(use_w_tilde=False),
             settings_inversion=settings_inversion,
         )
+        if os.environ.get("PYAUTOFIT_TEST_MODE") == "1":
+            return
         try:
             if (
                 abs(

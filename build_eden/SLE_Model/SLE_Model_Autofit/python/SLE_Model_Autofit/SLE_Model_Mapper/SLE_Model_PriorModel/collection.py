@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from SLE_Model_Autofit.jax_wrapper import register_pytree_node_class
 from SLE_Model_Autofit.SLE_Model_Mapper.model import ModelInstance, assert_not_frozen
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.abstract import Prior
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.abstract import (
@@ -6,6 +7,7 @@ from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.abstract import (
 )
 
 
+@register_pytree_node_class
 class Collection(AbstractPriorModel):
     def name_for_prior(self, prior):
         """
@@ -28,11 +30,22 @@ class Collection(AbstractPriorModel):
             if prior == direct_prior:
                 return name
 
+    def tree_flatten(self):
+        (keys, values) = zip(*self.items())
+        return (values, keys)
+
+    @classmethod
+    def tree_unflatten(cls, aux_data, children):
+        instance = cls()
+        for (key, value) in zip(aux_data, children):
+            setattr(instance, key, value)
+        return instance
+
     def __contains__(self, item):
         return (item in self._dict) or (item in self._dict.values())
 
     def __getitem__(self, item):
-        if item in self._dict:
+        if isinstance(item, str):
             return self._dict[item]
         return self.values[item]
 
@@ -216,7 +229,7 @@ class Collection(AbstractPriorModel):
                 collection[key] = arguments[value]
         return collection
 
-    def _instance_for_arguments(self, arguments):
+    def _instance_for_arguments(self, arguments, ignore_assertions=False):
         """
         Parameters
         ----------
@@ -233,11 +246,39 @@ class Collection(AbstractPriorModel):
             if key.startswith("_"):
                 continue
             if isinstance(value, AbstractPriorModel):
-                value = value.instance_for_arguments(arguments)
+                value = value.instance_for_arguments(
+                    arguments, ignore_assertions=ignore_assertions
+                )
             elif isinstance(value, Prior):
                 value = arguments[value]
             setattr(result, key, value)
         return result
+
+    def gaussian_prior_model_for_arguments(self, arguments):
+        """
+        Create a new collection, updating its priors according to the argument
+        dictionary.
+
+        Parameters
+        ----------
+        arguments
+            A dictionary of arguments
+
+        Returns
+        -------
+        A new collection
+        """
+        collection = Collection()
+        for (key, value) in self.items():
+            if (key in ("component_number", "item_number", "id")) or key.startswith(
+                "_"
+            ):
+                continue
+            if isinstance(value, AbstractPriorModel):
+                collection[key] = value.gaussian_prior_model_for_arguments(arguments)
+            if isinstance(value, Prior):
+                collection[key] = arguments[value]
+        return collection
 
     @property
     def prior_class_dict(self):

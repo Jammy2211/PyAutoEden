@@ -1,14 +1,14 @@
 import numpy as np
 from typing import Dict, Optional
-from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.settings import (
-    SettingsPixelization,
-)
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.mapper_grids import (
     MapperGrids,
 )
+from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.border_relocator import (
+    BorderRelocator,
+)
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.uniform_2d import Grid2D
-from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.sparse_2d import (
-    Grid2DSparse,
+from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.irregular_2d import (
+    Grid2DIrregular,
 )
 from SLE_Model_Autoarray.preloads import Preloads
 from SLE_Model_Autoarray.numba_util import profile_func
@@ -20,10 +20,7 @@ class AbstractMesh:
 
     @profile_func
     def relocated_grid_from(
-        self,
-        source_plane_data_grid,
-        settings=SettingsPixelization(),
-        preloads=Preloads(),
+        self, border_relocator, source_plane_data_grid, preloads=Preloads()
     ):
         """
         Relocates all coordinates of the input `source_plane_data_grid` that are outside of a
@@ -42,23 +39,24 @@ class AbstractMesh:
 
         Parameters
         ----------
+        border_relocator
+           The border relocator, which relocates coordinates outside the border of the source-plane data grid to its
+           edge.
         source_plane_data_grid
             A 2D (y,x) grid of coordinates, whose coordinates outside the border are relocated to its edge.
+        preloads
+            Contains quantities which may already be computed and can be preloaded to speed up calculations, in this
+            case the relocated grid.
         """
         if preloads.relocated_grid is None:
-            if settings.use_border:
-                return source_plane_data_grid.relocated_grid_from(
-                    grid=source_plane_data_grid
-                )
+            if border_relocator is not None:
+                return border_relocator.relocated_grid_from(grid=source_plane_data_grid)
             return source_plane_data_grid
         return preloads.relocated_grid
 
     @profile_func
     def relocated_mesh_grid_from(
-        self,
-        source_plane_data_grid,
-        source_plane_mesh_grid,
-        settings=SettingsPixelization(),
+        self, border_relocator, source_plane_data_grid, source_plane_mesh_grid
     ):
         """
         Relocates all coordinates of the input `source_plane_mesh_grid` that are outside of a border (which
@@ -77,6 +75,9 @@ class AbstractMesh:
 
         Parameters
         ----------
+        border_relocator
+           The border relocator, which relocates coordinates outside the border of the source-plane data grid to its
+           edge.
         source_plane_data_grid
             A 2D grid of (y,x) coordinates associated with the unmasked 2D data after it has been transformed to the
             `source` reference frame.
@@ -84,41 +85,32 @@ class AbstractMesh:
             The centres of every Voronoi pixel in the `source` frame, which are initially derived by computing a sparse
             set of (y,x) coordinates computed from the unmasked data in the `data` frame and applying a transformation
             to this.
-        settings
-            Settings controlling the pixelization for example if a border is used to relocate its exterior coordinates.
         """
-        if settings.use_border:
-            return source_plane_data_grid.relocated_mesh_grid_from(
-                mesh_grid=source_plane_mesh_grid
+        if border_relocator is not None:
+            return border_relocator.relocated_mesh_grid_from(
+                grid=source_plane_data_grid, mesh_grid=source_plane_mesh_grid
             )
         return source_plane_mesh_grid
 
     def mapper_grids_from(
         self,
+        mask,
         source_plane_data_grid,
+        border_relocator=None,
         source_plane_mesh_grid=None,
         image_plane_mesh_grid=None,
-        hyper_data=None,
-        settings=SettingsPixelization(),
+        adapt_data=None,
         preloads=Preloads(),
-        profiling_dict=None,
+        run_time_dict=None,
     ):
         raise NotImplementedError
 
-    def mesh_grid_from(
-        self,
-        source_plane_data_grid,
-        source_plane_mesh_grid,
-        sparse_index_for_slim_index=None,
-    ):
+    def mesh_grid_from(self, source_plane_data_grid, source_plane_mesh_grid):
         raise NotImplementedError
-
-    def weight_map_from(self, hyper_data):
-        raise NotImplementedError()
 
     @property
-    def is_stochastic(self):
-        return False
+    def requires_image_mesh(self):
+        return True
 
     def __str__(self):
         return """

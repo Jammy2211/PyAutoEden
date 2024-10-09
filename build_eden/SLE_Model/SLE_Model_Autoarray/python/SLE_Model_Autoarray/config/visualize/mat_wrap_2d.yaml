@@ -21,6 +21,17 @@ ArrayOverlay:        # wrapper for `plt.imshow()`: customize arrays overlaid.
     alpha: 0.5
   subplot:
     alpha: 0.5
+Contour:             # wrapper for `plt.contour()`: customize contours plotted on the figure.
+  figure:
+    colors: "k"
+    total_contours: 10     # Number of contours to plot
+    use_log10: true        # If true, contours are plotted with log10 spacing, if False, linear spacing.
+    include_values: true   # If true, the values of the contours are plotted on the figure.
+  subplot:
+    colors: "k"
+    total_contours: 10     # Number of contours to plot
+    use_log10: true        # If true, contours are plotted with log10 spacing, if False, linear spacing.
+    include_values: true   # If true, the values of the contours are plotted on the figure.
 BorderScatter:       # wrapper for `plt.scatter()`: customize the apperance of 2D borders.
   figure:
     c: r
@@ -47,9 +58,9 @@ GridErrorbar:        # wrapper for `plt.errrorbar()`: customize grids with error
     markersize: 8
 GridPlot:            # wrapper for `plt.plot()`: customize how grids plotted via this method appear.
   figure:
-    c: k
+    c: w
   subplot:
-    c: k
+    c: w
 GridScatter:        # wrapper for `plt.scatter()`: customize appearances of Grid2D.
   figure:
     c: k
@@ -68,6 +79,13 @@ IndexScatter:        # wrapper for `plt.scatter()`: customize indexes (e.g. data
     c: r,g,b,m,y,k
     marker: .
     s: 20
+IndexPlot:        # wrapper for `plt.plot()`: customize indexes (e.g. data / source plane or frame objects of an Inversion)
+  figure:
+    c: r,g,b,m,y,k
+    linewidth: 3
+  subplot:
+    c: r,g,b,m,y,k
+    linewidth: 3
 MaskScatter:         # wrapper for `plt.scatter()`: customize the appearance of 2D masks.
   figure:
     c: k
@@ -106,11 +124,11 @@ PositionsScatter:    # wrapper for `plt.scatter()`: customize the appearance of 
   figure:
     c: k,m,y,b,r,g
     marker: .
-    s: 16
+    s: 32
   subplot:
     c: k,m,y,b,r,g
     marker: .
-    s: 16
+    s: 32
 VectorYXQuiver:      # wrapper for `plt.quiver()`: customize (y,x) vectors appearances (e.g. a shear field).
   figure:
     alpha: 1.0

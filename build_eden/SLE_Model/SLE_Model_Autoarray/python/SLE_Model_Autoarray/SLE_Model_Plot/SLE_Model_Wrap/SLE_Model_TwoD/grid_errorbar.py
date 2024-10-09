@@ -28,6 +28,11 @@ class GridErrorbar(AbstractMatWrap2D):
         list of colors can be specified which the plot cycles through.
     """
 
+    def config_dict_remove_marker(self, config_dict):
+        if config_dict.get("fmt") and config_dict.get("marker"):
+            config_dict.pop("marker")
+        return config_dict
+
     def errorbar_grid(self, grid, y_errors=None, x_errors=None):
         """
         Plot an input grid of (y,x) coordinates using the matplotlib method `plt.errorbar`.
@@ -46,6 +51,7 @@ class GridErrorbar(AbstractMatWrap2D):
         config_dict = self.config_dict
         if len(config_dict["c"]) > 1:
             config_dict["c"] = config_dict["c"][0]
+        config_dict = self.config_dict_remove_marker(config_dict=config_dict)
         try:
             plt.errorbar(
                 y=grid[:, 0], x=grid[:, 1], yerr=y_errors, xerr=x_errors, **config_dict
@@ -72,6 +78,7 @@ class GridErrorbar(AbstractMatWrap2D):
         color = itertools.cycle(self.config_dict["c"])
         config_dict = self.config_dict
         config_dict.pop("c")
+        config_dict = self.config_dict_remove_marker(config_dict=config_dict)
         try:
             for grid in grid_list:
                 plt.errorbar(
@@ -105,11 +112,12 @@ class GridErrorbar(AbstractMatWrap2D):
         config_dict = self.config_dict
         config_dict.pop("c")
         plt.scatter(y=grid[:, 0], x=grid[:, 1], c=color_array, cmap=cmap)
+        config_dict = self.config_dict_remove_marker(config_dict=self.config_dict)
         plt.errorbar(
             y=grid[:, 0],
             x=grid[:, 1],
             yerr=np.asarray(y_errors),
             xerr=np.asarray(x_errors),
             zorder=0.0,
-            **self.config_dict
+            **config_dict
         )

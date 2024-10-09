@@ -5,7 +5,6 @@ from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Light.SLE_Model_Linear.ab
 from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Light import (
     SLE_Model_Standard as lp,
 )
-from SLE_Model_Autogalaxy.SLE_Model_Profiles import light_and_mass_profiles as lmp
 
 
 class Exponential(lp.Exponential, LightProfileLinear):
@@ -28,14 +27,6 @@ class Exponential(lp.Exponential, LightProfileLinear):
             intensity=1.0,
             effective_radius=effective_radius,
         )
-
-    @property
-    def lp_cls(self):
-        return lp.Exponential
-
-    @property
-    def lmp_cls(self):
-        return lmp.Exponential
 
 
 class ExponentialSph(Exponential):

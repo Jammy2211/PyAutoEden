@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class VectorYX2DIrregular(AbstractVectorYX2D):
-    def __new__(cls, values, grid):
+    def __init__(self, values, grid):
         """
         A collection of (y,x) vectors which are located on a irregular 2D grid of (y,x) coordinates.
 
@@ -41,13 +41,10 @@ class VectorYX2DIrregular(AbstractVectorYX2D):
         grid
             The irregular grid of (y,x) coordinates where each vector is located.
         """
-        if len(values) == 0:
-            return []
         if type(values) is list:
             values = np.asarray(values)
-        obj = values.view(cls)
-        obj.grid = Grid2DIrregular(values=grid)
-        return obj
+        self.grid = Grid2DIrregular(values=grid)
+        super().__init__(values)
 
     def __array_finalize__(self, obj):
         if hasattr(obj, "grid"):
@@ -58,6 +55,10 @@ class VectorYX2DIrregular(AbstractVectorYX2D):
         """
         The vector-field in its 1D representation, an ndarray of shape [total_vectors, 2].
         """
+        return self
+
+    @property
+    def native(self):
         return self
 
     @property

@@ -364,7 +364,7 @@ def delaunay_interpolated_array_from(
     interpolated_array = np.zeros(len(interpolation_grid_slim))
     for slim_index in range(len(interpolation_grid_slim)):
         simplex_index = simplex_index_for_interpolate_index[slim_index]
-        interpolating_point = interpolation_grid_slim[slim_index]
+        interpolating_point = tuple(interpolation_grid_slim[slim_index])
         if simplex_index == (-1):
             cloest_pixel_index = np.argmin(
                 np.sum(((pixel_points - interpolating_point) ** 2.0), axis=1)
@@ -421,22 +421,6 @@ def voronoi_neighbors_from(pixels, ridge_points):
     -------
     The arrays containing the 1D index of every pixel's neighbors and the number of neighbors that each pixel has.
     """
-    """
-    Returns the neighbors and total number of neighbors of every cell on a Voronoi mesh. 
-    
-    Neighbors are returned as an ndarray of shape [total_pixels, max_neighbors_in_a_given_voronoi pixel], where 
-    entries have values of -1 if the pixel has no neighbor.
-    
-    The number of neighbors of every pixel is also returned as an ndarray of shape [total_pixels], where the values
-    are integers between 0 and the total neighbors in a given Voronoi pixel.
-    
-    Parameters
-    ----------
-    pixels
-        The number of pixels on the Voronoi mesh
-    ridge_points
-        Contains the information on every Voronoi pixel and its neighbors.
-    """
     neighbors_sizes = np.zeros(shape=pixels)
     for ridge_index in range(ridge_points.shape[0]):
         pair0 = ridge_points[(ridge_index, 0)]
@@ -491,7 +475,7 @@ def voronoi_revised_from(voronoi):
     region_list = []
     vertex_list = voronoi.vertices.tolist()
     center = voronoi.points.mean(axis=0)
-    radius = voronoi.points.ptp().max() * 2
+    radius = np.ptp(voronoi.points).max() * 2
     all_ridges = {}
     for ((p1, p2), (v1, v2)) in zip(voronoi.ridge_points, voronoi.ridge_vertices):
         all_ridges.setdefault(p1, []).append((p2, v1, v2))
@@ -531,9 +515,9 @@ def voronoi_nn_interpolated_array_from(
         from SLE_Model_Autoarray.SLE_Model_Util.nn import nn_py
     except ImportError as e:
         raise ImportError(
-            """In order to use the VoronoiNN pixelization you must install the Natural Neighbor Interpolation c package.
+            """In order to use the Voronoi pixelization you must install the Natural Neighbor Interpolation c package.
 
-See: https://github.com/Jammy2211/PyAutoArray/tree/master/autoarray/util/nn"""
+See: https://github.com/Jammy2211/PyAutoArray/tree/main/autoarray/util/nn"""
         ) from e
     pixel_points = voronoi.points
     interpolated_array = nn_py.natural_interpolation(

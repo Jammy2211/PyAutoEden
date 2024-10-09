@@ -12,7 +12,7 @@ class SersicCore(Sersic):
         ell_comps=(0.0, 0.0),
         effective_radius=0.6,
         sersic_index=4.0,
-        radius_break=0.01,
+        radius_break=0.025,
         intensity=0.05,
         gamma=0.25,
         alpha=3.0,
@@ -72,7 +72,7 @@ class SersicCore(Sersic):
             )
         )
 
-    def image_2d_via_radii_from(self, grid_radii):
+    def image_2d_via_radii_from(self, grid_radii, **kwargs):
         """
         Returns the 2D image of the Sersic light profile from a grid of coordinates which are the radial distances of
         each coordinate from the its `centre`.

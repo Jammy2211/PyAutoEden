@@ -9,6 +9,7 @@ from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Light.SLE_Model_Linear.ga
 )
 from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Light.SLE_Model_Linear.moffat import (
     Moffat,
+    MoffatSph,
 )
 from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Light.SLE_Model_Linear.sersic import (
     Sersic,
@@ -24,7 +25,21 @@ from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Light.SLE_Model_Linear.de
 )
 from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Light.SLE_Model_Linear.sersic_core import (
     SersicCore,
+    SersicCoreSph,
 )
 from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Light.SLE_Model_Linear.exponential_core import (
     ExponentialCore,
+    ExponentialCoreSph,
+)
+from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Light.SLE_Model_Linear.SLE_Model_Shapelets.polar import (
+    ShapeletPolarSph,
+    ShapeletPolar,
+)
+from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Light.SLE_Model_Linear.SLE_Model_Shapelets.cartesian import (
+    ShapeletCartesianSph,
+    ShapeletCartesian,
+)
+from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Light.SLE_Model_Linear.SLE_Model_Shapelets.exponential import (
+    ShapeletExponentialSph,
+    ShapeletExponential,
 )

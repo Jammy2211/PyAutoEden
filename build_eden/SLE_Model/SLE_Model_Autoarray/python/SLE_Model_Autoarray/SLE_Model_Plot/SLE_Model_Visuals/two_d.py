@@ -33,6 +33,7 @@ class Visuals2D(AbstractVisuals):
         serial_overscan=None,
         indexes=None,
         pix_indexes=None,
+        indexes_via_scatter=False,
     ):
         self.origin = origin
         self.mask = mask
@@ -49,16 +50,15 @@ class Visuals2D(AbstractVisuals):
         self.serial_overscan = serial_overscan
         self.indexes = indexes
         self.pix_indexes = pix_indexes
+        self.indexes_via_scatter = indexes_via_scatter
 
-    def plot_via_plotter(self, plotter, grid_indexes=None, mapper=None):
+    def plot_via_plotter(self, plotter, grid_indexes=None, mapper=None, geometry=None):
         if self.origin is not None:
             plotter.origin_scatter.scatter_grid(
                 grid=Grid2DIrregular(values=self.origin)
             )
         if self.mask is not None:
-            plotter.mask_scatter.scatter_grid(
-                grid=self.mask.derive_grid.edge_sub_1.binned
-            )
+            plotter.mask_scatter.scatter_grid(grid=self.mask.derive_grid.edge)
         if self.border is not None:
             plotter.border_scatter.scatter_grid(grid=self.border)
         if self.grid is not None:
@@ -73,12 +73,22 @@ class Visuals2D(AbstractVisuals):
             plotter.patch_overlay.overlay_patches(patches=self.patches)
         if self.lines is not None:
             plotter.grid_plot.plot_grid(grid=self.lines)
-        if self.indexes is not None:
-            plotter.index_scatter.scatter_grid_indexes(
-                grid=grid_indexes, indexes=self.indexes
-            )
+        if (self.indexes is not None) and (grid_indexes is not None):
+            if not self.indexes_via_scatter:
+                plotter.index_plot.plot_grid_indexes_multi(
+                    grid=grid_indexes, indexes=self.indexes, geometry=geometry
+                )
+            else:
+                plotter.index_scatter.scatter_grid_indexes(
+                    grid=grid_indexes, indexes=self.indexes
+                )
         if (self.pix_indexes is not None) and (mapper is not None):
             indexes = mapper.pix_indexes_for_slim_indexes(pix_indexes=self.pix_indexes)
-            plotter.index_scatter.scatter_grid_indexes(
-                grid=mapper.source_plane_data_grid, indexes=indexes
-            )
+            if not self.indexes_via_scatter:
+                plotter.index_plot.plot_grid_indexes_x1(
+                    grid=grid_indexes, indexes=indexes
+                )
+            else:
+                plotter.index_scatter.scatter_grid_indexes(
+                    grid=mapper.source_plane_data_grid, indexes=indexes
+                )

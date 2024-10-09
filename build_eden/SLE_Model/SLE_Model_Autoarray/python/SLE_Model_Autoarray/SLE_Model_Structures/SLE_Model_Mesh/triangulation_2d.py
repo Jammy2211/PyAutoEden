@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.spatial
-import scipy.spatial.qhull as qhull
-from typing import Optional, List, Union, Tuple
+from typing import List, Union, Tuple
+from SLE_Model_Autoarray.SLE_Model_Structures.abstract_structure import Structure
 from SLE_Model_Autoconf import cached_property
 from SLE_Model_Autoarray.SLE_Model_Geometry.geometry_2d_irregular import (
     Geometry2DIrregular,
@@ -17,14 +17,15 @@ from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids import grid_2d_uti
 
 
 class Abstract2DMeshTriangulation(Abstract2DMesh):
-    def __new__(
-        cls,
-        values,
-        nearest_pixelization_index_for_slim_index=None,
-        uses_interpolation=False,
-        *args,
-        **kwargs
-    ):
+    @property
+    def slim(self):
+        raise NotImplementedError()
+
+    @property
+    def native(self):
+        raise NotImplementedError()
+
+    def __init__(self, values):
         """
         An irregular 2D grid of (y,x) coordinates which represents both a Delaunay triangulation and Voronoi mesh.
 
@@ -50,31 +51,10 @@ class Abstract2DMeshTriangulation(Abstract2DMesh):
         ----------
         values
             The grid of (y,x) coordinates corresponding to the Delaunay triangle corners and Voronoi pixel centres.
-        nearest_pixelization_index_for_slim_index
-            When a Voronoi grid is used to create a mapper and inversion, there are mappings between the `data` pixels
-            and Voronoi mesh. This array contains these mappings and it is used to speed up the creation of the
-            mapper.
         """
         if type(values) is list:
             values = np.asarray(values)
-        obj = values.view(cls)
-        obj.nearest_pixelization_index_for_slim_index = (
-            nearest_pixelization_index_for_slim_index
-        )
-        obj.uses_interpolation = uses_interpolation
-        return obj
-
-    def __array_finalize__(self, obj):
-        """
-        Ensures that the attributes `nearest_pixelization_index_for_slim_index` and `uses_interpolation` are retained
-        when numpy array calculations are performed.
-        """
-        if hasattr(obj, "nearest_pixelization_index_for_slim_index"):
-            self.nearest_pixelization_index_for_slim_index = (
-                obj.nearest_pixelization_index_for_slim_index
-            )
-        if hasattr(obj, "uses_interpolation"):
-            self.uses_interpolation = obj.uses_interpolation
+        super().__init__(values)
 
     @property
     def geometry(self):
@@ -128,11 +108,13 @@ class Abstract2DMeshTriangulation(Abstract2DMesh):
         to compute the Delaunay triangulation are ill posed. These exceptions are caught and combined into a single
         `MeshException`, which helps exception handling in the `inversion` package.
         """
+        from scipy.spatial import QhullError
+
         try:
             return scipy.spatial.Voronoi(
                 np.asarray([self[:, 1], self[:, 0]]).T, qhull_options="Qbb Qc Qx Qm"
             )
-        except (ValueError, OverflowError, scipy.spatial.qhull.QhullError) as e:
+        except (ValueError, OverflowError, QhullError) as e:
             raise exc.MeshException() from e
 
     @cached_property
@@ -161,7 +143,9 @@ class Abstract2DMeshTriangulation(Abstract2DMesh):
         The grid returned by this function is used by certain regularization schemes in the `Inversion` module to apply
         gradient regularization to an `Inversion` using a Delaunay triangulation or Voronoi mesh.
         """
-        half_region_area_sqrt_lengths = 0.5 * np.sqrt(self.voronoi_pixel_areas)
+        half_region_area_sqrt_lengths = 0.5 * np.sqrt(
+            self.voronoi_pixel_areas_for_split
+        )
         splitted_array = np.zeros((self.pixels, 4, 2))
         splitted_array[:, 0][:, 0] = self[:, 0] + half_region_area_sqrt_lengths
         splitted_array[:, 0][:, 1] = self[:, 1]
@@ -173,16 +157,14 @@ class Abstract2DMeshTriangulation(Abstract2DMesh):
         splitted_array[:, 3][:, 1] = self[:, 1] - half_region_area_sqrt_lengths
         return splitted_array.reshape(((self.pixels * 4), 2))
 
-    @cached_property
+    @property
     def voronoi_pixel_areas(self):
         """
         Returns the area of every Voronoi pixel in the Voronoi mesh.
 
-        These areas are used when performing gradient regularization in order to determine the size of the cross of
-        points where the derivative is evaluated and therefore where regularization is evaluated (see `split_cross`).
-
         Pixels at boundaries can sometimes have large unrealistic areas, in which case we set the maximum area to be
-        90.0% the maximum area of the Voronoi mesh.
+        an input value of N% the maximum area of the Voronoi mesh, which this value is suitable for different
+        calculations.
         """
         voronoi_vertices = self.voronoi.vertices
         voronoi_regions = self.voronoi.regions
@@ -196,20 +178,26 @@ class Abstract2DMeshTriangulation(Abstract2DMesh):
                 region_areas[i] = grid_2d_util.compute_polygon_area(
                     voronoi_vertices[region_vertices_indexes]
                 )
-        max_area = np.percentile(region_areas, 90.0)
-        region_areas[(region_areas == (-1))] = max_area
-        region_areas[(region_areas > max_area)] = max_area
         return region_areas
 
-    @property
-    def sub_border_grid(self):
+    @cached_property
+    def voronoi_pixel_areas_for_split(self):
         """
-        The (y,x) grid of all sub-pixels which are at the border of the mask.
+        Returns the area of every Voronoi pixel in the Voronoi mesh.
 
-        This is NOT all sub-pixels which are in mask pixels at the mask's border, but specifically the sub-pixels
-        within these border pixels which are at the extreme edge of the border.
+        These areas are used when performing gradient regularization in order to determine the size of the cross of
+        points where the derivative is evaluated and therefore where regularization is evaluated (see `split_cross`).
+
+        Pixels at boundaries can sometimes have large unrealistic areas, in which case we set the maximum area to be
+        90.0% the maximum area of the Voronoi mesh. This large area values ensures that the pixels are regularized
+        with large regularization coefficients, which is preferred at the edge of the mesh where the reconstruction
+        goes to zero.
         """
-        return self[self.mask.derive_indexes.sub_border_slim]
+        areas = self.voronoi_pixel_areas
+        max_area = np.percentile(areas, 90.0)
+        areas[(areas == (-1))] = max_area
+        areas[(areas > max_area)] = max_area
+        return areas
 
     @property
     def origin(self):

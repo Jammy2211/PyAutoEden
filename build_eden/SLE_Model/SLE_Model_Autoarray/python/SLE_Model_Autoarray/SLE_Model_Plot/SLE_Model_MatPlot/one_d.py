@@ -117,7 +117,7 @@ class MatPlot1D(AbstractMatPlot):
         self.is_for_multi_plot = False
         self.is_for_subplot = False
 
-    def set_for_multi_plot(self, is_for_multi_plot, color):
+    def set_for_multi_plot(self, is_for_multi_plot, color, xticks=None, yticks=None):
         """
         Sets the `is_for_subplot` attribute for every `MatWrap` object in this `MatPlot` object by updating
         the `is_for_subplot`. By changing this tag:
@@ -135,6 +135,10 @@ class MatPlot1D(AbstractMatPlot):
         self.yx_plot.kwargs["c"] = color
         self.vertical_line_axvline.kwargs["c"] = color
         self.vertical_line_axvline.no_label = True
+        if yticks is not None:
+            self.yticks = yticks
+        if xticks is not None:
+            self.xticks = xticks
 
     def plot_yx(
         self,
@@ -146,12 +150,15 @@ class MatPlot1D(AbstractMatPlot):
         y_errors=None,
         x_errors=None,
         y_extra=None,
+        y_extra_2=None,
         ls_errorbar="",
+        should_plot_grid=False,
+        should_plot_zero=False,
         text_manual_dict=None,
         text_manual_dict_y=None,
         bypass=False,
     ):
-        if (y is None) or (np.count_nonzero(y) == 0):
+        if (y is None) or (np.count_nonzero(y) == 0) or np.isnan(y).all():
             return
         ax = None
         if not self.is_for_subplot:
@@ -171,16 +178,22 @@ class MatPlot1D(AbstractMatPlot):
             plot_axis_type = self.yx_plot.plot_axis_type
         if plot_axis_type_override is not None:
             plot_axis_type = plot_axis_type_override
+        label = self.legend.label or auto_labels.legend
         self.yx_plot.plot_y_vs_x(
             y=y,
             x=x,
-            label=auto_labels.legend,
+            label=label,
             plot_axis_type=plot_axis_type,
             y_errors=y_errors,
             x_errors=x_errors,
             y_extra=y_extra,
+            y_extra_2=y_extra_2,
             ls_errorbar=ls_errorbar,
         )
+        if should_plot_zero:
+            plt.plot(x, (1e-06 * np.ones(shape=y.shape)), c="b", ls="--")
+        if should_plot_grid:
+            plt.grid(True)
         if visuals_1d.shaded_region is not None:
             self.fill_between.fill_between_shaded_regions(
                 x=x, y1=visuals_1d.shaded_region[0], y2=visuals_1d.shaded_region[1]
@@ -202,6 +215,9 @@ class MatPlot1D(AbstractMatPlot):
         else:
             min_value_y = np.nanmin(y)
             max_value_y = np.nanmax(y)
+        if should_plot_zero:
+            if min_value_y > 0:
+                min_value_y = 0
         self.xticks.set(
             min_value=min_value_x,
             max_value=max_value_x,
@@ -209,6 +225,7 @@ class MatPlot1D(AbstractMatPlot):
             units=self.units,
             use_integers=use_integers,
             is_for_1d_plot=True,
+            is_log10=("loglog" in plot_axis_type),
         )
         self.yticks.set(
             min_value=min_value_y,
@@ -217,7 +234,7 @@ class MatPlot1D(AbstractMatPlot):
             units=self.units,
             yunit=auto_labels.yunit,
             is_for_1d_plot=True,
-            is_log10=("logy" in plot_axis_type),
+            is_log10=("log" in plot_axis_type),
         )
         self.title.set(auto_title=auto_labels.title)
         self.ylabel.set(auto_label=auto_labels.ylabel)
@@ -252,7 +269,7 @@ class MatPlot1D(AbstractMatPlot):
         else:
             [annotate.set() for annotate in self.annotate]
         visuals_1d.plot_via_plotter(plotter=self)
-        if auto_labels.legend is not None:
+        if label is not None:
             self.legend.set()
         if (not self.is_for_subplot) and (not self.is_for_multi_plot):
             self.output.to_figure(structure=None, auto_filename=auto_labels.filename)

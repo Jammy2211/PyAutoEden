@@ -7,4 +7,4 @@ from SLE_Model_Autoconf.SLE_Model_JsonPrior.config import make_config_for_class
 from SLE_Model_Autoconf.SLE_Model_JsonPrior.config import path_for_class
 from SLE_Model_Autoconf.SLE_Model_JsonPrior.config import JSONPriorConfig
 
-__version__ = "2023.3.27.1"
+__version__ = "2024.9.21.2"

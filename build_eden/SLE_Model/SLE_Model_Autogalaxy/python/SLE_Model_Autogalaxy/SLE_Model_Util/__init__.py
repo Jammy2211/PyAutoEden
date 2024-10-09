@@ -37,7 +37,5 @@ from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.SLE_Model_Inter
 )
 from SLE_Model_Autoarray.SLE_Model_Operators import transformer_util as transformer
 from SLE_Model_Autoarray.SLE_Model_Util import misc_util as misc
-from SLE_Model_Autogalaxy.SLE_Model_Analysis import model_util as model
 from SLE_Model_Autogalaxy.SLE_Model_Util import error_util as error
-from SLE_Model_Autogalaxy.SLE_Model_Plane import plane_util as plane
-from SLE_Model_Autogalaxy.SLE_Model_Legacy import model_util as model_legacy
+from SLE_Model_Autogalaxy.SLE_Model_Analysis import chaining_util as chaining

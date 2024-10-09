@@ -1,6 +1,6 @@
 from typing import Optional
+from SLE_Model_Autoconf import conf
 import SLE_Model_Autoarray as aa
-import SLE_Model_Autogalaxy as ag
 import SLE_Model_Autogalaxy.SLE_Model_Plot as aplt
 from SLE_Model_Autoarray.SLE_Model_Fit.SLE_Model_Plot.fit_interferometer_plotters import (
     FitInterferometerPlotterMeta,
@@ -8,8 +8,8 @@ from SLE_Model_Autoarray.SLE_Model_Fit.SLE_Model_Plot.fit_interferometer_plotter
 from SLE_Model_Autolens.SLE_Model_Interferometer.fit_interferometer import (
     FitInterferometer,
 )
-from SLE_Model_Autolens.SLE_Model_Lens.ray_tracing import Tracer
-from SLE_Model_Autolens.SLE_Model_Lens.SLE_Model_Plot.ray_tracing_plotters import (
+from SLE_Model_Autolens.SLE_Model_Lens.tracer import Tracer
+from SLE_Model_Autolens.SLE_Model_Lens.SLE_Model_Plot.tracer_plotters import (
     TracerPlotter,
 )
 from SLE_Model_Autolens.SLE_Model_Plot.abstract_plotters import Plotter
@@ -81,13 +81,31 @@ class FitInterferometerPlotter(Plotter):
             residuals_symmetric_cmap=residuals_symmetric_cmap,
         )
         self.subplot = self._fit_interferometer_meta_plotter.subplot
-        self.subplot_fit = self._fit_interferometer_meta_plotter.subplot_fit
         self.subplot_fit_dirty_images = (
             self._fit_interferometer_meta_plotter.subplot_fit_dirty_images
         )
 
     def get_visuals_2d_real_space(self):
-        return self.get_2d.via_mask_from(mask=self.fit.interferometer.real_space_mask)
+        return self.get_2d.via_mask_from(mask=self.fit.dataset.real_space_mask)
+
+    def plane_indexes_from(self, plane_index):
+        """
+        Returns a list of all indexes of the planes in the fit, which is iterated over in figures that plot
+        individual figures of each plane in a tracer.
+
+        Parameters
+        ----------
+        plane_index
+            A specific plane index which when input means that only a single plane index is returned.
+
+        Returns
+        -------
+        list
+            A list of galaxy indexes corresponding to planes in the plane.
+        """
+        if plane_index is None:
+            return range(len(self.fit.tracer.planes))
+        return [plane_index]
 
     @property
     def tracer(self):
@@ -100,7 +118,7 @@ class FitInterferometerPlotter(Plotter):
         """
         return TracerPlotter(
             tracer=self.tracer,
-            grid=self.fit.interferometer.grid,
+            grid=self.fit.grids.uniform,
             mat_plot_2d=self.mat_plot_2d,
             visuals_2d=self.visuals_2d,
             include_2d=self.include_2d,
@@ -130,12 +148,92 @@ class FitInterferometerPlotter(Plotter):
             include_2d=self.include_2d,
         )
 
+    def subplot_fit(self):
+        """
+        Standard subplot of the attributes of the plotter's `FitImaging` object.
+        """
+        self.open_subplot_figure(number_subplots=12)
+        self.figures_2d(amplitudes_vs_uv_distances=True)
+        self.mat_plot_1d.subplot_index = 2
+        self.mat_plot_2d.subplot_index = 2
+        self.figures_2d(dirty_image=True)
+        self.figures_2d(dirty_signal_to_noise_map=True)
+        self.figures_2d(dirty_model_image=True)
+        self.figures_2d(image=True)
+        self.mat_plot_1d.subplot_index = 6
+        self.mat_plot_2d.subplot_index = 6
+        self.figures_2d(normalized_residual_map_real=True)
+        self.figures_2d(normalized_residual_map_imag=True)
+        self.mat_plot_1d.subplot_index = 8
+        self.mat_plot_2d.subplot_index = 8
+        final_plane_index = len(self.fit.tracer.planes) - 1
+        self.set_title(label="Source Plane (Zoomed)")
+        self.figures_2d_of_planes(plane_index=final_plane_index, plane_image=True)
+        self.set_title(label=None)
+        self.figures_2d(dirty_normalized_residual_map=True)
+        self.mat_plot_2d.cmap.kwargs["vmin"] = -1.0
+        self.mat_plot_2d.cmap.kwargs["vmax"] = 1.0
+        self.set_title(label="Normalized Residual Map (1 sigma)")
+        self.figures_2d(dirty_normalized_residual_map=True)
+        self.set_title(label=None)
+        self.mat_plot_2d.cmap.kwargs.pop("vmin")
+        self.mat_plot_2d.cmap.kwargs.pop("vmax")
+        self.figures_2d(dirty_chi_squared_map=True)
+        self.set_title(label="Source Plane (No Zoom)")
+        self.figures_2d_of_planes(
+            plane_index=final_plane_index, plane_image=True, zoom_to_brightest=False
+        )
+        self.set_title(label=None)
+        self.mat_plot_2d.output.subplot_to_figure(auto_filename="subplot_fit")
+        self.close_subplot_figure()
+
+    def subplot_mappings_of_plane(
+        self, plane_index=None, auto_filename="subplot_mappings"
+    ):
+        if self.fit.inversion is None:
+            return
+        plane_indexes = self.plane_indexes_from(plane_index=plane_index)
+        for plane_index in plane_indexes:
+            pixelization_index = 0
+            inversion_plotter = self.inversion_plotter_of_plane(plane_index=0)
+            inversion_plotter.open_subplot_figure(number_subplots=4)
+            self.figures_2d(dirty_image=True)
+            total_pixels = conf.instance["visualize"]["general"]["inversion"][
+                "total_mappings_pixels"
+            ]
+            pix_indexes = inversion_plotter.inversion.brightest_pixel_list_from(
+                total_pixels=total_pixels, filter_neighbors=True
+            )
+            inversion_plotter.visuals_2d.pix_indexes = [
+                [index] for index in pix_indexes[pixelization_index]
+            ]
+            inversion_plotter.visuals_2d.tangential_critical_curves = None
+            inversion_plotter.visuals_2d.radial_critical_curves = None
+            inversion_plotter.figures_2d_of_pixelization(
+                pixelization_index=pixelization_index, reconstructed_image=True
+            )
+            self.visuals_2d.pix_indexes = [
+                [index] for index in pix_indexes[pixelization_index]
+            ]
+            self.figures_2d_of_planes(plane_index=plane_index, plane_image=True)
+            self.set_title(label="Source Reconstruction (Unzoomed)")
+            self.figures_2d_of_planes(
+                plane_index=plane_index, plane_image=True, zoom_to_brightest=False
+            )
+            self.set_title(label=None)
+            self.visuals_2d.pix_indexes = None
+            inversion_plotter.mat_plot_2d.output.subplot_to_figure(
+                auto_filename=f"{auto_filename}_{pixelization_index}"
+            )
+            inversion_plotter.close_subplot_figure()
+
     def figures_2d(
         self,
         data=False,
         noise_map=False,
         signal_to_noise_map=False,
-        model_visibilities=False,
+        amplitudes_vs_uv_distances=False,
+        model_data=False,
         residual_map_real=False,
         residual_map_imag=False,
         normalized_residual_map_real=False,
@@ -165,7 +263,7 @@ class FitInterferometerPlotter(Plotter):
             Whether to make a 2D plot (via `scatter`) of the noise-map.
         signal_to_noise_map
             Whether to make a 2D plot (via `scatter`) of the signal-to-noise-map.
-        model_visibilities
+        model_data
             Whether to make a 2D plot (via `scatter`) of the model visibility data.
         residual_map_real
             Whether to make a 1D plot (via `plot`) of the real component of the residual map.
@@ -198,7 +296,8 @@ class FitInterferometerPlotter(Plotter):
             data=data,
             noise_map=noise_map,
             signal_to_noise_map=signal_to_noise_map,
-            model_visibilities=model_visibilities,
+            amplitudes_vs_uv_distances=amplitudes_vs_uv_distances,
+            model_data=model_data,
             residual_map_real=residual_map_real,
             residual_map_imag=residual_map_imag,
             normalized_residual_map_real=normalized_residual_map_real,
@@ -214,13 +313,18 @@ class FitInterferometerPlotter(Plotter):
             dirty_chi_squared_map=dirty_chi_squared_map,
         )
         if image:
-            if self.fit.inversion is None:
+            plane_index = len(self.tracer.planes) - 1
+            if not self.tracer.planes[plane_index].has(cls=aa.Pixelization):
                 self.tracer_plotter.figures_2d(image=True)
-            else:
-                inversion_plotter = self.inversion_plotter_of_plane(plane_index=1)
+            elif self.tracer.planes[plane_index].has(cls=aa.Pixelization):
+                inversion_plotter = self.inversion_plotter_of_plane(
+                    plane_index=plane_index
+                )
                 inversion_plotter.figures_2d(reconstructed_image=True)
 
-    def figures_2d_of_planes(self, plane_index=None, plane_image=False):
+    def figures_2d_of_planes(
+        self, plane_index=None, plane_image=False, zoom_to_brightest=True
+    ):
         """
         Plots images representing each individual `Plane` in the fit's `Tracer` in 2D, which are computed via the
         plotter's 2D grid object.
@@ -239,16 +343,23 @@ class FitInterferometerPlotter(Plotter):
             Whether to make a 2D plot (via `imshow`) of the image of a plane in its source-plane (e.g. unlensed).
             Depending on how the fit is performed, this could either be an image of light profiles of the reconstruction
             of an `Inversion`.
+        zoom_to_brightest
+            For images not in the image-plane (e.g. the `plane_image`), whether to automatically zoom the plot to
+            the brightest regions of the galaxies being plotted as opposed to the full extent of the grid.
         """
         if plane_image:
             if not self.tracer.planes[plane_index].has(cls=aa.Pixelization):
                 self.tracer_plotter.figures_2d_of_planes(
-                    plane_image=True, plane_index=plane_index
+                    plane_image=True,
+                    plane_index=plane_index,
+                    zoom_to_brightest=zoom_to_brightest,
                 )
             elif self.tracer.planes[plane_index].has(cls=aa.Pixelization):
                 inversion_plotter = self.inversion_plotter_of_plane(plane_index=1)
                 inversion_plotter.figures_2d_of_pixelization(
-                    pixelization_index=0, reconstruction=True
+                    pixelization_index=0,
+                    reconstruction=True,
+                    zoom_to_brightest=zoom_to_brightest,
                 )
 
     def subplot_fit_real_space(self):

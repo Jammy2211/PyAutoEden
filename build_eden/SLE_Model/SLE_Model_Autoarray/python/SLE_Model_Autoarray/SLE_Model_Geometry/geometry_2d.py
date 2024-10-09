@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.uniform_2d import (
         Grid2D,
     )
+import numpy as np
 from SLE_Model_Autoarray.SLE_Model_Geometry.abstract_2d import AbstractGeometry2D
 from SLE_Model_Autoarray import type as ty
 from SLE_Model_Autoarray.SLE_Model_Geometry import geometry_util
@@ -145,7 +146,7 @@ class Geometry2D(AbstractGeometry2D):
         A 2D (y,x) pixel-value coordinate.
         """
         return geometry_util.pixel_coordinates_2d_from(
-            scaled_coordinates_2d=scaled_coordinates_2d,
+            scaled_coordinates_2d=np.array(scaled_coordinates_2d),
             shape_native=self.shape_native,
             pixel_scales=self.pixel_scales,
             origins=self.origin,
@@ -178,6 +179,29 @@ class Geometry2D(AbstractGeometry2D):
             origins=self.origin,
         )
 
+    def scaled_coordinate_2d_to_scaled_at_pixel_centre_from(self, scaled_coordinate_2d):
+        """
+        Convert a 2D (y,x) scaled coordinate to a 2D scaled coordinate at the centre of the pixel it is located in.
+
+        This is performed by converting the scaled coordinate to a pixel coordinate and then back to a scaled coordinate.
+
+        For example, if a scaled coordinate is (0.5, 0.5) and it falls within a pixel whose centre is at (0.75, 0.75),
+        this function would return (0.75, 0.75).
+
+        Parameters
+        ----------
+        scaled_coordinate_2d
+            The 2D (y,x) coordinates in scaled units which are converted to pixel coordinates.
+
+        Returns
+        -------
+        The 2D (y,x) pixel-value coordinate at the centre of the pixel the input scaled coordinate is located in.
+        """
+        pixel_coordinate_2d = self.pixel_coordinates_2d_from(
+            scaled_coordinates_2d=scaled_coordinate_2d
+        )
+        return self.scaled_coordinates_2d_from(pixel_coordinates_2d=pixel_coordinate_2d)
+
     def grid_pixels_2d_from(self, grid_scaled_2d):
         """
         Convert a grid of 2D (y,x) scaled coordinates to a grid of 2D (y,x) pixel values, which are returned as floats
@@ -199,7 +223,7 @@ class Geometry2D(AbstractGeometry2D):
         )
 
         grid_pixels_2d = geometry_util.grid_pixels_2d_slim_from(
-            grid_scaled_2d_slim=grid_scaled_2d,
+            grid_scaled_2d_slim=np.array(grid_scaled_2d),
             shape_native=self.shape_native,
             pixel_scales=self.pixel_scales,
             origin=self.origin,
@@ -227,7 +251,7 @@ class Geometry2D(AbstractGeometry2D):
         )
 
         grid_pixel_centres_1d = geometry_util.grid_pixel_centres_2d_slim_from(
-            grid_scaled_2d_slim=grid_scaled_2d,
+            grid_scaled_2d_slim=np.array(grid_scaled_2d),
             shape_native=self.shape_native,
             pixel_scales=self.pixel_scales,
             origin=self.origin,
@@ -260,7 +284,7 @@ class Geometry2D(AbstractGeometry2D):
         )
 
         grid_pixel_indexes_2d = geometry_util.grid_pixel_indexes_2d_slim_from(
-            grid_scaled_2d_slim=grid_scaled_2d,
+            grid_scaled_2d_slim=np.array(grid_scaled_2d),
             shape_native=self.shape_native,
             pixel_scales=self.pixel_scales,
             origin=self.origin,
@@ -287,7 +311,7 @@ class Geometry2D(AbstractGeometry2D):
         )
 
         grid_scaled_1d = geometry_util.grid_scaled_2d_slim_from(
-            grid_pixels_2d_slim=grid_pixels_2d,
+            grid_pixels_2d_slim=np.array(grid_pixels_2d),
             shape_native=self.shape_native,
             pixel_scales=self.pixel_scales,
             origin=self.origin,

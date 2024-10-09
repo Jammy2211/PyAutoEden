@@ -1,7 +1,8 @@
 import copy
 import logging
 from functools import wraps
-from typing import Optional, Union, Tuple, List, Iterable, Type
+from typing import Optional, Union, Tuple, List, Iterable, Type, Dict
+from SLE_Model_Autofit.jax_wrapper import register_pytree_node_class
 from SLE_Model_Autofit.SLE_Model_Mapper.model_object import ModelObject
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.recursion import (
     DynamicRecursionCache,
@@ -74,10 +75,10 @@ def assert_not_frozen(func):
 
 
 class AbstractModel(ModelObject):
-    def __init__(self, label=None):
+    def __init__(self, label=None, id_=None):
         self._is_frozen = False
         self._frozen_cache = dict()
-        super().__init__(label=label)
+        super().__init__(label=label, id_=id_)
 
     def __getstate__(self):
         return {
@@ -332,6 +333,13 @@ def path_instances_of_class(obj, cls, ignore_class=None, ignore_children=False):
         results.append((tuple(), obj))
         if ignore_children:
             return results
+    if isinstance(obj, list):
+        for (i, item) in enumerate(obj):
+            for (path, instance) in path_instances_of_class(
+                item, cls, ignore_class=ignore_class, ignore_children=ignore_children
+            ):
+                results.append((((i,) + path), instance))
+        return results
     try:
         from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.annotation import (
             AnnotationPriorModel,
@@ -357,21 +365,39 @@ def path_instances_of_class(obj, cls, ignore_class=None, ignore_children=False):
         return results
 
 
+@register_pytree_node_class
 class ModelInstance(AbstractModel):
     """
-    An object to hold model instances produced by providing arguments to a model mapper.
+    An instance of a Collection or Model. This is created by optimisers and correspond
+    to a point in the parameter space.
 
     @DynamicAttrs
     """
 
     __dictable_type__ = "instance"
 
-    def __init__(self, child_items=None):
+    def __init__(self, child_items=None, id_=None):
+        """
+        An instance of a Collection or Model. This is created by optimisers and correspond
+        to a point in the parameter space.
+
+        Parameters
+        ----------
+        child_items
+            The child items of the instance. This can be a list or dict.
+
+            If a list, the items are assigned to the instance in order.
+            If a dict, the items are assigned to the instance by key and accessed by attribute.
+        """
         super().__init__()
         self.child_items = child_items
+        self.id = id_
 
     def __eq__(self, other):
-        return self.__dict__ == other.__dict__
+        try:
+            return self.__dict__ == other.__dict__
+        except AttributeError:
+            return False
 
     def __getitem__(self, item):
         if isinstance(item, int):
@@ -412,6 +438,36 @@ class ModelInstance(AbstractModel):
                 and (not (isinstance(key, str) and key.startswith("_")))
             )
         }
+
+    def tree_flatten(self):
+        """
+        Flatten the instance into a PyTree
+        """
+        (keys, values) = zip(*self.dict.items())
+        return (values, (*keys, self.id))
+
+    @classmethod
+    def tree_unflatten(cls, aux_data, children):
+        """
+        Create an instance from a flattened PyTree
+
+        Parameters
+        ----------
+        aux_data
+            Auxiliary information that remains unchanged including
+            the keys of the dict
+        children
+            Child objects subject to change
+
+        Returns
+        -------
+        An instance of this class
+        """
+        (*keys, id_) = aux_data
+        instance = cls(id_=id_)
+        for (key, value) in zip(keys, children):
+            instance[key] = value
+        return instance
 
     def values(self):
         return self.dict.values()

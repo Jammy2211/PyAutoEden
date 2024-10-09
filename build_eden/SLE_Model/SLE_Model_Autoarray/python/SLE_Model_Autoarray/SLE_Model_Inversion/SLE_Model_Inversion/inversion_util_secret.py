@@ -4,7 +4,6 @@ from typing import Tuple
 from SLE_Model_Autoarray import numba_util
 
 logger = logging.getLogger(__name__)
-import numba
 
 
 @numba_util.jit()
@@ -632,6 +631,7 @@ def curvature_matrix_via_w_tilde_curvature_preload_interferometer_from_2(
     return curvature_matrix
 
 
+@numba_util.jit()
 def curvature_matrix_via_w_tilde_curvature_preload_interferometer_from_2_no_interp(
     curvature_preload,
     native_index_for_slim_index,

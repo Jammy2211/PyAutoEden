@@ -1,5 +1,8 @@
 import numpy as np
 from typing import List
+from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.dataset_interface import (
+    DatasetInterface,
+)
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.abstract import (
     AbstractInversion,
 )
@@ -35,9 +38,9 @@ class MockInversion(AbstractInversion):
         settings=SettingsInversion(),
         preloads=Preloads(),
     ):
+        dataset = DatasetInterface(data=data, noise_map=noise_map)
         super().__init__(
-            data=data,
-            noise_map=noise_map,
+            dataset=dataset,
             linear_obj_list=(linear_obj_list or []),
             settings=settings,
             preloads=preloads,

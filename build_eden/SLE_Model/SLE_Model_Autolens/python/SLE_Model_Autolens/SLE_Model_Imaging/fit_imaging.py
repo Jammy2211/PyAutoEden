@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 from typing import Dict, List, Optional
 from SLE_Model_Autoconf import cached_property
@@ -5,7 +6,7 @@ import SLE_Model_Autoarray as aa
 import SLE_Model_Autogalaxy as ag
 from SLE_Model_Autogalaxy.abstract_fit import AbstractFitInversion
 from SLE_Model_Autolens.SLE_Model_Analysis.preloads import Preloads
-from SLE_Model_Autolens.SLE_Model_Lens.ray_tracing import Tracer
+from SLE_Model_Autolens.SLE_Model_Lens.tracer import Tracer
 from SLE_Model_Autolens.SLE_Model_Lens.to_inversion import TracerToInversion
 from SLE_Model_Autolens import exc
 
@@ -15,10 +16,11 @@ class FitImaging(aa.FitImaging, AbstractFitInversion):
         self,
         dataset,
         tracer,
-        settings_pixelization=aa.SettingsPixelization(),
+        dataset_model=None,
+        adapt_images=None,
         settings_inversion=aa.SettingsInversion(),
         preloads=Preloads(),
-        profiling_dict=None,
+        run_time_dict=None,
     ):
         """
         Fits an imaging dataset using a `Tracer` object.
@@ -50,26 +52,49 @@ class FitImaging(aa.FitImaging, AbstractFitInversion):
             The imaging dataset which is fitted by the galaxies in the tracer.
         tracer
             The tracer of galaxies whose light profile images are used to fit the imaging data.
-        settings_pixelization
-            Settings controlling how a pixelization is fitted for example if a border is used when creating the
-            pixelization.
+        dataset_model
+            Attributes which allow for parts of a dataset to be treated as a model (e.g. the background sky level).
+        adapt_images
+            Contains the adapt-images which are used to make a pixelization's mesh and regularization adapt to the
+            reconstructed galaxy's morphology.
         settings_inversion
             Settings controlling how an inversion is fitted for example which linear algebra formalism is used.
         preloads
             Contains preloaded calculations (e.g. linear algebra matrices) which can skip certain calculations in
             the fit.
-        profiling_dict
-            A dictionary which if passed to the fit records how long fucntion calls which have the `profile_func`
+        run_time_dict
+            A dictionary which if passed to the fit records how long function calls which have the `profile_func`
             decorator take to run.
         """
-        super().__init__(dataset=dataset, profiling_dict=profiling_dict)
+        super().__init__(
+            dataset=dataset, dataset_model=dataset_model, run_time_dict=run_time_dict
+        )
         AbstractFitInversion.__init__(
             self=self, model_obj=tracer, settings_inversion=settings_inversion
         )
         self.tracer = tracer
-        self.settings_pixelization = settings_pixelization
+        self.adapt_images = adapt_images
         self.settings_inversion = settings_inversion
         self.preloads = preloads
+
+    @cached_property
+    def grids(self):
+        grids = super().grids
+        if grids.non_uniform is None:
+            return grids
+        uniform = aa.Grid2D(
+            values=grids.non_uniform,
+            mask=self.dataset.mask,
+            over_sampling=self.dataset.over_sampling.non_uniform,
+            over_sampling_non_uniform=self.dataset.over_sampling.non_uniform,
+        )
+        return aa.GridsInterface(
+            uniform=uniform,
+            non_uniform=grids.non_uniform,
+            pixelization=grids.pixelization,
+            blurring=grids.blurring,
+            border_relocator=grids.border_relocator,
+        )
 
     @property
     def blurred_image(self):
@@ -81,9 +106,9 @@ class FitImaging(aa.FitImaging, AbstractFitInversion):
         """
         if self.preloads.blurred_image is None:
             return self.tracer.blurred_image_2d_from(
-                grid=self.dataset.grid,
+                grid=self.grids.uniform,
                 convolver=self.dataset.convolver,
-                blurring_grid=self.dataset.blurring_grid,
+                blurring_grid=self.grids.blurring,
             )
         return self.preloads.blurred_image
 
@@ -92,19 +117,24 @@ class FitImaging(aa.FitImaging, AbstractFitInversion):
         """
         Returns the dataset's image with all blurred light profile images in the fit's tracer subtracted.
         """
-        return self.image - self.blurred_image
+        return self.data - self.blurred_image
 
     @property
     def tracer_to_inversion(self):
-        return TracerToInversion(
-            tracer=self.tracer,
-            dataset=self.dataset,
+        dataset = aa.DatasetInterface(
             data=self.profile_subtracted_image,
             noise_map=self.noise_map,
+            grids=self.grids,
+            convolver=self.dataset.convolver,
             w_tilde=self.w_tilde,
-            settings_pixelization=self.settings_pixelization,
+        )
+        return TracerToInversion(
+            dataset=dataset,
+            tracer=self.tracer,
+            adapt_images=self.adapt_images,
             settings_inversion=self.settings_inversion,
             preloads=self.preloads,
+            run_time_dict=self.run_time_dict,
         )
 
     @cached_property
@@ -135,10 +165,6 @@ class FitImaging(aa.FitImaging, AbstractFitInversion):
         return self.blurred_image
 
     @property
-    def grid(self):
-        return self.imaging.grid
-
-    @property
     def galaxy_model_image_dict(self):
         """
         A dictionary which associates every galaxy in the tracer with its `model_image`.
@@ -153,14 +179,58 @@ class FitImaging(aa.FitImaging, AbstractFitInversion):
         certain pixelizations to the data being fitted.
         """
         galaxy_blurred_image_2d_dict = self.tracer.galaxy_blurred_image_2d_dict_from(
-            grid=self.grid,
-            convolver=self.imaging.convolver,
-            blurring_grid=self.imaging.blurring_grid,
+            grid=self.grids.uniform,
+            convolver=self.dataset.convolver,
+            blurring_grid=self.grids.blurring,
         )
         galaxy_linear_obj_image_dict = self.galaxy_linear_obj_data_dict_from(
             use_image=True
         )
         return {**galaxy_blurred_image_2d_dict, **galaxy_linear_obj_image_dict}
+
+    @property
+    def subtracted_images_of_galaxies_dict(self):
+        """
+        A dictionary which associates every galaxy in the tracer with its `subtracted image`.
+
+        A subtracted image of a galaxy is the data where all other galaxy images are subtracted from it, therefore
+        showing how a galaxy appears in the data in the absence of all other galaxies.
+
+        This is used to visualize the contribution of each galaxy in the data.
+        """
+        subtracted_images_of_galaxies_dict = {}
+        for (galaxy, galaxy_model_image) in self.galaxy_model_image_dict.items():
+            subtracted_images_of_galaxies_dict[galaxy] = copy.copy(self.dataset.data)
+        for (galaxy, galaxy_model_image) in self.galaxy_model_image_dict.items():
+            for (
+                galaxy_other,
+                galaxy_model_image_other,
+            ) in self.galaxy_model_image_dict.items():
+                if galaxy != galaxy_other:
+                    subtracted_images_of_galaxies_dict[
+                        galaxy
+                    ] -= galaxy_model_image_other
+        return subtracted_images_of_galaxies_dict
+
+    @property
+    def subtracted_signal_to_noise_maps_of_galaxies_dict(self):
+        """
+        A dictionary which associates every galaxy in the tracer with its `subtracted image`.
+
+        A subtracted image of a galaxy is the data where all other galaxy images are subtracted from it, therefore
+        showing how a galaxy appears in the data in the absence of all other galaxies.
+
+        This is used to visualize the contribution of each galaxy in the data.
+        """
+        subtracted_signal_to_noise_maps_of_galaxies_dict = {}
+        for (
+            galaxy,
+            subtracted_image,
+        ) in self.subtracted_images_of_galaxies_dict.items():
+            subtracted_signal_to_noise_maps_of_galaxies_dict[galaxy] = (
+                subtracted_image / self.noise_map
+            )
+        return subtracted_signal_to_noise_maps_of_galaxies_dict
 
     @property
     def model_images_of_planes_list(self):
@@ -179,12 +249,12 @@ class FitImaging(aa.FitImaging, AbstractFitInversion):
         galaxy_model_image_dict = self.galaxy_model_image_dict
         model_images_of_planes_list = [
             aa.Array2D(
-                values=np.zeros(self.dataset.grid.shape_slim), mask=self.dataset.mask
+                values=np.zeros(self.grids.uniform.shape_slim), mask=self.dataset.mask
             )
             for i in range(self.tracer.total_planes)
         ]
-        for (plane_index, plane) in enumerate(self.tracer.planes):
-            for galaxy in plane.galaxies:
+        for (plane_index, galaxies) in enumerate(self.tracer.planes):
+            for galaxy in galaxies:
                 model_images_of_planes_list[plane_index] += galaxy_model_image_dict[
                     galaxy
                 ]
@@ -208,7 +278,7 @@ class FitImaging(aa.FitImaging, AbstractFitInversion):
                 for (i, model_image) in enumerate(model_images_of_planes_list)
                 if (i != galaxy_index)
             ]
-            subtracted_image = self.image - sum(other_planes_model_images)
+            subtracted_image = self.data - sum(other_planes_model_images)
             subtracted_images_of_planes_list.append(subtracted_image)
         return subtracted_images_of_planes_list
 
@@ -223,7 +293,7 @@ class FitImaging(aa.FitImaging, AbstractFitInversion):
         if self.tracer.has(cls=ag.lp_linear.LightProfileLinear):
             exc.raise_linear_light_profile_in_unmasked()
         return self.tracer.unmasked_blurred_image_2d_from(
-            grid=self.grid, psf=self.imaging.psf
+            grid=self.grids.uniform, psf=self.dataset.psf
         )
 
     @property
@@ -238,7 +308,7 @@ class FitImaging(aa.FitImaging, AbstractFitInversion):
         if self.tracer.has(cls=ag.lp_linear.LightProfileLinear):
             exc.raise_linear_light_profile_in_unmasked()
         return self.tracer.unmasked_blurred_image_2d_list_from(
-            grid=self.grid, psf=self.imaging.psf
+            grid=self.grids.uniform, psf=self.dataset.psf
         )
 
     @property
@@ -271,17 +341,18 @@ class FitImaging(aa.FitImaging, AbstractFitInversion):
         -------
         A new fit which has used new preloads input into this function but the same dataset, tracer and other settings.
         """
-        profiling_dict = {} if (self.profiling_dict is not None) else None
+        run_time_dict = {} if (self.run_time_dict is not None) else None
         settings_inversion = (
             self.settings_inversion
             if (settings_inversion is None)
             else settings_inversion
         )
         return FitImaging(
-            dataset=self.imaging,
+            dataset=self.dataset,
             tracer=self.tracer,
-            settings_pixelization=self.settings_pixelization,
+            dataset_model=self.dataset_model,
+            adapt_images=self.adapt_images,
             settings_inversion=settings_inversion,
             preloads=preloads,
-            profiling_dict=profiling_dict,
+            run_time_dict=run_time_dict,
         )

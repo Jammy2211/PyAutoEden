@@ -1,8 +1,12 @@
 import shutil
-from typing import Optional
+from typing import Optional, Union
+from SLE_Model_Autoconf.output import conditional_output
 from SLE_Model_Autofit.SLE_Model_Database.sqlalchemy_ import sa
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Paths.abstract import AbstractPaths
+import numpy as np
 from SLE_Model_Autofit.SLE_Model_Database.SLE_Model_Model import Fit
+from SLE_Model_Autoconf.dictable import to_dict
+from SLE_Model_Autofit.SLE_Model_Database.SLE_Model_Aggregator.info import Info
 
 
 class DatabasePaths(AbstractPaths):
@@ -27,6 +31,7 @@ class DatabasePaths(AbstractPaths):
         self.save_all_samples = save_all_samples
         self.unique_tag = unique_tag
 
+    __nullify_fields__ = ("session",)
     parent: "DatabasePaths"
 
     @AbstractPaths.parent.setter
@@ -42,12 +47,6 @@ class DatabasePaths(AbstractPaths):
                 "The parent of search that uses the database must also use the database"
             )
         self._parent = parent
-
-    def save_named_instance(self, name, instance):
-        """
-        Save an instance, such as that at a given sigma
-        """
-        self.fit.named_instances[name] = instance
 
     @property
     def is_grid_search(self):
@@ -104,6 +103,7 @@ class DatabasePaths(AbstractPaths):
         Remove files from both the symlinked folder and the output directory
         """
         self.session.commit()
+        Info(self.session).write()
         if self.remove_files:
             shutil.rmtree(self.output_path, ignore_errors=True)
 
@@ -112,10 +112,102 @@ class DatabasePaths(AbstractPaths):
         del d["session"]
         return d
 
-    def save_object(self, name, obj):
+    @conditional_output
+    def save_json(self, name, object_dict, prefix=""):
+        """
+        Save a dictionary as a json file in the database
+
+        Parameters
+        ----------
+        name
+            The name of the json
+        object_dict
+            The dictionary to save
+        """
+        self.fit.set_json(name, object_dict)
+
+    def load_json(self, name, prefix=""):
+        """
+        Load a json file from the database
+
+        Parameters
+        ----------
+        name
+            The name of the json
+
+        Returns
+        -------
+        The loaded dictionary
+        """
+        return self.fit.get_json(name)
+
+    @property
+    def samples(self):
+        return self.fit.samples
+
+    @conditional_output
+    def save_array(self, name, array):
+        """
+        Save an array as a json file in the database
+
+        Parameters
+        ----------
+        name
+            The name of the array
+        array
+            The array to save
+        """
+        self.fit.set_array(name, array)
+
+    def load_array(self, name):
+        """
+        Load an array from the database
+
+        Parameters
+        ----------
+        name
+            The name of the array
+
+        Returns
+        -------
+        The loaded array
+        """
+        return self.fit.get_array(name)
+
+    @conditional_output
+    def save_fits(self, name, hdu, prefix=""):
+        """
+        Save a fits file in the database
+
+        Parameters
+        ----------
+        name
+            The name of the fits file
+        hdu
+            The hdu to save
+        """
+        self.fit.set_hdu(name, hdu)
+
+    def load_fits(self, name, prefix=""):
+        """
+        Load a fits file from the database
+
+        Parameters
+        ----------
+        name
+            The name of the fits file
+
+        Returns
+        -------
+        The loaded hdu
+        """
+        return self.fit.get_hdu(name)
+
+    @conditional_output
+    def save_object(self, name, obj, prefix=""):
         self.fit[name] = obj
 
-    def load_object(self, name):
+    def load_object(self, name, prefix=""):
         return self.fit[name]
 
     def remove_object(self, name):
@@ -123,6 +215,15 @@ class DatabasePaths(AbstractPaths):
 
     def is_object(self, name):
         return name in self.fit
+
+    def save_search_internal(self, obj):
+        pass
+
+    def load_search_internal(self):
+        pass
+
+    def remove_search_internal(self):
+        pass
 
     @property
     def fit(self):
@@ -151,21 +252,23 @@ class DatabasePaths(AbstractPaths):
     def completed(self):
         self.fit.is_complete = True
 
-    def save_summary(self, samples, log_likelihood_function_time):
+    def save_summary(self, samples, latent_samples, log_likelihood_function_time):
         self.fit.instance = samples.max_log_likelihood()
         self.fit.max_log_likelihood = samples.max_log_likelihood_sample.log_likelihood
-        super().save_summary(samples, log_likelihood_function_time)
 
     def save_samples(self, samples):
         if not self.save_all_samples:
             samples = samples.minimise()
         self.fit.samples = samples
+        self.fit.set_json("samples_info", samples.samples_info)
 
-    def samples_to_csv(self, samples):
-        """
-        Save the final-result samples associated with the phase as a pickle
-        """
-        pass
+    def save_latent_samples(self, latent_samples):
+        if not self.save_all_samples:
+            latent_samples = latent_samples.minimise()
+        self.fit.latent_samples = latent_samples
+
+    def load_latent_samples(self):
+        return self.fit.latent_samples
 
     def _load_samples(self):
         samples = self.fit.samples
@@ -176,11 +279,14 @@ class DatabasePaths(AbstractPaths):
         return self._load_samples().sample_list
 
     def load_samples_info(self):
-        return self._load_samples().info_json
+        return self._load_samples().samples_info
 
     def save_all(self, info, *_, **kwargs):
-        self.save_identifier()
         self.fit.info = info
         self.fit.model = self.model
-        self.save_object("search", self.search)
+        if info:
+            self.save_json("info", info)
+        self.save_json("search", to_dict(self.search))
+        self.save_json("model", to_dict(self.model))
         self.session.commit()
+        Info(self.session).write()

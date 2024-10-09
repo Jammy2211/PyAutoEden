@@ -1,4 +1,7 @@
 import numpy as np
+from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.dataset_interface import (
+    DatasetInterface,
+)
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.SLE_Model_Interferometer.mapping import (
     InversionInterferometerMapping,
 )
@@ -19,10 +22,11 @@ class MockInversionInterferometer(InversionInterferometerMapping):
         settings=SettingsInversion(),
         preloads=Preloads(),
     ):
+        dataset = DatasetInterface(
+            data=data, noise_map=noise_map, transformer=transformer
+        )
         super().__init__(
-            data=data,
-            noise_map=noise_map,
-            transformer=transformer,
+            dataset=dataset,
             linear_obj_list=linear_obj_list,
             settings=settings,
             preloads=preloads,

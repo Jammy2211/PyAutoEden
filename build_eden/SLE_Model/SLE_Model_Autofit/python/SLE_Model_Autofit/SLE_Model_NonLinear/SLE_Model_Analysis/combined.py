@@ -1,5 +1,5 @@
 import logging
-from typing import Union, List
+from typing import Union, List, Optional
 from SLE_Model_Autoconf import conf
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.abstract import Prior
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.tuple_prior import TuplePrior
@@ -12,12 +12,16 @@ from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Analysis.multiprocessing im
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Paths.abstract import AbstractPaths
 from SLE_Model_Autofit.SLE_Model_NonLinear.result import Result
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Analysis.analysis import Analysis
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.summary import (
+    SamplesSummary,
+)
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples import SamplesPDF
 
 logger = logging.getLogger(__name__)
 
 
 class CombinedResult:
-    def __init__(self, results):
+    def __init__(self, results, samples=None, samples_summary=None):
         """
         A `Result` object that is composed of multiple `Result` objects. This is used to combine the results of
         multiple `Analysis` objects into a single `Result` object, for example when performing a model-fitting
@@ -29,11 +33,15 @@ class CombinedResult:
             The list of `Result` objects that are combined into this `CombinedResult` object.
         """
         self.child_results = results
+        self.samples = samples
+        self.samples_summary = samples_summary
 
     def __getattr__(self, item):
         """
         Get an attribute of the first `Result` object in the list of `Result` objects.
         """
+        if item in ("__getstate__", "__setstate__"):
+            raise AttributeError(item)
         return getattr(self.child_results[0], item)
 
     def __iter__(self):
@@ -77,6 +85,7 @@ class CombinedAnalysis(Analysis):
         analyses
         """
         self.analyses = analyses
+        self._analysis_pool = None
         self._n_cores = None
         self._log_likelihood_function = None
         self.n_cores = conf.instance["general"]["analysis"]["n_cores"]
@@ -136,8 +145,8 @@ class CombinedAnalysis(Analysis):
         """
         self._n_cores = n_cores
         if self.n_cores > 1:
-            analysis_pool = AnalysisPool(self.analyses, self.n_cores)
-            self._log_likelihood_function = analysis_pool
+            self._analysis_pool = AnalysisPool(self.analyses, self.n_cores)
+            self._log_likelihood_function = self._analysis_pool
         else:
             self._log_likelihood_function = self._summed_log_likelihood
 
@@ -181,17 +190,20 @@ class CombinedAnalysis(Analysis):
             results.append(func(child_paths, analysis, *args))
         return results
 
-    def save_attributes_for_aggregator(self, paths):
+    def save_attributes(self, paths):
         def func(child_paths, analysis):
-            analysis.save_attributes_for_aggregator(child_paths)
+            analysis.save_attributes(child_paths)
 
         self._for_each_analysis(func, paths)
 
-    def save_results_for_aggregator(self, paths, result):
+    def save_results(self, paths, result):
         def func(child_paths, analysis, result_):
-            analysis.save_results_for_aggregator(paths=child_paths, result=result_)
+            analysis.save_results(paths=child_paths, result=result_)
 
         self._for_each_analysis(func, paths, result)
+
+    def save_results_combined(self, paths, result):
+        self.analyses[0].save_results_combined(paths=paths, result=result)
 
     def visualize_before_fit(self, paths, model):
         """
@@ -205,13 +217,16 @@ class CombinedAnalysis(Analysis):
         paths
             An object describing the paths for saving data (e.g. hard-disk directories or entries in sqlite database).
         """
+        if self._analysis_pool:
+            self._analysis_pool.map("visualize_before_fit", paths, model)
+            return
 
         def func(child_paths, analysis):
             analysis.visualize_before_fit(child_paths, model)
 
         self._for_each_analysis(func, paths)
 
-    def visualize_before_fit_combined(self, analyses, paths, model):
+    def visualize_before_fit_combined(self, paths, model):
         """
         Visualise images and quantities which are shared across all analyses.
 
@@ -227,7 +242,7 @@ class CombinedAnalysis(Analysis):
         paths
             An object describing the paths for saving data (e.g. hard-disk directories or entries in sqlite database).
         """
-        self.analyses[0].visualize_before_fit_combined(
+        self.analyses[0].Visualizer.visualize_before_fit_combined(
             analyses=self.analyses, paths=paths, model=model
         )
 
@@ -247,13 +262,16 @@ class CombinedAnalysis(Analysis):
         during_analysis
             Is this visualisation during analysis?
         """
+        if self._analysis_pool:
+            self._analysis_pool.map("visualize", paths, instance, during_analysis)
+            return
 
         def func(child_paths, analysis):
             analysis.visualize(child_paths, instance, during_analysis)
 
         self._for_each_analysis(func, paths)
 
-    def visualize_combined(self, analyses, paths, instance, during_analysis):
+    def visualize_combined(self, instance, paths, during_analysis):
         """
         Visualise the instance using images and quantities which are shared across all analyses.
 
@@ -273,7 +291,7 @@ class CombinedAnalysis(Analysis):
         during_analysis
             Is this visualisation during analysis?
         """
-        self.analyses[0].visualize_combined(
+        self.analyses[0].Visualizer.visualize_combined(
             analyses=self.analyses,
             paths=paths,
             instance=instance,
@@ -299,18 +317,20 @@ class CombinedAnalysis(Analysis):
 
         self._for_each_analysis(func, paths)
 
-    def make_result(self, samples, model, sigma=1.0, use_errors=True, use_widths=False):
+    def make_result(
+        self, samples_summary, paths, samples=None, search_internal=None, analysis=None
+    ):
         child_results = [
             analysis.make_result(
-                samples,
-                model,
-                sigma=sigma,
-                use_errors=use_errors,
-                use_widths=use_widths,
+                samples_summary=samples_summary,
+                paths=paths,
+                samples=samples,
+                search_internal=search_internal,
+                analysis=analysis,
             )
             for analysis in self.analyses
         ]
-        return CombinedResult(child_results)
+        return CombinedResult(child_results, samples, samples_summary)
 
     def __len__(self):
         return len(self.analyses)

@@ -1,7 +1,7 @@
 from dynesty import plotting as dyplot
 
-from SLE_Model_Autofit.SLE_Model_Plot import SamplesPlotter
-from SLE_Model_Autofit.SLE_Model_Plot.samples_plotters import skip_plot_in_test_mode
+from VIS_CTI_Autofit.VIS_CTI_Plot import SamplesPlotter
+from VIS_CTI_Autofit.VIS_CTI_Plot.samples_plotters import skip_plot_in_test_mode
 
 
 class DynestyPlotter(SamplesPlotter):

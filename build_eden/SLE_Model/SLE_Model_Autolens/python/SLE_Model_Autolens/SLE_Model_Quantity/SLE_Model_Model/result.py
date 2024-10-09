@@ -1,6 +1,6 @@
 import SLE_Model_Autoarray as aa
 import SLE_Model_Autogalaxy as ag
-from SLE_Model_Autolens.SLE_Model_Lens.ray_tracing import Tracer
+from SLE_Model_Autolens.SLE_Model_Lens.tracer import Tracer
 from SLE_Model_Autolens.SLE_Model_Analysis.result import Result
 
 
@@ -17,7 +17,7 @@ class ResultQuantity(Result):
 
     - The non-linear search used to perform the model fit.
 
-    This class contains a number of methods which use the above objects to create the max log likelihood `Plane`,
+    This class contains a number of methods which use the above objects to create the max log likelihood `Galaxies`,
     `FitQuantity`, etc.
 
     Parameters
@@ -26,7 +26,7 @@ class ResultQuantity(Result):
         A PyAutoFit object which contains the samples of the non-linear search, for example the chains of an MCMC
         run of samples of the nested sampler.
     model
-        The PyAutoFit model object, which includes model components representing the galaxies that are fitted to
+        The model object, which includes model components representing the galaxies that are fitted to
         the imaging data.
     search
         The non-linear search used to perform this model-fit.
@@ -42,16 +42,16 @@ class ResultQuantity(Result):
         """
         The masked 2D grid used by the dataset in the model-fit.
         """
-        return self.analysis.dataset.grid
+        return self.analysis.dataset.grids.uniform
 
     @property
     def max_log_likelihood_tracer(self):
         """
         An instance of a `Tracer` corresponding to the maximum log likelihood model inferred by the non-linear search.
 
-        If a dataset is fitted the hyper images of the hyper dataset must first be associated with each galaxy.
+        If a dataset is fitted the adapt images of the adapt image must first be associated with each galaxy.
         """
-        return self.analysis.tracer_via_instance_from(instance=self.instance_copy)
+        return self.analysis.tracer_via_instance_from(instance=self.instance)
 
     @property
     def max_log_likelihood_fit(self):
@@ -59,4 +59,4 @@ class ResultQuantity(Result):
         An instance of a `FitQuantity` corresponding to the maximum log likelihood model inferred by the non-linear
         search.
         """
-        return self.analysis.fit_quantity_for_instance(instance=self.instance_copy)
+        return self.analysis.fit_quantity_for_instance(instance=self.instance)

@@ -17,8 +17,8 @@ from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Regularization import (
 class Constant(AbstractRegularization):
     def __init__(self, coefficient=1.0):
         """
-        A constant regularization scheme (regularization is described in the `Regularization` class above) which
-        uses a single value to apply smoothing on the solution of an `Inversion`.
+        Regularization which uses the neighbors of the mesh (e.g. shared Voronoi vertexes) and
+        a single value to smooth an inversion's solution.
 
         For this regularization scheme, there is only 1 regularization coefficient that is applied to
         all neighboring pixels / parameters. This means that the matrix B only needs to regularize pixels / parameters
@@ -29,6 +29,8 @@ class Constant(AbstractRegularization):
 
         A small numerical value of 1.0e-8 is added to all elements in constant regularization matrix, to ensure that
         it is positive definite.
+
+        A full description of regularization and this matrix can be found in the parent `AbstractRegularization` class.
 
         Parameters
         ----------
@@ -61,7 +63,7 @@ class Constant(AbstractRegularization):
 
     def regularization_matrix_from(self, linear_obj):
         """
-        Returns the regularization matrix of this regularization scheme.
+        Returns the regularization matrix with shape [pixels, pixels].
 
         Parameters
         ----------

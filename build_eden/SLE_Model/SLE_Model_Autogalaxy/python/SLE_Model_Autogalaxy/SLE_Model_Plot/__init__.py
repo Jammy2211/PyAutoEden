@@ -1,9 +1,10 @@
-from SLE_Model_Autofit.SLE_Model_Plot.samples_plotters import SamplesPlotter
-from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Nest.SLE_Model_Dynesty.plotter import (
-    DynestyPlotter,
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Plot.nest_plotters import (
+    NestPlotter,
 )
-
-
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Plot.mcmc_plotters import (
+    MCMCPlotter,
+)
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Plot.mle_plotters import MLEPlotter
 from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Wrap.SLE_Model_Base import (
     Units,
     Figure,
@@ -28,6 +29,7 @@ from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Wrap.SLE_Model_OneD import (
 )
 from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Wrap.SLE_Model_TwoD import (
     ArrayOverlay,
+    Contour,
     GridScatter,
     GridPlot,
     VectorYXQuiver,
@@ -95,6 +97,9 @@ from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Plot.light_profile_plotte
 from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Plot.light_profile_plotters import (
     LightProfilePDFPlotter,
 )
+from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Plot.basis_plotters import (
+    BasisPlotter,
+)
 from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Plot.mass_profile_plotters import (
     MassProfilePlotter,
 )
@@ -107,6 +112,9 @@ from SLE_Model_Autogalaxy.SLE_Model_Galaxy.SLE_Model_Plot.galaxy_plotters import
 from SLE_Model_Autogalaxy.SLE_Model_Galaxy.SLE_Model_Plot.galaxy_plotters import (
     GalaxyPDFPlotter,
 )
+from SLE_Model_Autogalaxy.SLE_Model_Galaxy.SLE_Model_Plot.galaxies_plotters import (
+    GalaxiesPlotter,
+)
 from SLE_Model_Autogalaxy.SLE_Model_Quantity.SLE_Model_Plot.fit_quantity_plotters import (
     FitQuantityPlotter,
 )
@@ -116,9 +124,12 @@ from SLE_Model_Autogalaxy.SLE_Model_Imaging.SLE_Model_Plot.fit_imaging_plotters 
 from SLE_Model_Autogalaxy.SLE_Model_Interferometer.SLE_Model_Plot.fit_interferometer_plotters import (
     FitInterferometerPlotter,
 )
-from SLE_Model_Autogalaxy.SLE_Model_Plane.SLE_Model_Plot.plane_plotters import (
-    PlanePlotter,
+from SLE_Model_Autogalaxy.SLE_Model_Galaxy.SLE_Model_Plot.galaxies_plotters import (
+    GalaxiesPlotter,
 )
 from SLE_Model_Autogalaxy.SLE_Model_Galaxy.SLE_Model_Plot.adapt_plotters import (
     AdaptPlotter,
+)
+from SLE_Model_Autogalaxy.SLE_Model_Ellipse.SLE_Model_Plot.fit_ellipse_plotters import (
+    FitEllipsePlotter,
 )

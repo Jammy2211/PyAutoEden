@@ -1,11 +1,23 @@
+from __future__ import annotations
+import logging
 from abc import ABC, abstractmethod
 import numpy as np
-from os import path
+from typing import TYPE_CHECKING, Optional
+import warnings
+
+if TYPE_CHECKING:
+    from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Analysis.analysis import (
+        Analysis,
+    )
 from SLE_Model_Autofit import exc
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.abstract import (
     AbstractPriorModel,
 )
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Paths.abstract import AbstractPaths
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples import Samples
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.summary import (
+    SamplesSummary,
+)
 from SLE_Model_Autofit.SLE_Model_Text import text_util
 
 
@@ -32,11 +44,36 @@ class Placeholder:
     def samples(self):
         return self
 
+    @property
+    def log_likelihood(self):
+        return -np.inf
+
+    def summary(self):
+        return self
+
 
 class AbstractResult(ABC):
-    def __init__(self, sigma):
-        self._instance = None
-        self.sigma = sigma
+    """
+    @DynamicAttrs
+    """
+
+    def __init__(self, samples_summary, paths):
+        """
+        Abstract result of a non-linear search.
+
+        Parameters
+        ----------
+        samples_summary
+            A summary of the most important samples of the non-linear search (e.g. maximum log likelihood, median PDF).
+        paths
+            The paths to the results of the search.
+        """
+        self._samples_summary = samples_summary
+        self.paths = paths
+
+    @property
+    def samples_summary(self):
+        return self._samples_summary
 
     @property
     @abstractmethod
@@ -74,13 +111,15 @@ class AbstractResult(ABC):
 
     @property
     def log_likelihood(self):
-        return max(self.samples.log_likelihood_list)
+        return self.samples_summary.max_log_likelihood_sample.log_likelihood
 
     @property
     def instance(self):
-        if self._instance is None:
-            self._instance = self.samples.max_log_likelihood()
-        return self._instance
+        try:
+            return self.samples_summary.instance
+        except AttributeError as e:
+            logging.warning(e)
+            return None
 
     @property
     def max_log_likelihood_instance(self):
@@ -88,6 +127,14 @@ class AbstractResult(ABC):
 
     def model_absolute(self, a):
         """
+        Returns a model where every free parameter is a `GaussianPrior` with `mean` the previous result's
+        inferred maximum log likelihood parameter values and `sigma` the input absolute value `a`.
+
+        For example, a previous result may infer a parameter to have a maximum log likelihood value of 2.
+
+        If this result is used for search chaining, `model_absolute(a=0.1)` will assign this free parameter
+        `GaussianPrior(mean=2.0, sigma=0.1)` in the new model, where `sigma` is linked to the input `a`.
+
         Parameters
         ----------
         a
@@ -98,12 +145,19 @@ class AbstractResult(ABC):
         A model mapper created by taking results from this search and creating priors with the defined absolute
         width.
         """
-        return self.model.mapper_from_gaussian_tuples(
-            self.samples.gaussian_priors_at_sigma(sigma=self.sigma), a=a
-        )
+        return self.samples_summary.model_absolute(a)
 
     def model_relative(self, r):
         """
+        Returns a model where every free parameter is a `GaussianPrior` with `mean` the previous result's
+        inferred maximum log likelihood parameter values and `sigma` a relative value from the result `r`.
+
+        For example, a previous result may infer a parameter to have a maximum log likelihood value of 2 and
+        an error at the input `sigma` of 0.5.
+
+        If this result is used for search chaining, `model_relative(r=0.1)` will assign this free parameter
+        `GaussianPrior(mean=2.0, sigma=0.5*0.1)` in the new model, where `sigma` is the inferred error times `r`.
+
         Parameters
         ----------
         r
@@ -114,42 +168,146 @@ class AbstractResult(ABC):
         A model mapper created by taking results from this search and creating priors with the defined relative
         width.
         """
-        return self.model.mapper_from_gaussian_tuples(
-            self.samples.gaussian_priors_at_sigma(sigma=self.sigma), r=r
-        )
+        return self.samples_summary.model_relative(r)
+
+    def model_bounded(self, b):
+        """
+        Returns a model where every free parameter is a `UniformPrior` with `lower_limit` and `upper_limit the previous
+        result's inferred maximum log likelihood parameter values minus and plus the bound `b`.
+
+        For example, a previous result may infer a parameter to have a maximum log likelihood value of 2.
+
+        If this result is used for search chaining, `model_bound(b=0.1)` will assign this free parameter
+        `UniformPrior(lower_limit=1.9, upper_limit=2.1)` in the new model.
+
+        Parameters
+        ----------
+        b
+            The size of the bounds of the uniform prior
+
+        Returns
+        -------
+        A model mapper created by taking results from this search and creating priors with the defined bounded
+        uniform priors.
+        """
+        return self.samples_summary.model_bounded(b)
 
 
 class Result(AbstractResult):
-    def __init__(self, samples, model, sigma=3.0, use_errors=True, use_widths=True):
+    def __init__(
+        self,
+        samples_summary,
+        paths=None,
+        samples=None,
+        search_internal=None,
+        analysis=None,
+    ):
         """
-        The result of a non-linear search, which includes:
+        The result of a non-linear search.
+
+        The default behaviour is for all key results to be in the `samples_summary` attribute, which is a concise
+        summary of the results of the non-linear search. The reasons for this to be the main attribute are:
+
+        - It is concise and therefore has minimal I/O overhead, which is important because when runs are resumed
+        the results are loaded often, which can become very slow for large results via a `samples.csv`.
+
+        - The `output.yaml` config files can be used to disable the output of the `samples.csv` file
+        and `search_internal.pickle` files. This means in order for results to be loaded in a way that allows a run to
+        resume, the `samples_summary` must contain all results necessary to resume the run.
+
+        For this reason, the `samples` and `search_internal` attributes are optional. On the first run of a model-fit,
+        they will always contain values as they are passed in via memory from the results of the search. However, if
+        a run is resumed they are no longer available in memory, and they will only be available if their corresponding
+        `samples.csv` and `search_internal.pickle` files are output on disk and available to load.
+
+        This object includes:
+
+        - The `samples_summary` attribute, which is a summary of the results of the non-linear search.
+
+        - The `paths` attribute, which contains the path structure to the results of the search on the hard-disk and
+        is used to load the samples and search internal attributes if they are required and not available in memory.
 
         - The samples of the non-linear search (E.g. MCMC chains, nested sampling samples) which are used to compute
         the maximum likelihood model, posteriors and other properties.
 
-        - The model used to fit the data, which uses the samples to create specific instances of the model (e.g.
-        an instance of the maximum log likelihood model).
-
-        - The non-linear search used to perform the model fit.
+        - The non-linear search used to perform the model fit in its internal format (e.g. the Dynesty sampler used
+        by dynesty itself as opposed to PyAutoFit abstract classes).
 
         Parameters
         ----------
-        model
-            The model mapper from the stage that produced this result
+        samples_summary
+            A summary of the most important samples of the non-linear search (e.g. maximum log likelihood, median PDF).
+        paths
+            The paths to the results of the search, used to load the samples and search internal attributes if they are
+            required and not available in memory.
+        samples
+            The samples of the non-linear search, for example the MCMC chains.
+        search_internal
+            The non-linear search used to perform the model fit in its internal format.
+        analysis
+            The `Analysis` object that was used to perform the model-fit from which this result is inferred.
         """
-        super().__init__(sigma)
-        if samples is not None:
-            samples.model = model
+        super().__init__(samples_summary=samples_summary, paths=paths)
         self._samples = samples
-        self.use_errors = use_errors
-        self.use_widths = use_widths
-        self._model = model
+        self._search_internal = search_internal
+        self.analysis = analysis
         self.__model = None
         self.child_results = None
 
+    def dict(self):
+        """
+        Human-readable dictionary representation of the results
+        """
+        return {
+            "max_log_likelihood": self.samples_summary.max_log_likelihood_sample.model_dict(),
+            "median pdf": self.samples_summary.median_pdf_sample.model_dict(),
+        }
+
     @property
     def samples(self):
-        return self._samples
+        """
+        Returns the samples of the non-linear search, for example the MCMC chains or nested sampling samples.
+
+        When a model-fit is run the first time, the samples are passed into the result via memory and therefore
+        always available.
+
+        However, if a model-fit is resumed the samples are not available in memory and they only way to load them is
+        via the `samples.csv` file output on the hard-disk. This property handles the loading of the samples from
+        the `samples.csv` file if they are not available in memory.
+
+        Returns
+        -------
+        The samples of the non-linear search.
+        """
+        if self._samples is not None:
+            return self._samples
+        try:
+            return self.paths.samples
+        except FileNotFoundError:
+            return None
+
+    @property
+    def search_internal(self):
+        """
+        Returns the non-linear search used to perform the model fit in its internal sampler format.
+
+        When a model-fit is run the first time, the search internal is passed into the result via memory and therefore
+        always available.
+
+        However, if a model-fit is resumed the search internal is not available in memory and they only way to load
+        it is via the `search_internal.pickle` file output on the hard-disk. This property handles the loading of
+        the search internal from the `search_internal.pickle` file if it is not available in memory.
+
+        Returns
+        -------
+        The non-linear search used to perform the model fit in its internal sampler format.
+        """
+        if self._search_internal is not None:
+            return self._search_internal
+        try:
+            return self.paths.load_search_internal()
+        except FileNotFoundError:
+            pass
 
     @property
     def projected_model(self):
@@ -163,16 +321,15 @@ class Result(AbstractResult):
             prior: prior.project(
                 samples=np.array(self.samples.values_for_path(path)), weights=weights
             )
-            for (path, prior) in self._model.path_priors_tuples
+            for (path, prior) in self.samples.model.path_priors_tuples
         }
-        return self._model.mapper_from_prior_arguments(arguments)
+        return self.samples.model.mapper_from_prior_arguments(arguments)
 
     @property
     def model(self):
         if self.__model is None:
-            tuples = self.samples.gaussian_priors_at_sigma(sigma=self.sigma)
-            self.__model = self._model.mapper_from_gaussian_tuples(
-                tuples, use_errors=self.use_errors, use_widths=self.use_widths
+            self.__model = self.samples_summary.model.mapper_from_prior_means(
+                means=self.samples_summary.prior_means
             )
         return self.__model
 

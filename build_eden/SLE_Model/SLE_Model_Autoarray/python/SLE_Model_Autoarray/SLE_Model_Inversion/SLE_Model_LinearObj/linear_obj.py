@@ -11,7 +11,7 @@ from SLE_Model_Autoarray.numba_util import profile_func
 
 
 class LinearObj:
-    def __init__(self, regularization, profiling_dict=None):
+    def __init__(self, regularization, run_time_dict=None):
         """
         A linear object which reconstructs a dataset based on mapping between the data points of that dataset and
         the parameters of the linear object. For example, the linear obj could map to the data via analytic functions
@@ -30,11 +30,11 @@ class LinearObj:
         ----------
         regularization
             The regularization scheme which may be applied to this linear object in order to smooth its solution.
-        profiling_dict
+        run_time_dict
             A dictionary which contains timing of certain functions calls which is used for profiling.
         """
         self.regularization = regularization
-        self.profiling_dict = profiling_dict
+        self.run_time_dict = run_time_dict
 
     @property
     def params(self):

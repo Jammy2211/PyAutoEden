@@ -41,6 +41,7 @@ def main():
         eden_dependencies=None,
         eden_path=build_path,
         should_remove_type_annotations=True,
+        config_prefix="SLE_MODEL"
     )
 
     edenise(
@@ -50,6 +51,7 @@ def main():
         eden_dependencies=["autoconf"],
         eden_path=build_path,
         should_remove_type_annotations=True,
+        config_prefix="SLE_MODEL"
     )
 
     edenise(
@@ -59,6 +61,7 @@ def main():
         eden_dependencies=["autoconf"],
         eden_path=build_path,
         should_remove_type_annotations=True,
+        config_prefix="SLE_MODEL"
     )
 
     nest_path = os.path.join(build_path, "SLE_Model", "SLE_Model_Autofit", "python", "SLE_Model_Autofit", "SLE_Model_NonLinear", "SLE_Model_Nest")
@@ -77,6 +80,7 @@ def main():
         eden_dependencies=["autoconf", "autofit", "autoarray"],
         eden_path=build_path,
         should_remove_type_annotations=True,
+        config_prefix = "SLE_MODEL"
     )
 
     edenise(
@@ -86,6 +90,7 @@ def main():
         eden_dependencies=["autoconf", "autofit", "autoarray", "autogalaxy"],
         eden_path=build_path,
         should_remove_type_annotations=True,
+        config_prefix = "SLE_MODEL"
     )
 
     replace_strings(

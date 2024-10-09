@@ -7,11 +7,11 @@ from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_MatPlot.two_d import MatPlot2D
 from SLE_Model_Autoarray.SLE_Model_Plot.auto_labels import AutoLabels
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays.uniform_2d import Array2D
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.rectangular import (
-    MapperRectangularNoInterp,
+    MapperRectangular,
 )
-from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.voronoi import (
-    MapperVoronoiNoInterp,
-)
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class MapperPlotter(Plotter):
@@ -107,8 +107,7 @@ class MapperPlotter(Plotter):
                 pix_indexes=self.visuals_2d.pix_indexes
             )
             self.mat_plot_2d.index_scatter.scatter_grid_indexes(
-                grid=self.mapper.source_plane_data_grid.mask.derive_grid.unmasked,
-                indexes=indexes,
+                grid=self.mapper.over_sampler.over_sampled_grid, indexes=indexes
             )
         self.figure_2d(interpolate_to_uniform=interpolate_to_uniform)
         self.mat_plot_2d.output.subplot_to_figure(
@@ -139,11 +138,16 @@ class MapperPlotter(Plotter):
         auto_labels
             The labels given to the figure.
         """
-        self.mat_plot_2d.plot_mapper(
-            mapper=self.mapper,
-            visuals_2d=self.get_visuals_2d_for_source(),
-            auto_labels=auto_labels,
-            pixel_values=pixel_values,
-            zoom_to_brightest=zoom_to_brightest,
-            interpolate_to_uniform=interpolate_to_uniform,
-        )
+        try:
+            self.mat_plot_2d.plot_mapper(
+                mapper=self.mapper,
+                visuals_2d=self.get_visuals_2d_for_source(),
+                auto_labels=auto_labels,
+                pixel_values=pixel_values,
+                zoom_to_brightest=zoom_to_brightest,
+                interpolate_to_uniform=interpolate_to_uniform,
+            )
+        except ValueError:
+            logger.info(
+                "Could not plot the source-plane via the Mapper because of a ValueError."
+            )

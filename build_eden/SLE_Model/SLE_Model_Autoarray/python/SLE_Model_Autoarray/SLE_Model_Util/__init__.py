@@ -2,6 +2,9 @@ from SLE_Model_Autoarray import numba_util as numba
 from SLE_Model_Autoarray.SLE_Model_Geometry import geometry_util as geometry
 from SLE_Model_Autoarray.SLE_Model_Mask import mask_1d_util as mask_1d
 from SLE_Model_Autoarray.SLE_Model_Mask import mask_2d_util as mask_2d
+from SLE_Model_Autoarray.SLE_Model_Operators.SLE_Model_OverSampling import (
+    over_sample_util as over_sample,
+)
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays import (
     array_1d_util as array_1d,
 )

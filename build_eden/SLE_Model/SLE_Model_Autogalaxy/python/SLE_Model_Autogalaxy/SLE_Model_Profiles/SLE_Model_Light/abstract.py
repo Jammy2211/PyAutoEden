@@ -31,7 +31,11 @@ class LightProfile(EllProfile, OperateImage):
         super().__init__(centre=centre, ell_comps=ell_comps)
         self.intensity = intensity
 
-    def image_2d_from(self, grid, operated_only=None):
+    @property
+    def coefficient_tag(self):
+        return ""
+
+    def image_2d_from(self, grid, operated_only=None, **kwargs):
         """
         Returns the light profile's 2D image from a 2D grid of Cartesian (y,x) coordinates, which may have been
         transformed using the light profile's geometry.
@@ -63,8 +67,8 @@ class LightProfile(EllProfile, OperateImage):
         """
         raise NotImplementedError()
 
-    @aa.grid_dec.grid_1d_to_structure
-    def image_1d_from(self, grid):
+    @aa.grid_dec.project_grid
+    def image_1d_from(self, grid, **kwargs):
         """
         Returns the light profile's 1D image from a grid of Cartesian coordinates, which may have been
         transformed using the light profile's geometry.
@@ -73,7 +77,7 @@ class LightProfile(EllProfile, OperateImage):
         converted to a 1D grid by aligning with the major-axis of the light profile's elliptical geometry.
 
         Internally, this function uses a 2D grid to compute the image, which is mapped to a 1D data structure on return
-        via the `grid_1d_to_structure` decorator. This avoids code repetition by ensuring that light profiles only use
+        via the `project_grid` decorator. This avoids code repetition by ensuring that light profiles only use
         their `image_2d_from()`  function to evaluate their image.
 
         Parameters
@@ -86,7 +90,7 @@ class LightProfile(EllProfile, OperateImage):
         image
             The 1D image of the light profile evaluated at every (x,) coordinate on the 1D transformed grid.
         """
-        return self.image_2d_from(grid=grid)
+        return self.image_2d_from(grid=grid, **kwargs)
 
     def luminosity_within_circle_from(self, radius):
         """

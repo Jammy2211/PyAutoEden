@@ -1,229 +1,42 @@
 from abc import ABC
-import csv
-from functools import wraps
 import json
-import warnings
 from copy import copy
-from typing import List, Optional, Tuple, Union
+import logging
+import os
+from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
+from pathlib import Path
+from SLE_Model_Autoconf import conf
+from SLE_Model_Autoconf.class_path import get_class_path
 from SLE_Model_Autofit import exc
 from SLE_Model_Autofit.SLE_Model_Mapper.model import ModelInstance
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.abstract import (
     AbstractPriorModel,
-    Path,
 )
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.sample import Sample
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.summary import (
+    SamplesSummary,
+)
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.interface import (
+    SamplesInterface,
+    to_instance,
+)
+from SLE_Model_Autofit.SLE_Model_Text.formatter import write_table
+
+logger = logging.getLogger(__name__)
 
 
-def to_instance(func):
-    """
-
-    Parameters
-    ----------
-    func
-
-    Returns
-    -------
-        A function that returns a 2D image.
-    """
-
-    @wraps(func)
-    def wrapper(obj, as_instance=True, *args, **kwargs):
+class Samples(SamplesInterface, ABC):
+    def __init__(self, model, sample_list, samples_info=None):
         """
-        This decorator checks if a light profile is a `LightProfileOperated` class and therefore already has had operations like a
-        PSF convolution performed.
-
-        This is compared to the `only_operated` input to determine if the image of that light profile is returned, or
-        an array of zeros.
-
-        Parameters
-        ----------
-        obj
-            A light profile with an `image_2d_from` function whose class is inspected to determine if the image is
-            operated on.
-        grid
-            A grid_like object of (y,x) coordinates on which the function values are evaluated.
-        operated_only
-            By default this is None and the image is returned irrespecive of light profile class (E.g. it does not matter
-            if it is already operated or not). If this input is included as a bool, the light profile image is only
-            returned if they are or are not already operated.
-
-        Returns
-        -------
-            The 2D image, which is customized depending on whether it has been operated on.
-        """
-        vector = func(obj, as_instance, *args, **kwargs)
-        if as_instance:
-            return obj.model.instance_from_vector(
-                vector=vector, ignore_prior_limits=True
-            )
-        return vector
-
-    return wrapper
-
-
-def to_instance_sigma(func):
-    """
-
-    Parameters
-    ----------
-    func
-
-    Returns
-    -------
-        A function that returns a 2D image.
-    """
-
-    @wraps(func)
-    def wrapper(obj, sigma, as_instance=True, *args, **kwargs):
-        """
-        This decorator checks if a light profile is a `LightProfileOperated` class and therefore already has had operations like a
-        PSF convolution performed.
-
-        This is compared to the `only_operated` input to determine if the image of that light profile is returned, or
-        an array of zeros.
-
-        Parameters
-        ----------
-        obj
-            A light profile with an `image_2d_from` function whose class is inspected to determine if the image is
-            operated on.
-        grid
-            A grid_like object of (y,x) coordinates on which the function values are evaluated.
-        operated_only
-            By default this is None and the image is returned irrespecive of light profile class (E.g. it does not matter
-            if it is already operated or not). If this input is included as a bool, the light profile image is only
-            returned if they are or are not already operated.
-
-        Returns
-        -------
-            The 2D image, which is customized depending on whether it has been operated on.
-        """
-        vector = func(obj, sigma, as_instance, *args, **kwargs)
-        if as_instance:
-            return obj.model.instance_from_vector(
-                vector=vector, ignore_prior_limits=True
-            )
-        return vector
-
-    return wrapper
-
-
-def to_instance_samples(func):
-    """
-
-    Parameters
-    ----------
-    func
-
-    Returns
-    -------
-        A function that returns a 2D image.
-    """
-
-    @wraps(func)
-    def wrapper(obj, sample_index, as_instance=True, *args, **kwargs):
-        """
-        This decorator checks if a light profile is a `LightProfileOperated` class and therefore already has had operations like a
-        PSF convolution performed.
-
-        This is compared to the `only_operated` input to determine if the image of that light profile is returned, or
-        an array of zeros.
-
-        Parameters
-        ----------
-        obj
-            A light profile with an `image_2d_from` function whose class is inspected to determine if the image is
-            operated on.
-        grid
-            A grid_like object of (y,x) coordinates on which the function values are evaluated.
-        operated_only
-            By default this is None and the image is returned irrespecive of light profile class (E.g. it does not matter
-            if it is already operated or not). If this input is included as a bool, the light profile image is only
-            returned if they are or are not already operated.
-
-        Returns
-        -------
-            The 2D image, which is customized depending on whether it has been operated on.
-        """
-        vector = func(obj, sample_index, as_instance, *args, **kwargs)
-        if as_instance:
-            return obj.model.instance_from_vector(
-                vector=vector, ignore_prior_limits=True
-            )
-        return vector
-
-    return wrapper
-
-
-def to_instance_input(func):
-    """
-
-    Parameters
-    ----------
-    func
-
-    Returns
-    -------
-        A function that returns a 2D image.
-    """
-
-    @wraps(func)
-    def wrapper(obj, input_vector, as_instance=True, *args, **kwargs):
-        """
-        This decorator checks if a light profile is a `LightProfileOperated` class and therefore already has had operations like a
-        PSF convolution performed.
-
-        This is compared to the `only_operated` input to determine if the image of that light profile is returned, or
-        an array of zeros.
-
-        Parameters
-        ----------
-        obj
-            A light profile with an `image_2d_from` function whose class is inspected to determine if the image is
-            operated on.
-        grid
-            A grid_like object of (y,x) coordinates on which the function values are evaluated.
-        operated_only
-            By default this is None and the image is returned irrespecive of light profile class (E.g. it does not matter
-            if it is already operated or not). If this input is included as a bool, the light profile image is only
-            returned if they are or are not already operated.
-
-        Returns
-        -------
-            The 2D image, which is customized depending on whether it has been operated on.
-        """
-        vector = func(obj, input_vector, as_instance, *args, **kwargs)
-        if as_instance:
-            return obj.model.instance_from_vector(
-                vector=vector, ignore_prior_limits=True
-            )
-        return vector
-
-    return wrapper
-
-
-class Samples(ABC):
-    def __init__(
-        self,
-        model,
-        sample_list,
-        total_iterations=None,
-        time=None,
-        results_internal=None,
-    ):
-        """
-        The `Samples` classes in **PyAutoFit** provide an interface between the results_internal of
-        a `NonLinearSearch` (e.g. as files on your hard-disk) and Python.
+        Contains the samples of the non-linear search, including parameter values, log likelihoods,
+        weights and other quantites.
 
         For example, the output class can be used to load an instance of the best-fit model, get an instance of any
         individual sample by the `NonLinearSearch` and return information on the likelihoods, errors, etc.
 
         This class stores samples of searches which provide maximum likelihood estimates of the  model-fit (e.g.
         PySwarms, LBFGS).
-
-        To use a library's in-built visualization tools results are optionally stored in their native internal format
-        using the `results_internal` attribute.
 
         Parameters
         ----------
@@ -232,22 +45,49 @@ class Samples(ABC):
         sample_list
             The list of `Samples` which contains the paramoeters, likelihood, weights, etc. of every sample taken
             by the non-linear search.
-        total_iterations
-            The total number of iterations, which often cannot be estimated from the sample list (which contains
-            only accepted samples).
-        time
-            The time taken to perform the model-fit, which is passed around `Samples` objects for outputting
-            information on the overall fit.
-        results_internal
-            The nested sampler's results in their native internal format for interfacing its visualization library.
+        samples_info
+            Contains information on the samples (e.g. total iterations, time to run the search, etc.).
         """
-        self.model = model
+        super().__init__(model=model)
         self.sample_list = sample_list
-        self.total_iterations = total_iterations
-        self.time = time
-        self.results_internal = results_internal
-        self._paths = None
-        self._names = None
+        self.samples_info = {
+            **(samples_info or {}),
+            "class_path": get_class_path(self.__class__),
+        }
+
+    def __str__(self):
+        return f"{self.__class__.__name__}({len(self.sample_list)})"
+
+    def __repr__(self):
+        return str(self)
+
+    @property
+    def instances(self):
+        """
+        One model instance for each sample
+        """
+        return [
+            self.model.instance_from_vector(
+                sample.parameter_lists_for_paths(
+                    (self.paths if sample.is_path_kwargs else self.names)
+                ),
+                ignore_prior_limits=True,
+            )
+            for sample in self.sample_list
+        ]
+
+    @property
+    def log_evidence(self):
+        return None
+
+    @classmethod
+    def from_list_info_and_model(cls, sample_list, samples_info, model):
+        return cls(model=model, sample_list=sample_list, samples_info=samples_info)
+
+    def summary(self):
+        return SamplesSummary(
+            model=self.model, max_log_likelihood_sample=self.max_log_likelihood_sample
+        )
 
     def __add__(self, other):
         """
@@ -264,15 +104,8 @@ class Samples(ABC):
         A class that combined the samples of the two Samples objects.
         """
         self._check_addition(other=other)
-        if self.results_internal is not None:
-            warnings.warn(
-                f"Addition of {self.__class__.__name__} cannot retain results in native format. Visualization of summed samples diabled.",
-                exc.SamplesWarning,
-            )
         return self.__class__(
-            model=self.model,
-            sample_list=(self.sample_list + other.sample_list),
-            time=self.time,
+            model=self.model, sample_list=(self.sample_list + other.sample_list)
         )
 
     def __radd__(self, other):
@@ -347,28 +180,12 @@ class Samples(ABC):
         return [sample.kwargs[path] for sample in self.sample_list]
 
     @property
-    def paths(self):
-        """
-        A list of paths to unique priors in the same order as prior
-        ids (and therefore sample columns)
-
-        Uses hasattr to make backwards compatible
-        """
-        if (not hasattr(self, "_paths")) or (self._paths is None):
-            self._paths = self.model.all_paths
-        return self._paths
+    def total_iterations(self):
+        return self.samples_info["total_iterations"]
 
     @property
-    def names(self):
-        """
-        A list of names of unique priors in the same order as prior
-        ids (and therefore sample columns)
-
-        Uses hasattr to make backwards compatible
-        """
-        if (not hasattr(self, "_names")) or (self._names is None):
-            self._names = self.model.all_names
-        return self._names
+    def time(self):
+        return self.samples_info["time"]
 
     @property
     def parameter_lists(self):
@@ -407,7 +224,7 @@ class Samples(ABC):
         """
         Headers for the samples table
         """
-        return self.model.model_component_and_parameter_names + [
+        return self.model.joined_paths + [
             "log_likelihood",
             "log_prior",
             "log_posterior",
@@ -445,19 +262,13 @@ class Samples(ABC):
         filename
             Where the table is to be written
         """
-        with open(filename, "w+", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(self._headers)
-            for row in self._rows:
-                writer.writerow(row)
-
-    @property
-    def info_json(self):
-        return {}
+        write_table(
+            filename=filename, headers=list(self._headers), rows=list(self._rows)
+        )
 
     def info_to_json(self, filename):
         with open(filename, "w") as outfile:
-            json.dump(self.info_json, outfile)
+            json.dump(self.samples_info, outfile)
 
     @property
     def max_log_likelihood_sample(self):
@@ -472,8 +283,15 @@ class Samples(ABC):
                 most_likely_sample = sample
         return most_likely_sample
 
+    @property
+    def max_log_likelihood_index(self):
+        """
+        The index of the sample with the highest log likelihood.
+        """
+        return int(np.argmax(self.log_likelihood_list))
+
     @to_instance
-    def max_log_likelihood(self, as_instance=True):
+    def max_log_likelihood(self):
         """
         The parameters of the maximum log likelihood sample of the `NonLinearSearch` returned as a model instance or
         list of values.
@@ -495,14 +313,14 @@ class Samples(ABC):
         return int(np.argmax(self.log_posterior_list))
 
     @to_instance
-    def max_log_posterior(self, as_instance=True):
+    def max_log_posterior(self):
         """
         The parameters of the maximum log posterior sample of the `NonLinearSearch` returned as a model instance.
         """
         return self.parameter_lists[self.max_log_posterior_index]
 
-    @to_instance_samples
-    def from_sample_index(self, sample_index, as_instance=True):
+    @to_instance
+    def from_sample_index(self, sample_index):
         """
         The parameters of an individual sample of the non-linear search, returned as a model instance.
 
@@ -513,12 +331,49 @@ class Samples(ABC):
         """
         return self.parameter_lists[sample_index]
 
+    def samples_above_weight_threshold_from(
+        self, weight_threshold=None, log_message=False
+    ):
+        """
+        Returns a new `Samples` object containing only the samples with a weight above the input threshold.
+
+        This function can be used after a non-linear search is complete, to reduce the samples to only the high weight
+        values. The benefit of this is that the corresponding `samples.csv` file will be reduced in hard-disk size.
+
+        For large libraries of results can significantly reduce the overall hard-disk space used and speed up the
+        time taken to load the samples from a .csv file and perform analysis on them.
+
+        For a sufficiently low threshold, this has a neglible impact on the numerical accuracy of the results, and
+        even higher values can be used for aggresive use cases where hard-disk space is at a premium.
+
+        Parameters
+        ----------
+        weight_threshold
+            The threshold of weight at which a sample is included in the new `Samples` object.
+        """
+        if weight_threshold is None:
+            weight_threshold = conf.instance["output"]["samples_weight_threshold"]
+        if os.environ.get("PYAUTOFIT_TEST_MODE") == "1":
+            weight_threshold = None
+        if weight_threshold is None:
+            return self
+        sample_list = []
+        for sample in self.sample_list:
+            if sample.weight > weight_threshold:
+                sample_list.append(sample)
+        if log_message:
+            logger.info(
+                f"Samples with weight less than {weight_threshold} removed from samples.csv."
+            )
+        return self.__class__(
+            model=self.model, sample_list=sample_list, samples_info=self.samples_info
+        )
+
     def minimise(self):
         """
         A copy of this object with only important samples retained
         """
         samples = copy(self)
-        samples.model = None
         samples.sample_list = list(
             {self.max_log_likelihood_sample, self.max_log_posterior_sample}
         )
@@ -575,34 +430,10 @@ class Samples(ABC):
     def subsamples(self, model):
         if self.model is None:
             return None
-        path_map = {
-            tuple(self.model.all_paths_for_prior(prior)): path
-            for (path, prior) in model.path_priors_tuples
-        }
+        path_map = self.path_map_for_model(model)
         copied = copy(self)
         copied._paths = None
         copied._names = None
         copied.model = model
         copied.sample_list = [sample.subsample(path_map) for sample in self.sample_list]
         return copied
-
-    def gaussian_priors_at_sigma(self, sigma):
-        """
-        `GaussianPrior`s of every parameter used to link its inferred values and errors to priors used to sample the
-        same (or similar) parameters in a subsequent search, where:
-
-        - The mean is given by maximum log likelihood model values.
-        - Their errors are omitted, as this information is not available from an search. When these priors are
-          used to link to another search, it will thus automatically use the prior config values.
-
-        Parameters
-        ----------
-        sigma
-            The sigma limit within which the PDF is used to estimate errors (e.g. sigma = 1.0 uses 0.6826 of the PDF).
-        """
-        return list(
-            map(
-                (lambda vector: (vector, 0.0)),
-                self.max_log_likelihood(as_instance=False),
-            )
-        )

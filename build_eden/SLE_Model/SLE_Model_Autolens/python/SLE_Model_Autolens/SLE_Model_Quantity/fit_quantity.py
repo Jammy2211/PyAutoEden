@@ -1,7 +1,6 @@
-import SLE_Model_Autoarray as aa
 import SLE_Model_Autogalaxy as ag
 from SLE_Model_Autogalaxy.SLE_Model_Quantity.dataset_quantity import DatasetQuantity
-from SLE_Model_Autolens.SLE_Model_Lens.ray_tracing import Tracer
+from SLE_Model_Autolens.SLE_Model_Lens.tracer import Tracer
 
 
 class FitQuantity(ag.FitQuantity):

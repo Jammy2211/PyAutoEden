@@ -1,8 +1,10 @@
+from typing import List
+import SLE_Model_Autoarray as aa
 import SLE_Model_Autoarray.SLE_Model_Plot as aplt
 from SLE_Model_Autoarray.SLE_Model_Fit.SLE_Model_Plot.fit_interferometer_plotters import (
     FitInterferometerPlotterMeta,
 )
-from SLE_Model_Autogalaxy.SLE_Model_Plane.plane import Plane
+from SLE_Model_Autogalaxy.SLE_Model_Galaxy.galaxy import Galaxy
 from SLE_Model_Autogalaxy.SLE_Model_Interferometer.fit_interferometer import (
     FitInterferometer,
 )
@@ -13,8 +15,8 @@ from SLE_Model_Autogalaxy.SLE_Model_Plot.SLE_Model_Visuals.one_d import Visuals1
 from SLE_Model_Autogalaxy.SLE_Model_Plot.SLE_Model_Visuals.two_d import Visuals2D
 from SLE_Model_Autogalaxy.SLE_Model_Plot.SLE_Model_Include.one_d import Include1D
 from SLE_Model_Autogalaxy.SLE_Model_Plot.SLE_Model_Include.two_d import Include2D
-from SLE_Model_Autogalaxy.SLE_Model_Plane.SLE_Model_Plot.plane_plotters import (
-    PlanePlotter,
+from SLE_Model_Autogalaxy.SLE_Model_Galaxy.SLE_Model_Plot.galaxies_plotters import (
+    GalaxiesPlotter,
 )
 
 
@@ -85,30 +87,29 @@ class FitInterferometerPlotter(Plotter):
         )
         self.figures_2d = self._fit_interferometer_meta_plotter.figures_2d
         self.subplot = self._fit_interferometer_meta_plotter.subplot
-        self.subplot_fit = self._fit_interferometer_meta_plotter.subplot_fit
         self.subplot_fit_dirty_images = (
             self._fit_interferometer_meta_plotter.subplot_fit_dirty_images
         )
 
     def get_visuals_2d_real_space(self):
-        return self.get_2d.via_mask_from(mask=self.fit.interferometer.real_space_mask)
+        return self.get_2d.via_mask_from(mask=self.fit.dataset.real_space_mask)
 
     @property
-    def plane(self):
-        return self.fit.plane_linear_light_profiles_to_light_profiles
+    def galaxies(self):
+        return self.fit.galaxies_linear_light_profiles_to_light_profiles
 
-    def plane_plotter_from(self, plane):
+    def galaxies_plotter_from(self, galaxies):
         """
-        Returns an `PlanePlotter` corresponding to an input `Plane` of the fit.
+        Returns a `GalaxiesPlotter` corresponding to an input galaxies list.
 
         Returns
         -------
-        plane
-            The plane used to make the `PlanePlotter`.
+        galaxies
+            The galaxies used to make the `GalaxiesPlotter`.
         """
-        return PlanePlotter(
-            plane=plane,
-            grid=self.fit.interferometer.grid,
+        return GalaxiesPlotter(
+            galaxies=galaxies,
+            grid=self.fit.grids.uniform,
             mat_plot_2d=self.mat_plot_2d,
             visuals_2d=self.get_visuals_2d_real_space(),
             include_2d=self.include_2d,
@@ -131,19 +132,48 @@ class FitInterferometerPlotter(Plotter):
             include_2d=self.include_2d,
         )
 
+    def subplot_fit(self):
+        """
+        Standard subplot of the attributes of the plotter's `FitImaging` object.
+        """
+        self.open_subplot_figure(number_subplots=9)
+        self.figures_2d(amplitudes_vs_uv_distances=True)
+        self.mat_plot_1d.subplot_index = 2
+        self.mat_plot_2d.subplot_index = 2
+        self.figures_2d(dirty_image=True)
+        self.figures_2d(dirty_signal_to_noise_map=True)
+        self.mat_plot_1d.subplot_index = 4
+        self.mat_plot_2d.subplot_index = 4
+        self.figures_2d(dirty_model_image=True)
+        self.mat_plot_1d.subplot_index = 5
+        self.mat_plot_2d.subplot_index = 5
+        self.figures_2d(normalized_residual_map_real=True)
+        self.figures_2d(normalized_residual_map_imag=True)
+        self.mat_plot_1d.subplot_index = 7
+        self.mat_plot_2d.subplot_index = 7
+        self.figures_2d(dirty_normalized_residual_map=True)
+        self.mat_plot_2d.cmap.kwargs["vmin"] = -1.0
+        self.mat_plot_2d.cmap.kwargs["vmax"] = 1.0
+        self.set_title(label="Normalized Residual Map (1 sigma)")
+        self.figures_2d(dirty_normalized_residual_map=True)
+        self.set_title(label=None)
+        self.mat_plot_2d.cmap.kwargs.pop("vmin")
+        self.mat_plot_2d.cmap.kwargs.pop("vmax")
+        self.figures_2d(dirty_chi_squared_map=True)
+        self.mat_plot_2d.output.subplot_to_figure(auto_filename="subplot_fit")
+        self.close_subplot_figure()
+
     def subplot_fit_real_space(self):
         """
         Standard subplot of the real-space attributes of the plotter's `FitInterferometer` object.
 
-        Depending on whether `LightProfile`'s or an `Inversion` are used to represent galaxies in the `Plane`, different
+        Depending on whether `LightProfile`'s or an `Inversion` are used to represent galaxies, different
         methods are called to create these real-space images.
         """
-        if self.fit.inversion is None:
-            plane_plotter = self.plane_plotter_from(plane=self.plane)
-            plane_plotter.subplot(
-                image=True, plane_image=True, auto_filename="subplot_fit_real_space"
-            )
-        elif self.fit.inversion is not None:
+        if not self.galaxies.has(cls=aa.Pixelization):
+            galaxies_plotter = self.galaxies_plotter_from(galaxies=self.galaxies)
+            galaxies_plotter.subplot(image=True, auto_filename="subplot_fit_real_space")
+        elif self.galaxies.has(cls=aa.Pixelization):
             self.open_subplot_figure(number_subplots=6)
             mapper_index = 0
             self.inversion_plotter.figures_2d_of_pixelization(

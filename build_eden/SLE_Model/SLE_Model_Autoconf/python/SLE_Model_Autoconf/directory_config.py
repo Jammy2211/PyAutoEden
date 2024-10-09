@@ -220,6 +220,8 @@ For parameter name and path:
 
 {directories}
 
+Either add configuration for the parameter or a type annotation for a class with valid configuration.
+
 The following readthedocs page explains prior configuration files in PyAutoFit and will help you fix the error https://pyautofit.readthedocs.io/en/latest/general/adding_a_model_component.html"""
         )
 

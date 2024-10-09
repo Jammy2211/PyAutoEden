@@ -1,5 +1,8 @@
+from abc import ABC
+from astropy.io import fits
 import logging
 import numpy as np
+from pathlib import Path
 from typing import List, Tuple, Union
 from SLE_Model_Autoconf import cached_property
 from SLE_Model_Autoarray.SLE_Model_Structures.abstract_structure import Structure
@@ -12,8 +15,8 @@ logging.basicConfig()
 logger = logging.getLogger(__name__)
 
 
-class AbstractVisibilities(Structure):
-    def __new__(cls, visibilities, *args, **kwargs):
+class AbstractVisibilities(Structure, ABC):
+    def __init__(self, visibilities):
         """
         A collection of (real, imag) visibilities which are used to represent the data in an `Interferometer` dataset.
 
@@ -45,11 +48,10 @@ class AbstractVisibilities(Structure):
                     .astype("complex128")
                     .ravel()
                 )
-        obj = visibilities.view(cls)
-        obj.ordered_1d = np.concatenate(
+        self.ordered_1d = np.concatenate(
             (np.real(visibilities), np.imag(visibilities)), axis=0
         )
-        return obj
+        super().__init__(array=visibilities)
 
     def __array_finalize__(self, obj):
         if hasattr(obj, "ordered_1d"):
@@ -57,6 +59,10 @@ class AbstractVisibilities(Structure):
 
     @property
     def slim(self):
+        return self
+
+    @property
+    def native(self):
         return self
 
     @property
@@ -89,6 +95,20 @@ class AbstractVisibilities(Structure):
     @cached_property
     def phases(self):
         return np.arctan2(self.imag, self.real)
+
+    @property
+    def hdu_for_output(self):
+        """
+        The visibilities as an HDU object, which can be output to a .fits file.
+
+        This method is used in other projects (E.g. PyAutoGalaxy, PyAutoLens) to conveniently output the array to .fits
+        files.
+
+        Returns
+        -------
+        The HDU containing the data which can then be written to .fits.
+        """
+        return array_2d_util.hdu_for_output_from(array_2d=self.in_array)
 
     def output_to_fits(self, file_path, overwrite=False):
         """
@@ -202,7 +222,7 @@ class Visibilities(AbstractVisibilities):
 
 
 class VisibilitiesNoiseMap(Visibilities):
-    def __new__(cls, visibilities, *args, **kwargs):
+    def __init__(self, visibilities, *args, **kwargs):
         """
         A collection of (real, imag) visibilities noise-map values which are used to represent the noise-map in
         an `Interferometer` dataset.
@@ -227,17 +247,14 @@ class VisibilitiesNoiseMap(Visibilities):
                     .astype("complex128")
                     .ravel()
                 )
-        obj = super(VisibilitiesNoiseMap, cls).__new__(
-            cls=cls, visibilities=visibilities
-        )
-        obj.ordered_1d = np.concatenate(
+        self.ordered_1d = np.concatenate(
             (np.real(visibilities), np.imag(visibilities)), axis=0
         )
-        weight_list = 1.0 / (obj.in_array**2.0)
-        obj.weight_list_ordered_1d = np.concatenate(
+        super().__init__(visibilities=visibilities)
+        weight_list = 1.0 / (self.in_array**2.0)
+        self.weight_list_ordered_1d = np.concatenate(
             (weight_list[:, 0], weight_list[:, 1]), axis=0
         )
-        return obj
 
     def __array_finalize__(self, obj):
         if hasattr(obj, "ordered_1d"):

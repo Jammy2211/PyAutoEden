@@ -38,7 +38,7 @@ def array_eps_to_counts(array_eps, exposure_time_map):
     exposure_time_map
         The exposure time at every data-point of the array.
     """
-    return np.multiply(array_eps, exposure_time_map)
+    return array_eps * exposure_time_map
 
 
 def array_counts_to_eps(array_counts, exposure_time_map):
@@ -57,7 +57,7 @@ def array_counts_to_eps(array_counts, exposure_time_map):
     exposure_time_map
         The exposure time at every data-point of the array.
     """
-    return np.divide(array_counts, exposure_time_map)
+    return array_counts / exposure_time_map
 
 
 def array_eps_to_adus(array_eps, exposure_time_map, gain):
@@ -78,7 +78,7 @@ def array_eps_to_adus(array_eps, exposure_time_map, gain):
     gain
         The gain of the instrument used in the conversion to / from counts and ADUs.
     """
-    return np.multiply(array_eps, exposure_time_map) / gain
+    return (array_eps * exposure_time_map) / gain
 
 
 def array_adus_to_eps(array_adus, exposure_time_map, gain):
@@ -99,7 +99,7 @@ def array_adus_to_eps(array_adus, exposure_time_map, gain):
     gain
         The gain of the instrument used in the conversion to / from counts and ADUs.
     """
-    return np.divide((gain * array_adus), exposure_time_map)
+    return (gain * array_adus) / exposure_time_map
 
 
 def array_counts_to_counts_per_second(array_counts, exposure_time):
@@ -145,7 +145,9 @@ def noise_map_via_data_eps_and_exposure_time_map_from(data_eps, exposure_time_ma
     exposure_time_map
         The exposure time at every data-point of the data.
     """
-    return np.sqrt(np.abs((data_eps * exposure_time_map))) / exposure_time_map
+    return data_eps.with_new_array(
+        ((np.abs((data_eps * exposure_time_map)) ** 0.5) / exposure_time_map)
+    )
 
 
 def noise_map_via_weight_map_from(weight_map):
@@ -162,12 +164,13 @@ def noise_map_via_weight_map_from(weight_map):
     Parameters
     ----------
     pixel_scales
-        The size of each pixel in scaled units.
+        The (y,x) arcsecond-to-pixel units conversion factor of every pixel. If this is input as a `float`,
+            it is converted to a (float, float).
     weight_map
         The weight-value of each pixel which is converted to a variance.
     """
     np.seterr(divide="ignore")
-    noise_map = 1.0 / np.sqrt(weight_map)
+    noise_map = 1.0 / (weight_map**0.5)
     noise_map[(noise_map > 100000000.0)] = 100000000.0
     return noise_map
 
@@ -208,14 +211,12 @@ def noise_map_via_data_eps_exposure_time_map_and_background_noise_map_from(
         of electrons per second.
     """
     return (
-        np.sqrt(
-            (
-                np.abs((data_eps * exposure_time_map))
-                + np.square((background_noise_map * exposure_time_map))
-            )
+        (
+            abs((data_eps * exposure_time_map))
+            + ((background_noise_map * exposure_time_map) ** 2)
         )
-        / exposure_time_map
-    )
+        ** 0.5
+    ) / exposure_time_map
 
 
 def noise_map_via_data_eps_exposure_time_map_and_background_variances_from(
@@ -236,14 +237,12 @@ def noise_map_via_data_eps_exposure_time_map_and_background_variances_from(
         of electrons per second.
     """
     return (
-        np.sqrt(
-            (
-                np.abs((data_eps * exposure_time_map))
-                + (background_variances * exposure_time_map)
-            )
+        (
+            abs((data_eps * exposure_time_map))
+            + (background_variances * exposure_time_map)
         )
-        / exposure_time_map
-    )
+        ** 0.5
+    ) / exposure_time_map
 
 
 def edges_from(image, no_edges):
@@ -278,7 +277,7 @@ def edges_from(image, no_edges):
     return edges
 
 
-def background_sky_level_via_edges_of_image_from(image, no_edges):
+def background_sky_level_via_edges_from(image, no_edges):
     """
     Estimate the background sky level in an image using the data values at its edges. These edge values are extracted
     and their median is used to calculate the bakcground sky level.
@@ -294,7 +293,7 @@ def background_sky_level_via_edges_of_image_from(image, no_edges):
     return np.median(edges)
 
 
-def background_noise_map_via_edges_of_image_from(image, no_edges):
+def background_noise_map_via_edges_from(image, no_edges):
     """
     Estimate the background noise level in an image using the data values at its edges. These edge values are binned
     into a histogram, with a Gaussian profile fitted to this histogram, such that its standard deviation (sigma) gives
@@ -362,7 +361,7 @@ def exposure_time_map_via_exposure_time_and_background_noise_map_from(
     relative_background_noise_map = inverse_background_noise_map / np.max(
         inverse_background_noise_map
     )
-    return np.abs((exposure_time * relative_background_noise_map))
+    return abs((exposure_time * relative_background_noise_map))
 
 
 def setup_random_seed(seed):
@@ -469,7 +468,7 @@ def noise_map_with_signal_to_noise_limit_from(
     Given data and its noise map, increase the noise-values of all data points which signal to noise is above an input
     `signal_to_noise_limit`, such that the signal to noise values do not exceed this limit.
 
-    This may be performed for imaging data with extremely high signal-to-noise regions in the data which are poorly
+    This may be performed for dataset data with extremely high signal-to-noise regions in the data which are poorly
     fit my the model. By downweighting their signal to noise values, the model-fit with focus on other parts of the
     data with low S/N.
 
@@ -500,7 +499,7 @@ def noise_map_with_signal_to_noise_limit_from(
         Array2D,
     )
 
-    signal_to_noise_map = np.divide(data, noise_map)
+    signal_to_noise_map = data / noise_map
     signal_to_noise_map[(signal_to_noise_map < 0)] = 0
     if noise_limit_mask is None:
         noise_limit_mask = np.full(fill_value=False, shape=data.shape_native)

@@ -7,6 +7,7 @@ from SLE_Model_Autofit.SLE_Model_Messages.normal import (
     NaturalNormal,
     UniformNormalMessage,
     LogNormalMessage,
+    Log10NormalMessage,
     MultiLogitNormalMessage,
     Log10UniformNormalMessage,
 )

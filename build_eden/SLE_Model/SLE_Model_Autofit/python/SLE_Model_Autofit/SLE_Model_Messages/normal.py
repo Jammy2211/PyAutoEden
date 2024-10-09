@@ -1,7 +1,7 @@
 import math
 from typing import Tuple, Union
 import numpy as np
-from scipy.special.cython_special import erfcinv
+from SLE_Model_Autofit.jax_wrapper import erfinv
 from scipy.stats import norm
 from SLE_Model_Autoconf import cached_property
 from SLE_Model_Autofit.SLE_Model_Mapper.operator import LinearOperator
@@ -167,7 +167,13 @@ class NormalMessage(AbstractMessage):
 
         physical_value = prior.value_for(unit=0.5)
         """
-        return self.mean + ((self.sigma * math.sqrt(2)) * erfcinv((2.0 * (1.0 - unit))))
+        try:
+            inv = erfinv((1 - (2.0 * (1.0 - unit))))
+        except TypeError:
+            from scipy.special import erfinv as scipy_erfinv
+
+            inv = scipy_erfinv((1 - (2.0 * (1.0 - unit))))
+        return self.mean + ((self.sigma * np.sqrt(2)) * inv)
 
     def log_prior_from_value(self, value):
         """
@@ -191,6 +197,15 @@ class NormalMessage(AbstractMessage):
         return "<NormalMessage id={} mean={} sigma={} lower_limit={} upper_limit={}>".format(
             self.id, self.mean, self.sigma, self.lower_limit, self.upper_limit
         )
+
+    @property
+    def natural(self):
+        return NaturalNormal.from_natural_parameters(
+            (self.natural_parameters * 0.0), **self._init_kwargs
+        )
+
+    def zeros_like(self):
+        return self.natural.zeros_like()
 
 
 class NaturalNormal(NormalMessage):
@@ -256,10 +271,17 @@ class NaturalNormal(NormalMessage):
             precision = 1 / variance
         return cls((mode * precision), ((-precision) / 2), **kwargs)
 
+    zeros_like = AbstractMessage.zeros_like
+
+    @property
+    def natural(self):
+        return self
+
 
 UniformNormalMessage = TransformedMessage(NormalMessage(0, 1), phi_transform)
 Log10UniformNormalMessage = TransformedMessage(UniformNormalMessage, log_10_transform)
 LogNormalMessage = TransformedMessage(NormalMessage(0, 1), log_transform)
+Log10NormalMessage = TransformedMessage(NormalMessage(0, 1), log_10_transform)
 MultiLogitNormalMessage = TransformedMessage(
     NormalMessage(0, 1), multinomial_logit_transform
 )

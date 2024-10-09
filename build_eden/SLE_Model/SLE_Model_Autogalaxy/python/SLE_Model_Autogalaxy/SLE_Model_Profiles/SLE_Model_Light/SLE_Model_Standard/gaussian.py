@@ -37,6 +37,12 @@ class Gaussian(LightProfile):
         super().__init__(centre=centre, ell_comps=ell_comps, intensity=intensity)
         self.sigma = sigma
 
+    @property
+    def coefficient_tag(self):
+        return (
+            f"sigma_{np.round(self.sigma, 2)}__ell_comps_{np.round(self.ell_comps, 2)}"
+        )
+
     def image_2d_via_radii_from(self, grid_radii):
         """
         Returns the 2D image of the Gaussian light profile from a grid of coordinates which are the radial distance of
@@ -61,11 +67,12 @@ class Gaussian(LightProfile):
             ),
         )
 
-    @aa.grid_dec.grid_2d_to_structure
+    @aa.over_sample
+    @aa.grid_dec.to_array
     @check_operated_only
     @aa.grid_dec.transform
     @aa.grid_dec.relocate_to_radial_minimum
-    def image_2d_from(self, grid, operated_only=None):
+    def image_2d_from(self, grid, operated_only=None, **kwargs):
         """
         Returns the Gaussian light profile's 2D image from a 2D grid of Cartesian (y,x) coordinates.
 
@@ -82,7 +89,9 @@ class Gaussian(LightProfile):
         image
             The image of the Gaussian evaluated at every (y,x) coordinate on the transformed grid.
         """
-        return self.image_2d_via_radii_from(self.eccentric_radii_grid_from(grid))
+        return self.image_2d_via_radii_from(
+            self.eccentric_radii_grid_from(grid=grid, **kwargs)
+        )
 
 
 class GaussianSph(Gaussian):

@@ -1,5 +1,5 @@
 import tempfile
-from typing import Optional
+from typing import Dict, Optional
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Paths.abstract import AbstractPaths
 
 
@@ -8,12 +8,37 @@ class NullPaths(AbstractPaths):
     Null version of paths object for avoiding writing of files to disk
     """
 
+    @property
+    def samples(self):
+        return None
+
+    def save_latent_samples(self, latent_samples):
+        pass
+
+    def save_json(self, name, object_dict, prefix=""):
+        pass
+
+    def load_json(self, name, prefix=""):
+        pass
+
+    def save_array(self, name, array):
+        pass
+
+    def load_array(self, name):
+        pass
+
+    def save_fits(self, name, hdu, prefix=""):
+        pass
+
+    def load_fits(self, name, prefix=""):
+        pass
+
     def __init__(self):
         super().__init__()
         self.objects = dict()
         self._samples_path = tempfile.mkdtemp()
 
-    def save_summary(self, samples, log_likelihood_function_time):
+    def save_summary(self, samples, latent_samples, log_likelihood_function_time):
         pass
 
     @property
@@ -33,13 +58,13 @@ class NullPaths(AbstractPaths):
     ):
         return NullPaths()
 
-    def save_named_instance(self, name, instance):
+    def save_all(self, search_config_dict=None, info=None):
         pass
 
-    def save_object(self, name, obj):
+    def save_object(self, name, obj, prefix=""):
         self.objects[name] = obj
 
-    def load_object(self, name):
+    def load_object(self, name, prefix=""):
         return self.objects[name]
 
     def remove_object(self, name):
@@ -55,7 +80,17 @@ class NullPaths(AbstractPaths):
     def completed(self):
         pass
 
-    def save_all(self, search_config_dict, info, pickle_files):
+    def save_search_internal(self, obj):
+        pass
+
+    def load_search_internal(self):
+        pass
+
+    def remove_search_internal(self):
+        pass
+
+    @property
+    def search_internal_path(self):
         pass
 
     def load_samples(self):
@@ -65,4 +100,7 @@ class NullPaths(AbstractPaths):
         pass
 
     def load_samples_info(self):
+        pass
+
+    def zip_remove(self):
         pass

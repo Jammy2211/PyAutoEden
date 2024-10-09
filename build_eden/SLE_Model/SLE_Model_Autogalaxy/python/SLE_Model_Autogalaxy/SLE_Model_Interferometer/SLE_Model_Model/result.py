@@ -1,64 +1,30 @@
 import SLE_Model_Autoarray as aa
-from typing import Dict
+from typing import List
+from SLE_Model_Autogalaxy.SLE_Model_Analysis.SLE_Model_AdaptImages.adapt_images import (
+    AdaptImages,
+)
 from SLE_Model_Autogalaxy.SLE_Model_Analysis.result import ResultDataset
 from SLE_Model_Autogalaxy.SLE_Model_Galaxy.galaxy import Galaxy
-from SLE_Model_Autogalaxy.SLE_Model_Plane.plane import Plane
 from SLE_Model_Autogalaxy.SLE_Model_Interferometer.fit_interferometer import (
     FitInterferometer,
 )
 
 
 class ResultInterferometer(ResultDataset):
-    """
-    After the non-linear search of a fit to an interferometer dataset is complete it creates
-    this `ResultInterferometer` object, which includes:
-
-    - The samples of the non-linear search (E.g. MCMC chains, nested sampling samples) which are used to compute
-    the maximum likelihood model, posteriors and other properties.
-
-    - The model used to fit the data, which uses the samples to create specific instances of the model (e.g.
-    an instance of the maximum log likelihood model).
-
-    - The non-linear search used to perform the model fit.
-
-    This class contains a number of methods which use the above objects to create the max log likelihood `Plane`,
-    `FitInterferometer`, adapt-galaxy images,etc.
-
-    Parameters
-    ----------
-    samples
-        A PyAutoFit object which contains the samples of the non-linear search, for example the chains of an MCMC
-        run of samples of the nested sampler.
-    model
-        The PyAutoFit model object, which includes model components representing the galaxies that are fitted to
-        the interferometer data.
-    search
-        The non-linear search used to perform this model-fit.
-
-    Returns
-    -------
-    ResultInterferometer
-        The result of fitting the model to the interferometer dataset, via a non-linear search.
-    """
-
     @property
     def max_log_likelihood_fit(self):
         """
         An instance of a `FitInterferometer` corresponding to the maximum log likelihood model inferred by the
         non-linear search.
         """
-        instance = self.analysis.instance_with_associated_adapt_images_from(
-            instance=self.instance_copy
-        )
-        plane = self.analysis.plane_via_instance_from(instance=instance)
-        return self.analysis.fit_interferometer_via_plane_from(plane=plane)
+        return self.analysis.fit_from(instance=self.instance)
 
     @property
-    def max_log_likelihood_plane(self):
+    def max_log_likelihood_galaxies(self):
         """
-        An instance of a `Plane` corresponding to the maximum log likelihood model inferred by the non-linear search.
+        An instance of the galaxies corresponding to the maximum log likelihood model inferred by the non-linear search.
 
-        The `Plane` is computed from the `max_log_likelihood_fit`, as this ensures that all linear light profiles
+        The galaxies are computed from the `max_log_likelihood_fit`, as this ensures that all linear light profiles
         are converted to normal light profiles with their `intensity` values updated.
         """
         return (
@@ -70,61 +36,26 @@ class ResultInterferometer(ResultDataset):
         """
         The real space mask used by this model-fit.
         """
-        return self.max_log_likelihood_fit.interferometer.real_space_mask
+        return self.max_log_likelihood_fit.dataset.real_space_mask
 
-    def visibilities_for_galaxy(self, galaxy):
+    def adapt_images_from(self, use_model_images=False):
         """
-        Given an instance of a `Galaxy` object, return an image of the galaxy via the maximum log likelihood fit.
+        Returns the adapt-images which are used to make a pixelization's mesh and regularization adapt to the
+        reconstructed galaxy's morphology.
 
-        This image is extracted via the fit's `galaxy_model_image_dict`, which is necessary to make it straight
-        forward to use the image as hyper-images.
+        This can use either:
+
+        - The model image of each galaxy in the best-fit model.
+        - The subtracted image of each galaxy in the best-fit model, where the subtracted image is the dataset
+          minus the model images of all other galaxies.
+
+        In **PyAutoLens** these adapt images have had lensing calculations performed on them and therefore for source
+        galaxies are their lensed model images in the image-plane.
 
         Parameters
         ----------
-        galaxy
-            A galaxy used by the model-fit.
-
-        Returns
-        -------
-        ndarray or None
-            A numpy arrays giving the model image of that galaxy.
+        use_model_images
+            If True, the model images of the galaxies are used to create the adapt images. If False, the subtracted
+            images of the galaxies are used.
         """
-        return self.max_log_likelihood_fit.galaxy_model_visibilities_dict[galaxy]
-
-    @property
-    def visibilities_galaxy_dict(self):
-        """
-        A dictionary associating galaxy names with model visibilities of those galaxies.
-        """
-        return {
-            galaxy_path: self.visibilities_for_galaxy(galaxy)
-            for (galaxy_path, galaxy) in self.path_galaxy_tuples
-        }
-
-    @property
-    def adapt_galaxy_visibilities_path_dict(self):
-        """
-        A dictionary associating 1D hyper_galaxies galaxy visibilities with their names.
-
-        This is used for creating the adapt-dataset used by Analysis objects to adapt aspects of a model to the dataset
-        being fitted.
-        """
-        return {
-            self.visibilities_galaxy_dict[path]
-            for (path, galaxy) in self.path_galaxy_tuples
-        }
-
-    @property
-    def adapt_model_visibilities(self):
-        """
-        The adapt model visibilities used by AnalysisInterferometer objects to adapt aspects of a model to the dataset
-        being fitted.
-
-        The adapt model visibilities are the sum of the galaxy visibilities of every individual galaxy.
-        """
-        adapt_model_visibilities = aa.Visibilities.zeros(
-            shape_slim=(self.max_log_likelihood_fit.visibilities.shape_slim,)
-        )
-        for (path, galaxy) in self.path_galaxy_tuples:
-            adapt_model_visibilities += self.adapt_galaxy_visibilities_path_dict[path]
-        return adapt_model_visibilities
+        return AdaptImages.from_result(result=self, use_model_images=True)

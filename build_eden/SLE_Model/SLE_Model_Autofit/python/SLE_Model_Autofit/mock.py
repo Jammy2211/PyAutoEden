@@ -6,8 +6,9 @@ from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Mock.mock_result import (
     MockResultGrid,
 )
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Mock.mock_search import MockSearch
-from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Mock.mock_search import (
-    MockOptimizer,
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Mock.mock_search import MockMLE
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Mock.mock_samples_summary import (
+    MockSamplesSummary,
 )
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Mock.mock_samples import (
     MockSamples,

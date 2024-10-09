@@ -25,3 +25,6 @@ from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Light.SLE_Model_Snr.eff i
     ElsonFreeFall,
     ElsonFreeFallSph,
 )
+from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Light.SLE_Model_Snr.sersic_core import (
+    SersicCore,
+)

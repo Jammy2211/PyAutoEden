@@ -1,4 +1,3 @@
-from typing import Optional, Union
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples import (
     SamplesPDF,
     Sample,
@@ -18,33 +17,29 @@ class MockSamples(SamplesPDF):
         self,
         model=None,
         sample_list=None,
-        max_log_likelihood_instance=None,
+        samples_info=None,
         log_likelihood_list=None,
-        gaussian_tuples=None,
-        unconverged_sample_size=10,
+        prior_means=None,
         **kwargs
     ):
         self._log_likelihood_list = log_likelihood_list
         self.model = model
         sample_list = sample_list or self.default_sample_list
+        samples_info = samples_info or {"unconverged_sample_size": 0}
         super().__init__(
-            model=model,
-            sample_list=sample_list,
-            unconverged_sample_size=unconverged_sample_size,
-            **kwargs
+            model=model, sample_list=sample_list, samples_info=samples_info, **kwargs
         )
-        self._max_log_likelihood_instance = max_log_likelihood_instance
-        self._gaussian_tuples = gaussian_tuples
 
     @property
     def default_sample_list(self):
-        if self._log_likelihood_list is not None:
-            log_likelihood_list = self._log_likelihood_list
-        else:
-            log_likelihood_list = range(3)
         return [
-            Sample(log_likelihood=log_likelihood, log_prior=0.0, weight=0.0)
-            for log_likelihood in log_likelihood_list
+            Sample(
+                log_likelihood=log_likelihood,
+                log_prior=0.0,
+                weight=0.0,
+                kwargs=({path: 1.0 for path in self.model.paths} if self.model else {}),
+            )
+            for log_likelihood in range(3)
         ]
 
     @property
@@ -53,52 +48,19 @@ class MockSamples(SamplesPDF):
             return super().log_likelihood_list
         return self._log_likelihood_list
 
-    def max_log_likelihood(self, as_instance=True):
-        if self._max_log_likelihood_instance is None:
-            try:
-                return super().max_log_likelihood(as_instance=as_instance)
-            except (KeyError, AttributeError):
-                pass
-        return self._max_log_likelihood_instance
-
-    def gaussian_priors_at_sigma(self, sigma=None):
-        if self._gaussian_tuples is None:
-            return super().gaussian_priors_at_sigma(sigma=sigma)
-        return self._gaussian_tuples
-
-    def write_table(self, filename):
-        pass
+    @property
+    def unconverged_sample_size(self):
+        return self.samples_info["unconverged_sample_size"]
 
 
 class MockSamplesNest(SamplesNest):
-    def __init__(
-        self,
-        model,
-        sample_list=None,
-        total_samples=10,
-        log_evidence=0.0,
-        number_live_points=5,
-        time=None,
-    ):
+    def __init__(self, model, sample_list=None, samples_info=None):
         self.model = model
         if sample_list is None:
             sample_list = [
                 Sample(log_likelihood=log_likelihood, log_prior=0.0, weight=0.0)
                 for log_likelihood in self.log_likelihood_list
             ]
-        super().__init__(model=model, sample_list=sample_list, time=time)
-        self._total_samples = total_samples
-        self._log_evidence = log_evidence
-        self._number_live_points = number_live_points
-
-    @property
-    def total_samples(self):
-        return self._total_samples
-
-    @property
-    def log_evidence(self):
-        return self._log_evidence
-
-    @property
-    def number_live_points(self):
-        return self._number_live_points
+        super().__init__(
+            model=model, sample_list=sample_list, samples_info=samples_info
+        )

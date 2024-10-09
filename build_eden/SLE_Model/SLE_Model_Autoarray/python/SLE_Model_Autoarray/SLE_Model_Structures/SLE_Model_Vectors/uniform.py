@@ -17,12 +17,12 @@ logger = logging.getLogger(__name__)
 
 
 class VectorYX2D(AbstractVectorYX2D):
-    def __new__(cls, values, grid, mask, store_native=False):
+    def __init__(self, values, grid, mask, store_native=False):
         """
         A collection of (y,x) vectors which are located on a regular 2D grid of (y,x) coordinates.
 
-        The vectors are paired to a uniform 2D mask of pixels and sub-pixels. Each vector corresponds to a value at
-        the centre of a sub-pixel in an unmasked pixel.
+        The vectors are paired to a uniform 2D mask of pixels. Each vector corresponds to a value at
+        the centre of a pixel in an unmasked pixel.
 
         The `VectorYX2D` is ordered such that pixels begin from the top-row of the corresponding mask and go right
         and down. The positive y-axis is upwards and positive x-axis to the right.
@@ -43,7 +43,7 @@ class VectorYX2D(AbstractVectorYX2D):
         used.
 
 
-        **Case 1 (sub-size=1, slim)**
+        __slim__
 
         The Vector2D is an ndarray of shape [total_unmasked_pixels, 2].
 
@@ -85,74 +85,7 @@ class VectorYX2D(AbstractVectorYX2D):
          x x x x x x x x x x      vector[9, :] = 9
 
 
-        **Case 2 (sub-size>1, slim)**
-
-        If the masks\'s sub size is > 1, the vector is defined as a sub-vector where each entry corresponds to the
-        values at the centre of each sub-pixel of an unmasked pixel.
-
-        The sub-vector indexes are ordered such that pixels begin from the first (top-left) sub-pixel in the first
-        unmasked pixel. Indexes then go over the sub-pixels in each unmasked pixel, for every unmasked pixel.
-        Therefore, the sub-vector is an ndarray of shape [total_unmasked_pixels*(sub_array_shape)**2, 2]. For example:
-
-        - vector[9, 0:2] - using a 2x2 sub-vector, gives the 3rd unmasked pixel\'s 2nd sub-pixel y and x values.
-        - vector[9, 0:2] - using a 3x3 sub-vector, gives the 2nd unmasked pixel\'s 1st sub-pixel y and x values.
-        - vector[27, 0:2] - using a 3x3 sub-vector, gives the 4th unmasked pixel\'s 1st sub-pixel y and x values.
-
-        Below is a visual illustration of a sub vector. Indexing of each sub-pixel goes from the top-left corner. In
-        contrast to the vector above, our illustration below restricts the mask to just 2 pixels, to keep the
-        illustration brief.
-
-         x x x x x x x x x x
-         x x x x x x x x x x     This is an example `Mask2D`, where:
-         x x x x x x x x x x
-         x x x x x x x x x x     x = `True` (Pixel is masked and excluded from lens)
-         x x x x O O x x x x     O = `False` (Pixel is not masked and included in lens)
-         x x x x x x x x x x
-         x x x x x x x x x x
-         x x x x x x x x x x
-         x x x x x x x x x x
-         x x x x x x x x x x
-
-        Our vector with a sub-size looks like it did before:
-
-        <--- -ve  x  +ve -->
-
-         x x x x x x x x x x  ^
-         x x x x x x x x x x  I
-         x x x x x x x x x x  I
-         x x x x x x x x x x +ve
-         x x x 0 1 x x x x x  y
-         x x x x x x x x x x -ve
-         x x x x x x x x x x  I
-         x x x x x x x x x x  I
-         x x x x x x x x x x \\/
-         x x x x x x x x x x
-
-        However, if the sub-size is 2,each unmasked pixel has a set of sub-pixels with values. For example, for pixel 0,
-        if `sub_size=2`, it has 4 values on a 2x2 sub-vector:
-
-        Pixel 0 - (2x2):
-
-               vector[0, 0:2] = y and x values of first sub-pixel in pixel 0.
-        I0I1I  vector[1, 0:2] = y and x values of first sub-pixel in pixel 1.
-        I2I3I  vector[2, 0:2] = y and x values of first sub-pixel in pixel 2.
-               vector[3, 0:2] = y and x values of first sub-pixel in pixel 3.
-
-        If we used a sub_size of 3, for the first pixel we we would create a 3x3 sub-vector:
-
-
-                 vector[0] = y and x values of first sub-pixel in pixel 0.
-                 vector[1] = y and x values of first sub-pixel in pixel 1.
-                 vector[2] = y and x values of first sub-pixel in pixel 2.
-        I0I1I2I  vector[3] = y and x values of first sub-pixel in pixel 3.
-        I3I4I5I  vector[4] = y and x values of first sub-pixel in pixel 4.
-        I6I7I8I  vector[5] = y and x values of first sub-pixel in pixel 5.
-                 vector[6] = y and x values of first sub-pixel in pixel 6.
-                 vector[7] = y and x values of first sub-pixel in pixel 7.
-                 vector[8] = y and x values of first sub-pixel in pixel 8.
-
-
-        **Case 3 (sub_size=1, native)**
+        __native__
 
         The Vector2D has the same properties as Case 1, but is stored as an an ndarray of shape
         [total_y_values, total_x_values, 2].
@@ -181,14 +114,6 @@ class VectorYX2D(AbstractVectorYX2D):
             - vector[3,4, 0:2] = [0, 0]
             - vector[3,4, 0:2] = [-1, -1]
 
-
-        **Case 4: (sub_size>, native)**
-
-        The properties of this vector can be derived by combining Case\'s 2 and 3 above, whereby the vector is stored as
-        an ndarray of shape [total_y_values*sub_size, total_x_values*sub_size, 2].
-
-        All sub-pixels in masked pixels have values 0.0.
-
         Parameters
         ----------
         values
@@ -202,8 +127,6 @@ class VectorYX2D(AbstractVectorYX2D):
             If True, the ndarray is stored in its native format [total_y_pixels, total_x_pixels, 2]. This avoids
             mapping large data arrays to and from the slim / native formats, which can be a computational bottleneck.
         """
-        if len(values) == 0:
-            return []
         if type(values) is list:
             values = np.asarray(values)
         values = grid_2d_util.convert_grid_2d(
@@ -212,10 +135,9 @@ class VectorYX2D(AbstractVectorYX2D):
         grid = grid_2d_util.convert_grid_2d(
             grid_2d=grid, mask_2d=mask, store_native=store_native
         )
-        obj = values.view(cls)
-        obj.grid = Grid2D(values=grid, mask=mask)
-        obj.mask = mask
-        return obj
+        self.grid = Grid2D(values=grid, mask=mask)
+        self.mask = mask
+        super().__init__(values)
 
     def __array_finalize__(self, obj):
         if hasattr(obj, "mask"):
@@ -224,9 +146,7 @@ class VectorYX2D(AbstractVectorYX2D):
             self.grid = obj.grid
 
     @classmethod
-    def no_mask(
-        cls, values, pixel_scales, shape_native=None, sub_size=1, origin=(0.0, 0.0)
-    ):
+    def no_mask(cls, values, pixel_scales, shape_native=None, origin=(0.0, 0.0)):
         """
         Create a VectorYX2D (see *VectorYX2D.__new__*) by inputting the vector in 1D, for example:
 
@@ -245,14 +165,12 @@ class VectorYX2D(AbstractVectorYX2D):
         Parameters
         ----------
         values
-            The (y,x) vectors input as an ndarray of shape [total_unmasked_pixells*(sub_size**2), 2] or a list of lists.
+            The (y,x) vectors input as an ndarray of shape [total_unmasked_pixels, 2] or a list of lists.
         shape_native
             The 2D shape of the mask the grid is paired with.
         pixel_scales
-            The (y,x) scaled units to pixel units conversion factors of every pixel. If this is input as a ``float``,
-            it is converted to a (float, float) structure.
-        sub_size
-            The size (sub_size x sub_size) of each unmasked pixels sub-grid.
+            The (y,x) arcsecond-to-pixel units conversion factor of every pixel. If this is input as a `float`,
+            it is converted to a (float, float).
         origin
             The origin of the grid's mask.
         """
@@ -278,21 +196,12 @@ class VectorYX2D(AbstractVectorYX2D):
                     """
                 )
         else:
-            shape_native = (
-                int((values.shape[0] / sub_size)),
-                int((values.shape[1] / sub_size)),
-            )
+            shape_native = (int(values.shape[0]), int(values.shape[1]))
         grid = Grid2D.uniform(
-            shape_native=shape_native,
-            pixel_scales=pixel_scales,
-            sub_size=sub_size,
-            origin=origin,
+            shape_native=shape_native, pixel_scales=pixel_scales, origin=origin
         )
         mask = Mask2D.all_false(
-            shape_native=shape_native,
-            pixel_scales=pixel_scales,
-            sub_size=sub_size,
-            origin=origin,
+            shape_native=shape_native, pixel_scales=pixel_scales, origin=origin
         )
         return cls(values=values, grid=grid, mask=mask)
 
@@ -308,18 +217,16 @@ class VectorYX2D(AbstractVectorYX2D):
         Parameters
         ----------
         values
-            The values of the array input as an ndarray of shape [total_unmasked_pixels*(sub_size**2)] or a list of
+            The values of the array input as an ndarray of shape [total_unmasked_pixels] or a list of
             lists.
         mask
-            The mask whose masked pixels are used to setup the sub-pixel grid.
+            The mask whose masked pixels are used to setup the pixel grid.
         """
         grid = Grid2D.from_mask(mask=mask)
         return VectorYX2D(values=values, grid=grid, mask=mask)
 
     @classmethod
-    def full(
-        cls, fill_value, shape_native, pixel_scales, sub_size=1, origin=(0.0, 0.0)
-    ):
+    def full(cls, fill_value, shape_native, pixel_scales, origin=(0.0, 0.0)):
         """
         Create a `VectorYX2D` (see `AbstractVectorYX2D.__new__`) where all values are filled with an input fill value,
         analogous to the method np.full().
@@ -332,28 +239,23 @@ class VectorYX2D(AbstractVectorYX2D):
         fill_value
             The value all array elements are filled with.
         pixel_scales
-            The (y,x) scaled units to pixel units conversion factors of every pixel. If this is input as a ``float``,
-            it is converted to a (float, float) structure.
-        sub_size
-            The size (sub_size x sub_size) of each unmasked pixels sub-grid.
+            The (y,x) arcsecond-to-pixel units conversion factor of every pixel. If this is input as a `float`,
+            it is converted to a (float, float).
         origin
             The origin of the grid's mask.
         origin
             The (y,x) scaled units origin of the mask's coordinate system.
         """
-        if sub_size is not None:
-            shape_native = ((shape_native[0] * sub_size), (shape_native[1] * sub_size))
         return cls.no_mask(
             values=np.full(
                 fill_value=fill_value, shape=(shape_native[0], shape_native[1], 2)
             ),
             pixel_scales=pixel_scales,
-            sub_size=sub_size,
             origin=origin,
         )
 
     @classmethod
-    def ones(cls, shape_native, pixel_scales, sub_size=1, origin=(0.0, 0.0)):
+    def ones(cls, shape_native, pixel_scales, origin=(0.0, 0.0)):
         """
         Create a `VectorYX2D` (see `AbstractVectorYX2D.__new__`) where all values are filled with 1.0, analogous to
         the method np.ones().
@@ -366,10 +268,8 @@ class VectorYX2D(AbstractVectorYX2D):
         fill_value
             The value all array elements are filled with.
         pixel_scales
-            The (y,x) scaled units to pixel units conversion factors of every pixel. If this is input as a ``float``,
-            it is converted to a (float, float) structure.
-        sub_size
-            The size (sub_size x sub_size) of each unmasked pixels sub-grid.
+            The (y,x) arcsecond-to-pixel units conversion factor of every pixel. If this is input as a `float`,
+            it is converted to a (float, float).
         origin
             The (y,x) scaled units origin of the mask's coordinate system.
         """
@@ -377,12 +277,11 @@ class VectorYX2D(AbstractVectorYX2D):
             fill_value=1.0,
             shape_native=shape_native,
             pixel_scales=pixel_scales,
-            sub_size=sub_size,
             origin=origin,
         )
 
     @classmethod
-    def zeros(cls, shape_native, pixel_scales, sub_size=1, origin=(0.0, 0.0)):
+    def zeros(cls, shape_native, pixel_scales, origin=(0.0, 0.0)):
         """
         Create a `VectorYX2D` (see `AbstractVectorYX2D.__new__`) where all values are filled with 1.0, analogous to
         the method np.zeros().
@@ -395,10 +294,8 @@ class VectorYX2D(AbstractVectorYX2D):
         fill_value
             The value all array elements are filled with.
         pixel_scales
-            The (y,x) scaled units to pixel units conversion factors of every pixel. If this is input as a ``float``,
-            it is converted to a (float, float) structure.
-        sub_size
-            The size (sub_size x sub_size) of each unmasked pixels sub-grid.
+            The (y,x) arcsecond-to-pixel units conversion factor of every pixel. If this is input as a `float`,
+            it is converted to a (float, float).
         origin
             The (y,x) scaled units origin of the mask's coordinate system.
         """
@@ -406,7 +303,6 @@ class VectorYX2D(AbstractVectorYX2D):
             fill_value=0.0,
             shape_native=shape_native,
             pixel_scales=pixel_scales,
-            sub_size=sub_size,
             origin=origin,
         )
 
@@ -414,7 +310,7 @@ class VectorYX2D(AbstractVectorYX2D):
     def slim(self):
         """
         Return a `VectorYX2D` where the data is stored its `slim` representation, which is an ndarray of shape
-        [total_unmasked_pixels * sub_size**2, 2].
+        [total_unmasked_pixels, 2].
 
         If it is already stored in its `slim` representation it is returned as it is. If not, it is  mapped from
         `native` to `slim` and returned as a new `Array2D`.
@@ -425,40 +321,13 @@ class VectorYX2D(AbstractVectorYX2D):
     def native(self):
         """
         Return a `VectorYX2D` where the data is stored in its `native` representation, which is an ndarray of shape
-        [sub_size*total_y_pixels, sub_size*total_x_pixels, 2].
+        [total_y_pixels, total_x_pixels, 2].
 
         If it is already stored in its `native` representation it is return as it is. If not, it is mapped from
         `slim` to `native` and returned as a new `Grid2D`.
         """
         return VectorYX2D(
             values=self, grid=self.grid.native, mask=self.mask, store_native=True
-        )
-
-    @property
-    def binned(self):
-        """
-        Convenience method to access the binned-up vectors as a Vector2D stored in its `slim` or `native` format.
-
-        The binning up process converts a grid from (y,x) values where each value is a coordinate on the sub-grid to
-        (y,x) values where each coordinate is at the centre of its mask (e.g. a grid with a sub_size of 1). This is
-        performed by taking the mean of all (y,x) values in each sub pixel.
-
-        If the grid is stored in 1D it is return as is. If it is stored in 2D, it must first be mapped from 2D to 1D.
-        """
-        vector_2d_slim_binned_y = np.multiply(
-            self.mask.sub_fraction,
-            self.slim[:, 0].reshape((-1), self.mask.sub_length).sum(axis=1),
-        )
-        vector_2d_slim_binned_x = np.multiply(
-            self.mask.sub_fraction,
-            self.slim[:, 1].reshape((-1), self.mask.sub_length).sum(axis=1),
-        )
-        return VectorYX2D(
-            values=np.stack(
-                (vector_2d_slim_binned_y, vector_2d_slim_binned_x), axis=(-1)
-            ),
-            grid=self.grid.binned,
-            mask=self.mask.derive_mask.sub_1,
         )
 
     def apply_mask(self, mask):

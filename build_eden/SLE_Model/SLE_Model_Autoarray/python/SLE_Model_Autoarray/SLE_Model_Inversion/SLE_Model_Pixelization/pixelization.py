@@ -1,14 +1,18 @@
 from typing import Callable, Optional
+from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_ImageMesh.abstract import (
+    AbstractImageMesh,
+)
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mesh.abstract import (
     AbstractMesh,
 )
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Regularization.abstract import (
     AbstractRegularization,
 )
+from SLE_Model_Autoarray import exc
 
 
 class Pixelization:
-    def __init__(self, mesh, regularization=None):
+    def __init__(self, mesh, regularization=None, image_mesh=None):
         """
         Pairs a 2D grid of (y,x) coordinates with a 2D mesh, which can be combined with a ``Regularization``
         scheme in order to reconstruct data via an ``Inversion``.
@@ -113,6 +117,9 @@ class Pixelization:
         regularization
             The regularization object that can smooth ``Pixelization`` pixels with one another when it is used to
             reconstruct data via an `Inversion`.
+        image_mesh
+            The grid of mesh coordinates may be derived from the image, for example if the pixelization is adaptive.
+            This object controls how this mesh is computed.
 
         Examples
         --------
@@ -148,8 +155,18 @@ class Pixelization:
 
             model = af.Collection(galaxies=af.Collection(galaxy=galaxy))
         """
+        if mesh is not None:
+            if mesh.requires_image_mesh and (image_mesh is None):
+                raise exc.PixelizationException(
+                    """
+                    A pixelization has been created which requires an image-mesh to be supplied (e.g. Delaunay, Voronoi).
+                    
+                    However, not image-mesh has been input.
+                    """
+                )
         self.mesh = mesh
         self.regularization = regularization
+        self.image_mesh = image_mesh
 
     @property
     def mapper_grids_from(self):

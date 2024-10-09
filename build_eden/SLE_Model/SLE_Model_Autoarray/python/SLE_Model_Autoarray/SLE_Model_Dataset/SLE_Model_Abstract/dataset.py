@@ -1,18 +1,16 @@
 import copy
 import logging
 import numpy as np
-from typing import Optional, Union
 import warnings
-from SLE_Model_Autoconf import cached_property
-from SLE_Model_Autoconf import conf
-from SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Abstract.settings import (
-    AbstractSettingsDataset,
-)
-from SLE_Model_Autoarray.SLE_Model_Structures.abstract_structure import Structure
-from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays.uniform_2d import Array2D
+from typing import Optional, Union
+from SLE_Model_Autoarray.SLE_Model_Dataset.over_sampling import OverSamplingDataset
+from SLE_Model_Autoarray.SLE_Model_Dataset.grids import GridsDataset
+from SLE_Model_Autoarray import exc
 from SLE_Model_Autoarray.SLE_Model_Mask.mask_1d import Mask1D
 from SLE_Model_Autoarray.SLE_Model_Mask.mask_2d import Mask2D
-from SLE_Model_Autoarray import exc
+from SLE_Model_Autoarray.SLE_Model_Structures.abstract_structure import Structure
+from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays.uniform_2d import Array2D
+from SLE_Model_Autoconf import cached_property
 
 logger = logging.getLogger(__name__)
 
@@ -23,23 +21,44 @@ class AbstractDataset:
         data,
         noise_map,
         noise_covariance_matrix=None,
-        settings=AbstractSettingsDataset(),
+        over_sampling=OverSamplingDataset(),
     ):
         """
-        A collection of abstract data structures for different types of data (an image, pixel-scale, noise-map, etc.)
+        An abstract dataset, containing the image data, noise-map, PSF and associated quantities for calculations
+        like the grid.
+
+        This object is extended with specific dataset types, such as an `Imaging` or `Interferometer` dataset,
+        and can be used for fitting data with model data and quantifying the goodness-of-fit.
+
+        The following quantities are abstract and used by any dataset type:
+
+        - `data`: The image data, which shows the signal that is analysed and fitted with a model image.
+
+        - `noise_map`: The RMS standard deviation error in every pixel, which is used to compute the chi-squared value
+        and likelihood of a fit.
+
+        The dataset also has a number of (y,x) grids of coordinates associated with it, which map to the centres
+        of its image pixels. They are used for performing calculations which map directly to the data and have
+        over sampling calculations built in which approximate the 2D line integral of these calculations within a
+        pixel. This is explained in more detail in the `GridsDataset` class.
 
         Parameters
         ----------
-        dataucture
-            The array of the image data, in units of electrons per second.
-        noise_mapucture
-            An array describing the RMS standard deviation error in each pixel, preferably in units of electrons per
-            second.
+        data
+            The array of the image data containing the signal that is fitted (in PyAutoGalaxy and PyAutoLens the
+            recommended units are electrons per second).
+        noise_map
+            An array describing the RMS standard deviation error in each pixel used for computing quantities like the
+            chi-squared in a fit (in PyAutoGalaxy and PyAutoLens the recommended units are electrons per second).
+        noise_covariance_matrix
+            A noise-map covariance matrix representing the covariance between noise in every `data` value, which
+            can be used via a bespoke fit to account for correlated noise in the data.
+        over_sampling
+            The over sampling schemes which divide the grids into sub grids of smaller pixels within their host image
+            pixels when using the grid to evaluate a function (e.g. images) to better approximate the 2D line integral
+            This class controls over sampling for all the different grids (e.g. `grid`, `grids.pixelization).
         """
         self.data = data
-        self.noise_map = noise_map
-        self.settings = settings
-        mask = self.mask
         self.noise_covariance_matrix = noise_covariance_matrix
         if noise_map is None:
             try:
@@ -64,17 +83,15 @@ class AbstractDataset:
                     """
                 ) from e
         self.noise_map = noise_map
-        if conf.instance["general"]["structures"]["use_dataset_grids"]:
-            mask_grid = mask.mask_new_sub_size_from(
-                mask=mask, sub_size=settings.sub_size
-            )
-            self.grid = settings.grid_from(mask=mask_grid)
-            mask_inversion = mask.mask_new_sub_size_from(
-                mask=mask, sub_size=settings.sub_size_pixelization
-            )
-            self.grid_pixelization = settings.grid_pixelization_from(
-                mask=mask_inversion
-            )
+        self.over_sampling = over_sampling
+
+    @property
+    def grid(self):
+        return self.grids.uniform
+
+    @cached_property
+    def grids(self):
+        return GridsDataset(mask=self.data.mask, over_sampling=self.over_sampling)
 
     @property
     def shape_native(self):
@@ -92,16 +109,19 @@ class AbstractDataset:
     def mask(self):
         return self.data.mask
 
+    def apply_over_sampling(self):
+        raise NotImplementedError
+
     @property
     def signal_to_noise_map(self):
         """
         The estimated signal-to-noise_maps mappers of the image.
 
-        Warnings airse when masked native noise-maps are used, whose masked entries are given values of 0.0. We
-        uses the warnings module to surpress these RunTimeWarnings.
+        Warnings arise when masked native noise-maps are used, whose masked entries are given values of 0.0. We
+        use the warnings module to suppress these RunTimeWarnings.
         """
         warnings.filterwarnings("ignore")
-        signal_to_noise_map = np.divide(self.data, self.noise_map)
+        signal_to_noise_map = self.data / self.noise_map
         signal_to_noise_map[(signal_to_noise_map < 0)] = 0
         return signal_to_noise_map
 
@@ -121,11 +141,11 @@ class AbstractDataset:
         return np.linalg.inv(self.noise_covariance_matrix)
 
     def trimmed_after_convolution_from(self, kernel_shape):
-        imaging = copy.copy(self)
-        imaging.data = imaging.data.trimmed_after_convolution_from(
+        dataset = copy.copy(self)
+        dataset.data = dataset.data.trimmed_after_convolution_from(
             kernel_shape=kernel_shape
         )
-        imaging.noise_map = imaging.noise_map.trimmed_after_convolution_from(
+        dataset.noise_map = dataset.noise_map.trimmed_after_convolution_from(
             kernel_shape=kernel_shape
         )
-        return imaging
+        return dataset

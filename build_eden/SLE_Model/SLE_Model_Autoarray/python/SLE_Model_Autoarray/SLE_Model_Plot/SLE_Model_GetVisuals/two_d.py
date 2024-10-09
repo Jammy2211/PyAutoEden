@@ -1,10 +1,7 @@
 from typing import Union
 from SLE_Model_Autoarray.SLE_Model_Fit.fit_imaging import FitImaging
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.rectangular import (
-    MapperRectangularNoInterp,
-)
-from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.voronoi import (
-    MapperVoronoiNoInterp,
+    MapperRectangular,
 )
 from SLE_Model_Autoarray.SLE_Model_Mask.mask_2d import Mask2D
 from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_GetVisuals.abstract import (
@@ -84,7 +81,7 @@ class GetVisuals2D(AbstractGetVisuals):
         """
         origin = self.origin_via_mask_from(mask=mask)
         mask_visuals = self.get("mask", mask)
-        border = self.get("border", mask.derive_grid.border_sub_1.binned)
+        border = self.get("border", mask.derive_grid.border)
         return self.visuals + self.visuals.__class__(
             origin=origin, mask=mask_visuals, border=border
         )
@@ -140,7 +137,7 @@ class GetVisuals2D(AbstractGetVisuals):
         Visuals2D
             The collection of attributes that can be plotted by a `Plotter` object.
         """
-        visuals_via_mask = self.via_mask_from(mask=mapper.source_plane_data_grid.mask)
+        visuals_via_mask = self.via_mask_from(mask=mapper.mapper_grids.mask)
         mesh_grid = self.get(
             "mesh_grid", mapper.image_plane_mesh_grid, "mapper_image_plane_mesh_grid"
         )
@@ -180,7 +177,13 @@ class GetVisuals2D(AbstractGetVisuals):
         grid = self.get(
             "grid", mapper.source_plane_data_grid, "mapper_source_plane_data_grid"
         )
-        border = self.get("border", mapper.source_plane_data_grid.sub_border_grid)
+        try:
+            border_grid = mapper.mapper_grids.source_plane_data_grid[
+                mapper.border_relocator.sub_border_slim
+            ]
+            border = self.get("border", border_grid)
+        except AttributeError:
+            border = None
         mesh_grid = self.get(
             "mesh_grid", mapper.source_plane_mesh_grid, "mapper_source_plane_mesh_grid"
         )

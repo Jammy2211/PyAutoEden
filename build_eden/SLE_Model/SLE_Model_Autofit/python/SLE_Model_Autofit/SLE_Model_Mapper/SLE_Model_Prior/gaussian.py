@@ -1,12 +1,16 @@
+from typing import Optional
+from SLE_Model_Autofit.jax_wrapper import register_pytree_node_class
 from SLE_Model_Autofit.SLE_Model_Messages.normal import NormalMessage
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.abstract import Prior
 
 
+@register_pytree_node_class
 class GaussianPrior(Prior):
     __identifier_fields__ = ("lower_limit", "upper_limit", "mean", "sigma")
+    __database_args__ = ("mean", "sigma", "lower_limit", "upper_limit", "id_")
 
     def __init__(
-        self, mean, sigma, lower_limit=float("-inf"), upper_limit=float("inf")
+        self, mean, sigma, lower_limit=float("-inf"), upper_limit=float("inf"), id_=None
     ):
         """
         A prior with a uniform distribution, defined between a lower limit and upper limit.
@@ -47,7 +51,11 @@ class GaussianPrior(Prior):
             message=NormalMessage(
                 mean=mean, sigma=sigma, lower_limit=lower_limit, upper_limit=upper_limit
             ),
+            id_=id_,
         )
+
+    def tree_flatten(self):
+        return ((self.mean, self.sigma, self.lower_limit, self.upper_limit), (self.id,))
 
     @classmethod
     def with_limits(cls, lower_limit, upper_limit):

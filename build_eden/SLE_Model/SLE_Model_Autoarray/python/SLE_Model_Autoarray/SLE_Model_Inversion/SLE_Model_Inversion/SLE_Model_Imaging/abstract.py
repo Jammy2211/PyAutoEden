@@ -1,7 +1,11 @@
 import numpy as np
-from typing import Dict, List, Optional, Type
+from typing import Dict, List, Optional, Union, Type
 from SLE_Model_Autoconf import cached_property
 from SLE_Model_Autoarray.numba_util import profile_func
+from SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.dataset import Imaging
+from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.dataset_interface import (
+    DatasetInterface,
+)
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_LinearObj.func_list import (
     AbstractLinearObjFuncList,
 )
@@ -17,8 +21,6 @@ from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_LinearObj.linear_obj impo
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.settings import (
     SettingsInversion,
 )
-from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays.uniform_2d import Array2D
-from SLE_Model_Autoarray.SLE_Model_Operators.convolver import Convolver
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.SLE_Model_Imaging import (
     inversion_imaging_util,
 )
@@ -27,13 +29,11 @@ from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.SLE_Model_Imagi
 class AbstractInversionImaging(AbstractInversion):
     def __init__(
         self,
-        data,
-        noise_map,
-        convolver,
+        dataset,
         linear_obj_list,
         settings=SettingsInversion(),
         preloads=None,
-        profiling_dict=None,
+        run_time_dict=None,
     ):
         """
         An `Inversion` reconstructs an input dataset using a list of linear objects (e.g. a list of analytic functions
@@ -78,21 +78,23 @@ class AbstractInversionImaging(AbstractInversion):
         preloads
             Preloads in memory certain arrays which may be known beforehand in order to speed up the calculation,
             for example certain matrices used by the linear algebra could be preloaded.
-        profiling_dict
+        run_time_dict
             A dictionary which contains timing of certain functions calls which is used for profiling.
         """
         from SLE_Model_Autoarray.preloads import Preloads
 
         preloads = preloads or Preloads()
-        self.convolver = convolver
         super().__init__(
-            data=data,
-            noise_map=noise_map,
+            dataset=dataset,
             linear_obj_list=linear_obj_list,
             settings=settings,
             preloads=preloads,
-            profiling_dict=profiling_dict,
+            run_time_dict=run_time_dict,
         )
+
+    @property
+    def convolver(self):
+        return self.dataset.convolver
 
     @property
     def operated_mapping_matrix_list(self):

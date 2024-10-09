@@ -1,4 +1,5 @@
 from abc import ABC
+from pathlib import Path
 from typing import cast
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Paths.abstract import AbstractPaths
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Paths.database import DatabasePaths
@@ -25,7 +26,7 @@ class SubDirectoryPaths(ABC):
         The output path is customised to place output in a named directory in
         the analyses directory.
         """
-        return f"{self.parent.output_path}/{self.analysis_name}"
+        return self.parent.output_path / self.analysis_name
 
 
 class SubDirectoryPathsDirectory(DirectoryPaths, SubDirectoryPaths):

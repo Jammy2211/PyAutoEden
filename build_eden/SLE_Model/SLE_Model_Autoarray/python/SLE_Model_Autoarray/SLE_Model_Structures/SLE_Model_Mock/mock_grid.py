@@ -1,9 +1,10 @@
 import numpy as np
-from typing import Tuple
+from typing import Tuple, List
 from SLE_Model_Autoarray.SLE_Model_Geometry.abstract_2d import AbstractGeometry2D
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_LinearObj.neighbors import (
     Neighbors,
 )
+from SLE_Model_Autoarray.SLE_Model_Structures.abstract_structure import Structure
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Mesh.abstract_2d import (
     Abstract2DMesh,
 )
@@ -19,7 +20,19 @@ class MockGeometry(AbstractGeometry2D):
 
 
 class MockGrid2DMesh(Abstract2DMesh):
-    def __new__(cls, grid=None, extent=None):
+    @property
+    def pixels(self):
+        raise NotImplementedError()
+
+    @property
+    def slim(self):
+        raise NotImplementedError()
+
+    @property
+    def native(self):
+        raise NotImplementedError()
+
+    def __init__(self, grid=None, extent=None):
         """
         A grid of (y,x) coordinates which represent a uniform rectangular pixelization.
 
@@ -46,14 +59,11 @@ class MockGrid2DMesh(Abstract2DMesh):
             it is converted to a (float, float) structure.
         origin
             The (y,x) origin of the pixelization.
-        nearest_pixelization_index_for_slim_index
-            A 1D array that maps every grid pixel to its nearest pixelization-grid pixel.
         """
         if grid is None:
             grid = np.ones(shape=(1, 2))
-        obj = grid.view(cls)
-        obj._extent = extent
-        return obj
+        self._extent = extent
+        super().__init__(grid)
 
     @property
     def geometry(self):

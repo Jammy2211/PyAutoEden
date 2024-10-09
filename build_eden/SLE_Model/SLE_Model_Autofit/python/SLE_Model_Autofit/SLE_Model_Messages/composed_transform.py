@@ -1,7 +1,11 @@
 import functools
-from typing import Tuple, Optional, Union
 import numpy as np
-from SLE_Model_Autofit.SLE_Model_Messages.abstract import MessageInterface
+import warnings
+from typing import Tuple, Optional, Union
+from SLE_Model_Autofit.SLE_Model_Messages.abstract import (
+    MessageInterface,
+    AbstractMessage,
+)
 from SLE_Model_Autofit.SLE_Model_Messages.transform import AbstractDensityTransform
 
 
@@ -88,6 +92,12 @@ class TransformedMessage(MessageInterface):
         self.id = id_
         self.lower_limit = lower_limit
         self.upper_limit = upper_limit
+        (x0, x1) = zip(*base_message._support)
+        z0 = self._inverse_transform(np.array(x0))
+        z1 = self._inverse_transform(np.array(x1))
+        self._support = tuple(zip(z0, z1))
+
+    log_normalisation = AbstractMessage.log_normalisation
 
     def from_natural_parameters(self, new_params, **kwargs):
         return self.with_base(
@@ -186,10 +196,23 @@ class TransformedMessage(MessageInterface):
             x = _transform.inv_transform(x)
         return x
 
-    def transform_det(self, x):
-        for _transform in self.transforms:
-            x = _transform.log_det(x)
-        return x
+    def _transform_det(self, x):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            logd = 0
+            for _transform in reversed(self.transforms):
+                (x, _logd) = _transform.transform_det(x)
+                logd += _logd
+            return (x, logd)
+
+    def _transform_det_jac(self, x):
+        logd = 0
+        logd_jacs = []
+        for _transform in reversed(self.transforms):
+            (x, _logd, _logd_grad, _jac) = _transform.transform_det_jac(x)
+            logd += _logd
+            logd_jacs.append((_logd_grad, _jac))
+        return (x, logd, logd_jacs)
 
     def invert_natural_parameters(self, natural_parameters):
         return self.base_message.invert_natural_parameters(natural_parameters)
@@ -236,13 +259,8 @@ class TransformedMessage(MessageInterface):
     def _sample(self, n_samples):
         return self.base_message._sample(n_samples)
 
-    def _factor(self, _, x):
-        log_det = self.transform_det(x)
-        x = self._transform(x)
-        eta = self.base_message._broadcast_natural_parameters(x)
-        t = self.base_message.to_canonical_form(x)
-        log_base = self.calc_log_base_measure(x) + log_det
-        return self.base_message.natural_logpdf(eta, t, log_base, self.log_partition)
+    def exp_factor(self, x):
+        return np.exp(np.nan_to_num(self.factor(x), nan=(-np.inf)))
 
     def factor(self, x):
         """
@@ -258,7 +276,28 @@ class TransformedMessage(MessageInterface):
         -------
         The probability this value is correct
         """
-        return self._factor(self, x)
+        (x, logd) = self._transform_det(x)
+        return self.base_message.logpdf(x) + logd
+
+    def factor_gradient(self, x):
+        """
+        Call the factor. The closer to the mean a given value is the higher
+        the probability returned.
+
+        Parameters
+        ----------
+        x
+            A value in the space of the transformed message.
+
+        Returns
+        -------
+        The probability this value is correct
+        """
+        (x, logd, logd_grad, jacs) = self._transform_det_jac(x)
+        (logp, grad) = self.base_message.logpdf_gradient(x)
+        for jac in reversed(jacs):
+            grad = grad * jac
+        return ((logp + logd), (grad + logd_grad))
 
     @property
     def multivariate(self):
@@ -288,3 +327,6 @@ class TransformedMessage(MessageInterface):
     @property
     def log_base_measure(self):
         return self.base_message.log_base_measure
+
+    def zeros_like(self):
+        return self**0.0

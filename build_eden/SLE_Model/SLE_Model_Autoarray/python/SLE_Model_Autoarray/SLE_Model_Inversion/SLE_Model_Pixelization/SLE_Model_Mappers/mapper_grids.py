@@ -4,28 +4,28 @@ from typing import TYPE_CHECKING, Dict, Optional
 
 if TYPE_CHECKING:
     from SLE_Model_Autoarray import Preloads
+from SLE_Model_Autoarray.SLE_Model_Mask.mask_2d import Mask2D
+from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays.uniform_2d import Array2D
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.uniform_2d import Grid2D
-from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.sparse_2d import (
-    Grid2DSparse,
+from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.irregular_2d import (
+    Grid2DIrregular,
 )
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Mesh.abstract_2d import (
     Abstract2DMesh,
 )
-from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.settings import (
-    SettingsPixelization,
-)
+from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids import grid_2d_util
 
 
 class MapperGrids:
     def __init__(
         self,
+        mask,
         source_plane_data_grid,
         source_plane_mesh_grid=None,
         image_plane_mesh_grid=None,
-        hyper_data=None,
-        settings=SettingsPixelization(),
+        adapt_data=None,
         preloads=None,
-        profiling_dict=None,
+        run_time_dict=None,
     ):
         """
         Groups the different grids used by `Mesh` objects, the `mesh` package and the `pixelization` package, which
@@ -58,23 +58,35 @@ class MapperGrids:
         image_plane_mesh_grid
             The sparse set of (y,x) coordinates computed from the unmasked data in the `data` frame. This has a
             transformation applied to it to create the `source_plane_mesh_grid`.
-        hyper_data
+        adapt_data
             An image which is used to determine the `image_plane_mesh_grid` and therefore adapt the distribution of
             pixels of the Delaunay grid to the data it discretizes.
-        settings
-            Settings controlling the pixelization for example if a border is used to relocate its exterior coordinates.
         preloads
             Preloads in memory certain arrays which may be known beforehand in order to speed up the calculation,
             for example the `source_plane_mesh_grid` could be preloaded.
-        profiling_dict
+        run_time_dict
             A dictionary which contains timing of certain functions calls which is used for profiling.
         """
         from SLE_Model_Autoarray.preloads import Preloads
 
+        self.mask = mask
         self.source_plane_data_grid = source_plane_data_grid
         self.source_plane_mesh_grid = source_plane_mesh_grid
         self.image_plane_mesh_grid = image_plane_mesh_grid
-        self.hyper_data = hyper_data
-        self.settings = settings
+        self.adapt_data = adapt_data
         self.preloads = preloads or Preloads()
-        self.profiling_dict = profiling_dict
+        self.run_time_dict = run_time_dict
+
+    @property
+    def image_plane_data_grid(self):
+        return self.mask.derive_grid.unmasked
+
+    @property
+    def mesh_pixels_per_image_pixels(self):
+        mesh_pixels_per_image_pixels = grid_2d_util.grid_pixels_in_mask_pixels_from(
+            grid=np.array(self.image_plane_mesh_grid),
+            shape_native=self.mask.shape_native,
+            pixel_scales=self.mask.pixel_scales,
+            origin=self.mask.origin,
+        )
+        return Array2D(values=mesh_pixels_per_image_pixels, mask=self.mask)

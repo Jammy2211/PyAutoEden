@@ -1,17 +1,14 @@
 from __future__ import annotations
-import copy
 from typing import TYPE_CHECKING, Dict, Optional
+from SLE_Model_Autofit import ModelInstance
 
 if TYPE_CHECKING:
     from SLE_Model_Autogalaxy.SLE_Model_Galaxy.galaxy import Galaxy
 import SLE_Model_Autoarray as aa
-from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Light.abstract import (
-    LightProfile,
-)
 from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Light.SLE_Model_Linear import (
     LightProfileLinear,
 )
-from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Light.basis import Basis
+from SLE_Model_Autogalaxy.SLE_Model_Profiles.basis import Basis
 
 
 class AbstractFitInversion:
@@ -19,14 +16,15 @@ class AbstractFitInversion:
         """
         An abstract fit object which fits to datasets (e.g. imaging, interferometer) inherit from.
 
-        This object primarily inspects the `model_obj` (e.g. a plane object PyAutoGalaxy or tracer in PyAutoLens)
+        This object primarily inspects the `model_obj` (e.g. a galaxies object PyAutoGalaxy or tracer in PyAutoLens)
         and determines the properties used for the fit by inspecting the galaxies / light profiles in this object.
 
         Parameters
         ----------
         model_obj
             The object which contains the model components (e.g. light profiles, galaxies, etc) which are used to
-            create the model-data that fits the data. In PyAutoGalaxy this is a `Plane` and PyAutoLens it is a `Tracer`.
+            create the model-data that fits the data. In PyAutoGalaxy this is a list of galaxies and PyAutoLens
+            it is a `Tracer`.
         settings_inversion
             Settings controlling how an inversion is fitted for example which linear algebra formalism is used.
         """
@@ -113,10 +111,10 @@ class AbstractFitInversion:
         This is used to create the overall `galaxy_model_image_dict`, which maps every galaxy to its
         overall `model_data` (e.g. including the `model_data` of orindary light profiles too).
 
-        If `use_image=False`, the `reconstructed_data` of the inversion (e.g. an image for imaging data,
+        If `use_image=False`, the `reconstructed_data` of the inversion (e.g. an image for dataset data,
         visibilities for  interferometer data) is input in the dictionary.
 
-        if `use_image=True`, the `reconstructed_image` of the inversion (e.g. the image for imaging data, the
+        if `use_image=True`, the `reconstructed_image` of the inversion (e.g. the image for dataset data, the
         real-space image for interferometer data) is input in the dictionary.
 
         Parameters
@@ -133,7 +131,10 @@ class AbstractFitInversion:
             return {}
         galaxy_linear_obj_image_dict = {}
         for linear_obj in self.inversion.linear_obj_list:
-            galaxy = self.inversion.linear_obj_galaxy_dict[linear_obj]
+            try:
+                galaxy = self.inversion.linear_obj_galaxy_dict[linear_obj]
+            except KeyError:
+                continue
             if not use_image:
                 mapped_reconstructed = self.inversion.mapped_reconstructed_data_dict[
                     linear_obj
@@ -160,16 +161,38 @@ class AbstractFitInversion:
 
         Returns
         -------
-        A `model_obj` (E.g. `Plane` or `Tracer`) where the light profile intensity values are set to the results
+        A `model_obj` (E.g. galaxies or `Tracer`) where the light profile intensity values are set to the results
         of those inferred via the `Inversion`.
         """
         if self.linear_light_profile_intensity_dict is None:
             return self.model_obj
-        model_obj = copy.copy(self.model_obj)
-        for galaxy in model_obj.galaxies:
-            for (key, obj) in galaxy.__dict__.items():
-                if isinstance(obj, LightProfileLinear) or isinstance(obj, Basis):
-                    galaxy.__dict__[key] = obj.lp_instance_from(
-                        linear_light_profile_intensity_dict=self.linear_light_profile_intensity_dict
-                    )
-        return model_obj
+        model_instance = self.append_linear_light_profiles_to_model(
+            model_instance=ModelInstance(dict(model_obj=self.model_obj))
+        )
+        return model_instance.model_obj
+
+    def append_linear_light_profiles_to_model(self, model_instance):
+        """
+        For a model instance, this function replaces all linear light profiles with instances of their standard
+        light profile counterparts.
+
+        The `intensity` parameter of each light profile is set to the value inferred via the `Inversion`.
+
+        Parameters
+        ----------
+        model_instance
+            An instance of the model object (e.g. galaxies or `Tracer`) whose linear light profiles are to be
+            replaced with instances of their standard light profile counterparts.
+
+        Returns
+        -------
+        A model instance with all linear light profiles replaced with instances of their standard light profile
+        """
+        for (path, instance) in model_instance.path_instance_tuples_for_class(
+            (LightProfileLinear, Basis)
+        ):
+            model_instance = model_instance.replacing_for_path(
+                path,
+                instance.lp_instance_from(self.linear_light_profile_intensity_dict),
+            )
+        return model_instance

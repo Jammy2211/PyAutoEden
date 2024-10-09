@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import List, Optional, Union
 import SLE_Model_Autoarray as aa
 from SLE_Model_Autogalaxy.SLE_Model_Quantity.dataset_quantity import DatasetQuantity
 from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Light.abstract import (
@@ -8,7 +8,7 @@ from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Abstract.a
     MassProfile,
 )
 from SLE_Model_Autogalaxy.SLE_Model_Galaxy.galaxy import Galaxy
-from SLE_Model_Autogalaxy.SLE_Model_Plane.plane import Plane
+from SLE_Model_Autogalaxy.SLE_Model_Galaxy.galaxies import Galaxies
 
 
 class FitQuantity(aa.FitImaging):
@@ -17,7 +17,7 @@ class FitQuantity(aa.FitImaging):
         Fits a `DatasetQuantity` object with model data.
 
         This is used to fit a quantity (e.g. a convergence, deflection angles), from an object like
-        a `LightProfile`, `MassProfile`, `Galaxy` or `Plane`, to the same quantity derived from another of that object.
+        a `LightProfile`, `MassProfile`, `Galaxy`, to the same quantity derived from another of that object.
 
         For example, we may have the 2D convergence of a power-law mass profile and wish to determine how closely the
         2D convergence of an nfw mass profile's matches it. The `FitQuantity` can fit the two, where a noise-map
@@ -33,10 +33,10 @@ class FitQuantity(aa.FitImaging):
             The quantity that is to be fitted, which has a noise-map associated it with for computing goodness-of-fit
             metrics.
         light_mass_obj
-            An object containing functions which computes a light and / or mass quantity (e.g. a plane of galaxies)
+            An object containing functions which computes a light and / or mass quantity (e.g. galaxies)
             whose model quantities are used to fit the quantity data.
         func_str
-            A string giving the name of the method of the input `Plane` used to compute the quantity that fits
+            A string giving the name of the method of the input galaxy used to compute the quantity that fits
             the dataset.
         model_data_manual
             Manually pass the model-data, omitting its calculation via the function defined by the `func_str`.
@@ -50,7 +50,7 @@ class FitQuantity(aa.FitImaging):
     def model_data(self):
         if self.model_data_manual is None:
             func = getattr(self.light_mass_obj, self.func_str)
-            return func(grid=self.dataset.grid)
+            return func(grid=self.grids.uniform)
         return self.model_data_manual
 
     @property
@@ -90,10 +90,6 @@ class FitQuantity(aa.FitImaging):
             )
 
     @property
-    def quantity_dataset(self):
-        return self.dataset
-
-    @property
     def mask(self):
         return self.dataset.mask
 
@@ -102,9 +98,5 @@ class FitQuantity(aa.FitImaging):
         return None
 
     @property
-    def grid(self):
-        return self.quantity_dataset.grid
-
-    @property
-    def plane(self):
+    def galaxies(self):
         return self.light_mass_obj

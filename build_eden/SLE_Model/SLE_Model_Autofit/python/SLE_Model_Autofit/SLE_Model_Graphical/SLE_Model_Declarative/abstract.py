@@ -142,6 +142,7 @@ class AbstractDeclarativeFactor(Analysis, ABC):
             kwargs["factor_labels"] = factor_labels
         graph.draw_graph(**kwargs)
         plt.show()
+        plt.close()
 
     @property
     def plates(self):

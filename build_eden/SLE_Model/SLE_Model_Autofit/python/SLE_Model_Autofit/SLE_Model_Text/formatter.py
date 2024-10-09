@@ -1,5 +1,7 @@
+import csv
 import logging
-from typing import Tuple
+from typing import Tuple, Union
+from pathlib import Path
 from SLE_Model_Autoconf import conf
 from SLE_Model_Autofit.SLE_Model_Tools.util import open_
 
@@ -22,6 +24,24 @@ class FormatNode:
     def items(self):
         return self._dict.items()
 
+    def list(self, indent=4, line_length=90):
+        lines = []
+        for (key, value) in self.items():
+            indent_string = indent * " "
+            if value.value is not None:
+                value_string = str(value.value)
+                space_string = max((line_length - len(str(key))), 1) * " "
+                lines.append(f"{key}{space_string}{value_string}")
+            if len(value) > 0:
+                sub_lines = value.list(
+                    indent=indent, line_length=(line_length - indent)
+                )
+                if value.value is None:
+                    lines.append(key)
+                for line in sub_lines:
+                    lines.append(f"{indent_string}{line}")
+        return lines
+
 
 class TextFormatter:
     def __init__(self, line_length=90, indent=4):
@@ -40,34 +60,16 @@ class TextFormatter:
     def add(self, path, value):
         self.add_to_dict(path, value, self.dict)
 
-    def dict_to_list(self, info_dict, line_length):
-        lines = []
-        for (key, value) in info_dict.items():
-            indent_string = self.indent * " "
-            if value.value is not None:
-                value_string = str(value.value)
-                space_string = max((line_length - len(key)), 1) * " "
-                lines.append(f"{key}{space_string}{value_string}")
-            if len(value) > 0:
-                sub_lines = self.dict_to_list(
-                    value, line_length=(line_length - self.indent)
-                )
-                if value.value is None:
-                    lines.append(key)
-                for line in sub_lines:
-                    lines.append(f"{indent_string}{line}")
-        return lines
-
-    @property
-    def list(self):
-        return self.dict_to_list(self.dict, line_length=self.line_length)
-
     @property
     def text(self):
         return """
 """.join(
-            self.list
+            map(str, self.list)
         )
+
+    @property
+    def list(self):
+        return self.dict.list(indent=self.indent, line_length=self.line_length)
 
 
 def format_string_for_parameter_name(parameter_name):
@@ -188,3 +190,36 @@ def parameter_result_latex_from(
 def output_list_of_strings_to_file(file, list_of_strings):
     with open_(file, "w") as f:
         f.write("".join(list_of_strings))
+
+
+def write_table(headers, rows, filename):
+    """
+    Write a table of parameters, posteriors, priors and likelihoods.
+
+    Parameters
+    ----------
+    filename
+        Where the table is to be written
+    headers
+        The headers of the table
+    rows
+        The rows of the table
+    """
+    column_max_widths = [
+        max((len(str(value)) for value in column))
+        for column in zip(*([headers] + list(rows)))
+    ]
+    with open(filename, "w+") as f:
+        writer = csv.writer(f)
+
+        def write_row(row_):
+            writer.writerow(
+                [
+                    "{0:>{1}}".format(("" if (value is None) else str(value)), width)
+                    for (width, value) in zip(column_max_widths, row_)
+                ]
+            )
+
+        write_row(headers)
+        for row in rows:
+            write_row(row)

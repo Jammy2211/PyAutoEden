@@ -1,6 +1,7 @@
 import logging
 import os
 from pathlib import Path
+import warnings
 import matplotlib.pyplot as plt
 from SLE_Model_Autofit.SLE_Model_Graphical.SLE_Model_ExpectationPropagation.history import (
     EPHistory,
@@ -38,4 +39,7 @@ class Visualise:
         kl_plot.semilogy(self.ep_history.kl_divergences(), label="KL divergence")
         evidence_plot.legend()
         kl_plot.legend()
-        plt.savefig(str((self.output_path / "graph.png")))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            plt.savefig(str((self.output_path / "graph.png")))
+        plt.close()

@@ -1,6 +1,12 @@
 import numpy as np
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from SLE_Model_Autoconf import cached_property
+from SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Interferometer.dataset import (
+    Interferometer,
+)
+from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.dataset_interface import (
+    DatasetInterface,
+)
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.SLE_Model_Interferometer.abstract import (
     AbstractInversionInterferometer,
 )
@@ -10,10 +16,8 @@ from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_LinearObj.linear_obj impo
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.settings import (
     SettingsInversion,
 )
-from SLE_Model_Autoarray.SLE_Model_Operators.transformer import TransformerNUFFT
 from SLE_Model_Autoarray.preloads import Preloads
 from SLE_Model_Autoarray.SLE_Model_Structures.visibilities import Visibilities
-from SLE_Model_Autoarray.SLE_Model_Structures.visibilities import VisibilitiesNoiseMap
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.SLE_Model_Interferometer import (
     inversion_interferometer_util,
 )
@@ -24,13 +28,11 @@ from SLE_Model_Autoarray.numba_util import profile_func
 class InversionInterferometerMapping(AbstractInversionInterferometer):
     def __init__(
         self,
-        data,
-        noise_map,
-        transformer,
+        dataset,
         linear_obj_list,
         settings=SettingsInversion(),
         preloads=Preloads(),
-        profiling_dict=None,
+        run_time_dict=None,
     ):
         """
         Constructs linear equations (via vectors and matrices) which allow for sets of simultaneous linear equations
@@ -54,19 +56,16 @@ class InversionInterferometerMapping(AbstractInversionInterferometer):
         linear_obj_list
             The linear objects used to reconstruct the data's observed values. If multiple linear objects are passed
             the simultaneous linear equations are combined and solved simultaneously.
-        profiling_dict
+        run_time_dict
             A dictionary which contains timing of certain functions calls which is used for profiling.
         """
         super().__init__(
-            data=data,
-            noise_map=noise_map,
-            transformer=transformer,
+            dataset=dataset,
             linear_obj_list=linear_obj_list,
             settings=settings,
             preloads=preloads,
-            profiling_dict=profiling_dict,
+            run_time_dict=run_time_dict,
         )
-        self.transformer = transformer
 
     @cached_property
     @profile_func
@@ -85,8 +84,8 @@ class InversionInterferometerMapping(AbstractInversionInterferometer):
         """
         return inversion_interferometer_util.data_vector_via_transformed_mapping_matrix_from(
             transformed_mapping_matrix=self.operated_mapping_matrix,
-            visibilities=self.data,
-            noise_map=self.noise_map,
+            visibilities=np.array(self.data),
+            noise_map=np.array(self.noise_map),
         )
 
     @cached_property
@@ -139,12 +138,6 @@ class InversionInterferometerMapping(AbstractInversionInterferometer):
         To perform this mapping the `mapping_matrix` is used, which straightforwardly describes how every value of
         the `reconstruction` maps to pixels in the data-frame after the 2D non-uniform fast Fourier transformer
         operation has been performed.
-
-        Parameters
-        ----------
-        reconstruction
-            The reconstruction (in the source frame) whose values are mapped to a dictionary of values for each
-            individual mapper (in the image-plane).
         """
         mapped_reconstructed_data_dict = {}
         reconstruction_dict = self.source_quantity_dict_from(

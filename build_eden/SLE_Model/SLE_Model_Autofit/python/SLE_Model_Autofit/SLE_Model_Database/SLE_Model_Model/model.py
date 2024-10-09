@@ -1,25 +1,36 @@
 import abc
 import inspect
+from sqlalchemy.orm import Mapped
 from typing import List, Tuple, Any, Iterable, Union, ItemsView, Type
 import numpy as np
 from SLE_Model_Autoconf.class_path import get_class, get_class_path
-from SLE_Model_Autofit.SLE_Model_Database.sqlalchemy_ import sa, declarative
+from SLE_Model_Autofit.SLE_Model_Database.sqlalchemy_ import sa
+from sqlalchemy.orm import declarative_base
 
-Base = declarative.declarative_base()
+Base = declarative_base()
 _schema_version = 1
 
 
 class Object(Base):
     __tablename__ = "object"
     type = sa.Column(sa.String)
-    id = sa.Column(sa.Integer, primary_key=True)
-    parent_id = sa.Column(sa.Integer, sa.ForeignKey("object.id"))
+    id = sa.Column(sa.Integer, primary_key=True, index=True)
+    parent_id = sa.Column(sa.Integer, sa.ForeignKey("object.id"), index=True)
     parent = sa.orm.relationship("Object", uselist=False, remote_side=[id])
     samples_for_id = sa.Column(sa.String, sa.ForeignKey("fit.id"))
     samples_for = sa.orm.relationship(
-        "Fit", uselist=False, foreign_keys=[samples_for_id]
+        "Fit", uselist=False, foreign_keys=[samples_for_id], back_populates="_samples"
     )
-    children: List["Object"] = sa.orm.relationship("Object", uselist=True)
+    latent_samples_for_id = sa.Column(sa.String, sa.ForeignKey("fit.id"))
+    latent_samples_for = sa.orm.relationship(
+        "Fit",
+        uselist=False,
+        foreign_keys=[latent_samples_for_id],
+        back_populates="_latent_samples",
+    )
+    children: Mapped[List["Object"]] = sa.orm.relationship(
+        "Object", uselist=True, back_populates="parent"
+    )
 
     def __len__(self):
         return len(self.children)
@@ -60,15 +71,22 @@ class Object(Base):
         from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.collection import (
             Collection,
         )
+        from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.SLE_Model_Arithmetic.compound import (
+            Compound,
+        )
 
         if (source is None) or isinstance(
-            source, (np.ndarray, np.broadcast, abc.ABCMeta, np.ufunc)
+            source, (np.broadcast, abc.ABCMeta, np.ufunc)
         ):
             from SLE_Model_Autofit.SLE_Model_Database.SLE_Model_Model.instance import (
                 NoneInstance,
             )
 
             instance = NoneInstance()
+        elif isinstance(source, np.ndarray):
+            from .array import Array
+
+            instance = Array(array=source)
         elif isinstance(source, Model):
             from .prior import Model
 
@@ -85,7 +103,11 @@ class Object(Base):
             from .instance import Collection
 
             instance = Collection._from_object(source)
-        elif isinstance(source, (Collection, dict)):
+        elif isinstance(source, dict):
+            from .common import Dict
+
+            instance = Dict._from_object(source)
+        elif isinstance(source, Collection):
             from .prior import Collection
 
             instance = Collection._from_object(source)
@@ -93,6 +115,14 @@ class Object(Base):
             from .instance import StringValue
 
             instance = StringValue._from_object(source)
+        elif isinstance(source, Compound):
+            from .compound import Compound
+
+            instance = Compound._from_object(source)
+        elif inspect.isfunction(source):
+            from .function import Function
+
+            instance = Function._from_object(source)
         else:
             from .instance import Instance
 
@@ -124,11 +154,12 @@ class Object(Base):
         called with a dictionary of instantiated children.
         """
         instance = self._make_instance()
+        child_instances = {child.name: child() for child in self.children}
         if hasattr(instance, "__setstate__"):
-            instance.__setstate__({child.name: child() for child in self.children})
+            instance.__setstate__(child_instances)
         else:
-            for child in self.children:
-                setattr(instance, child.name, child())
+            for (name, child) in child_instances.items():
+                setattr(instance, name, child)
         from SLE_Model_Autofit import ModelObject
 
         if isinstance(instance, ModelObject) and (

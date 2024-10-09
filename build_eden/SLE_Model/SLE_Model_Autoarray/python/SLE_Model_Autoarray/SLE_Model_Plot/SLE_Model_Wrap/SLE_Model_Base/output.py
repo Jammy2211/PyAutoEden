@@ -1,8 +1,11 @@
+import logging
 import matplotlib.pyplot as plt
 from os import path
 import os
 from typing import Union, List, Optional
 from SLE_Model_Autoarray.SLE_Model_Structures.abstract_structure import Structure
+
+logger = logging.getLogger(__name__)
 
 
 class Output:
@@ -88,6 +91,21 @@ class Output:
             filename = f"{filename}{self.suffix}"
         return filename
 
+    def savefig(self, filename, output_path, format):
+        try:
+            plt.savefig(
+                path.join(output_path, f"{filename}.{format}"),
+                bbox_inches=self.bbox_inches,
+            )
+        except ValueError as e:
+            logger.info(
+                f"""
+                Failed to output figure as a .{format} or .fits due to the following error:
+
+                {e}
+            """
+            )
+
     def to_figure(self, structure, auto_filename=None):
         """
         Output the figure, by either displaying it on the user's screen or to the hard-disk as a .png or .fits file.
@@ -105,18 +123,12 @@ class Output:
             if format != "show":
                 os.makedirs(output_path, exist_ok=True)
             if not self.bypass:
+                if os.environ.get("PYAUTOARRAY_OUTPUT_MODE") == "1":
+                    return self.to_figure_output_mode(filename=filename)
                 if format == "show":
                     plt.show()
-                elif format == "png":
-                    plt.savefig(
-                        path.join(output_path, f"{filename}.png"),
-                        bbox_inches=self.bbox_inches,
-                    )
-                elif format == "pdf":
-                    plt.savefig(
-                        path.join(output_path, f"{filename}.pdf"),
-                        bbox_inches=self.bbox_inches,
-                    )
+                elif (format == "png") or (format == "pdf"):
+                    self.savefig(filename, output_path, format)
                 elif format == "fits":
                     if structure is not None:
                         structure.output_to_fits(
@@ -138,15 +150,22 @@ class Output:
             output_path = self.output_path_from(format=format)
             if format != "show":
                 os.makedirs(output_path, exist_ok=True)
+            if os.environ.get("PYAUTOARRAY_OUTPUT_MODE") == "1":
+                return self.to_figure_output_mode(filename=filename)
             if format == "show":
                 plt.show()
-            elif format == "png":
-                plt.savefig(
-                    path.join(output_path, f"{filename}.png"),
-                    bbox_inches=self.bbox_inches,
-                )
-            elif format == "pdf":
-                plt.savefig(
-                    path.join(output_path, f"{filename}.pdf"),
-                    bbox_inches=self.bbox_inches,
-                )
+            elif (format == "png") or (format == "pdf"):
+                self.savefig(filename, output_path, format)
+
+    def to_figure_output_mode(self, filename):
+        global COUNT
+        try:
+            COUNT += 1
+        except NameError:
+            COUNT = 0
+        import sys
+
+        script_name = path.split(sys.argv[0])[(-1)].replace(".py", "")
+        output_path = path.join(os.getcwd(), "output_mode", script_name)
+        os.makedirs(output_path, exist_ok=True)
+        self.savefig(f"{COUNT}_{filename}", output_path, "png")

@@ -1,8 +1,10 @@
 import logging
 from abc import ABC, abstractmethod
+from sqlalchemy import text
 from typing import Optional, List, Union, cast
 from SLE_Model_Autofit.SLE_Model_Database.sqlalchemy_ import sa
 from SLE_Model_Autofit.SLE_Model_Database import SLE_Model_Query as q
+from SLE_Model_Autofit.SLE_Model_Database.SLE_Model_Aggregator.info import Info
 from SLE_Model_Autofit.SLE_Model_Database.SLE_Model_Aggregator.scrape import Scraper
 from SLE_Model_Autofit.SLE_Model_Database import SLE_Model_Model as m
 from SLE_Model_Autofit.SLE_Model_Database.SLE_Model_Query.SLE_Model_Query import (
@@ -102,7 +104,7 @@ class AbstractAggregator(ABC):
     def fits(self):
         pass
 
-    def values(self, name):
+    def values(self, name, parser=(lambda o: o)):
         """
         Retrieve the value associated with each fit with the given
         parameter name
@@ -111,6 +113,8 @@ class AbstractAggregator(ABC):
         ----------
         name
             The name of some pickle, such as 'samples'
+        parser
+            A function to parse the value
 
         Returns
         -------
@@ -120,7 +124,7 @@ class AbstractAggregator(ABC):
         for fit in self:
             value = fit[name]
             if value is not None:
-                values.append(value)
+                values.append(parser(value))
         return values
 
     def child_values(self, name):
@@ -364,7 +368,7 @@ class Aggregator(AbstractAggregator):
         query
         """
         logger.debug(f"Executing query: {query}")
-        fit_ids = {row[0] for row in self.session.execute(query)}
+        fit_ids = {row[0] for row in self.session.execute(text(query))}
         logger.info(f"{len(fit_ids)} fit(s) found matching query")
         query = self.session.query(m.Fit).filter(m.Fit.id.in_(fit_ids))
         for order_by in self._order_bys:
@@ -377,7 +381,9 @@ class Aggregator(AbstractAggregator):
             return [fit for fit in fits if (fit.parent is None)]
         return fits
 
-    def add_directory(self, directory, auto_commit=True):
+    def add_directory(
+        self, directory, auto_commit=True, reference=None, completed_only=False
+    ):
         """
         Recursively search a directory for autofit results
         and add them to this database.
@@ -398,11 +404,19 @@ class Aggregator(AbstractAggregator):
         directory
             A directory containing autofit results embedded in a
             file structure
+        reference
+            A dictionary mapping the names of objects in the model
+            to their class path.
+        completed_only
+            If true only searches that have completed are added
         """
-        scraper = Scraper(directory, self.session)
+        scraper = Scraper(
+            directory, self.session, reference=reference, completed_only=completed_only
+        )
         scraper.scrape()
         if auto_commit:
             self.session.commit()
+            Info(self.session).write()
 
     @classmethod
     def from_database(cls, filename, completed_only=False, top_level_only=True):

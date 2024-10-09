@@ -13,6 +13,9 @@ from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Stellar.ex
 from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Stellar.gaussian import (
     Gaussian,
 )
+from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Stellar.gaussian_gradient import (
+    GaussianGradient,
+)
 from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Stellar.sersic import (
     Sersic,
     SersicSph,
@@ -21,7 +24,7 @@ from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Stellar.se
     SersicCore,
     SersicCoreSph,
 )
-from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Stellar.sersic_radial_gradient import (
-    SersicRadialGradient,
-    SersicRadialGradientSph,
+from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Stellar.sersic_gradient import (
+    SersicGradient,
+    SersicGradientSph,
 )

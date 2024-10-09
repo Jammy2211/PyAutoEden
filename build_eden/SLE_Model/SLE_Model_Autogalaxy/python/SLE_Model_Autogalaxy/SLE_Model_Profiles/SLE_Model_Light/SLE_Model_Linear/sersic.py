@@ -5,7 +5,6 @@ from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Light.SLE_Model_Linear.ab
 from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Light import (
     SLE_Model_Standard as lp,
 )
-from SLE_Model_Autogalaxy.SLE_Model_Profiles import light_and_mass_profiles as lmp
 
 
 class Sersic(lp.Sersic, LightProfileLinear):
@@ -37,14 +36,6 @@ class Sersic(lp.Sersic, LightProfileLinear):
             effective_radius=effective_radius,
             sersic_index=sersic_index,
         )
-
-    @property
-    def lp_cls(self):
-        return lp.Sersic
-
-    @property
-    def lmp_cls(self):
-        return lmp.Sersic
 
 
 class SersicSph(Sersic):

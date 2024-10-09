@@ -4,6 +4,7 @@ from itertools import count
 from multiprocessing import Process
 from multiprocessing import Queue
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Parallel.sneaky import StopCommand
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Paths.abstract import AbstractPaths
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,12 @@ class AnalysisProcess(Process):
                 return
             for analysis in self.analyses:
                 try:
-                    self.queue.put(analysis.log_likelihood_function(instance))
+                    if isinstance(instance, tuple):
+                        (command, *args) = instance
+                        result = getattr(analysis, command)(*args)
+                    else:
+                        result = analysis.log_likelihood_function(instance)
+                    self.queue.put(result)
                 except Exception as e:
                     self.queue.put(e)
 
@@ -91,6 +97,12 @@ class AnalysisPool:
         Tell each process to terminate with a StopCommand and then join
         each process with a timeout of one second.
         """
+        self.terminate()
+
+    def terminate(self):
+        """
+        Terminate each process and join it with a timeout of one second.
+        """
         logger.debug("Deconstructing SneakyMap")
         logger.debug("Terminating processes...")
         for process in self.processes:
@@ -116,17 +128,41 @@ class AnalysisPool:
         -------
         The total log likelihood
         """
-        log_likelihood = 0
-        count_ = 0
         for process in self.processes:
             process.instance_queue.put(instance)
+        return sum(self.results())
+
+    def results(self):
+        """
+        Get the results from each process not necessarily in order.
+        """
+        count_ = 0
+        results = []
         while count_ < self.n_analyses:
             for process in self.processes:
                 if process.queue.empty():
                     continue
                 result = process.queue.get()
+                results.append(result)
                 if isinstance(result, Exception):
                     raise result
-                log_likelihood += result
                 count_ += 1
-        return log_likelihood
+        return results
+
+    def map(self, function_name, paths, *args):
+        """
+        Call a function on each analysis in parallel.
+
+        Parameters
+        ----------
+        function_name
+            The name of the function to call
+        paths
+            The paths to the output directory
+        args
+            The arguments to pass to the function
+        """
+        for (i, process) in enumerate(self.processes):
+            child_paths = paths.for_sub_analysis(analysis_name=f"analyses/analysis_{i}")
+            process.instance_queue.put((function_name, child_paths, *args))
+        self.results()

@@ -1,8 +1,23 @@
 import copy
 import itertools
-from typing import Type, Union, Tuple
+from typing import Type, Union, Tuple, Optional, Dict
+import logging
 from SLE_Model_Autoconf.class_path import get_class
+from SLE_Model_Autoconf.dictable import from_dict, to_dict
 from SLE_Model_Autofit.SLE_Model_Mapper.identifier import Identifier
+
+logger = logging.getLogger(__name__)
+
+
+def dereference(reference, name):
+    if reference is None:
+        return None
+    updated = {}
+    for (key, value) in reference.items():
+        array = key.split(".")
+        if array[0] == name:
+            updated[".".join(array[1:])] = value
+    return updated
 
 
 class ModelObject:
@@ -24,7 +39,7 @@ class ModelObject:
             A label which can optionally be set for visualising this object in a
             graph.
         """
-        self.id = id_ or self.next_id()
+        self.id = int((self.next_id() if (id_ is None) else id_))
         self._label = label
 
     def replacing_for_path(self, path, value):
@@ -45,8 +60,15 @@ class ModelObject:
         new = copy.deepcopy(self)
         obj = new
         for key in path[:(-1)]:
-            obj = getattr(obj, key)
-        setattr(obj, path[(-1)], value)
+            if isinstance(key, int):
+                obj = obj[key]
+            else:
+                obj = getattr(obj, key)
+        key = path[(-1)]
+        if isinstance(key, int):
+            obj[key] = value
+        else:
+            setattr(obj, key, value)
         return new
 
     def has(self, cls):
@@ -83,8 +105,8 @@ class ModelObject:
     def identifier(self):
         return str(Identifier(self))
 
-    @staticmethod
-    def from_dict(d):
+    @classmethod
+    def from_dict(cls, d, reference=None, loaded_ids=None):
         """
         Recursively parse a dictionary returning the model, collection or
         instance that is represents.
@@ -93,14 +115,27 @@ class ModelObject:
         ----------
         d
             A dictionary representation of some object
+        reference
+            An optional dictionary mapping names to class paths. This is used
+            to specify the type of a model or instance.
+
+            Maps paths to class paths. For example:
+            "path.in.model": "path.to.Class"
+
+            In this case, the class path "path.to.Class" will be used to
+            instantiate the object at "path.in.model". If no class path is
+            specified, or no type can be found for the class path in \'d\', then
+            a Collection will be used as a placeholder.
+
+            This is used to specify the type of a model or instance.
+        loaded_ids
+            A dictionary mapping ids to instances. This is used to ensure that
+            all instances with the same id are the same object.
 
         Returns
         -------
         An instance
         """
-        from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.abstract import (
-            AbstractPriorModel,
-        )
         from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.collection import (
             Collection,
         )
@@ -108,36 +143,121 @@ class ModelObject:
             Model,
         )
         from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.abstract import Prior
+        from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.gaussian import (
+            GaussianPrior,
+        )
         from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.tuple_prior import (
             TuplePrior,
         )
+        from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.SLE_Model_Arithmetic.compound import (
+            Compound,
+        )
+        from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.SLE_Model_Arithmetic.compound import (
+            ModifiedPrior,
+        )
 
+        if isinstance(d, list):
+            return [
+                from_dict(
+                    value,
+                    reference=dereference(reference, str(index)),
+                    loaded_ids=loaded_ids,
+                )
+                for (index, value) in enumerate(d)
+            ]
         if not isinstance(d, dict):
             return d
+        loaded_ids = {} if (loaded_ids is None) else loaded_ids
         type_ = d["type"]
+
+        def get_class_path():
+            try:
+                return reference[""]
+            except (KeyError, TypeError):
+                return d.pop("class_path")
+
         if type_ == "model":
-            instance = Model(get_class(d.pop("class_path")))
+            class_path = get_class_path()
+            try:
+                instance = Model(get_class(class_path))
+            except (ModuleNotFoundError, AttributeError):
+                logger.warning(
+                    f"Could not find type for class path {class_path}. Defaulting to Collection placeholder."
+                )
+                instance = Collection()
         elif type_ == "collection":
             instance = Collection()
         elif type_ == "tuple_prior":
             instance = TuplePrior()
-        elif type_ == "dict":
-            return {key: ModelObject.from_dict(value) for (key, value) in d.items()}
-        elif type_ == "instance":
-            d.pop("type")
-            cls = get_class(d.pop("class_path"))
-            return cls(
-                **{key: ModelObject.from_dict(value) for (key, value) in d.items()}
+        elif type_ == "compound":
+            return Compound.from_dict(
+                d, reference=dereference(reference, "assertion"), loaded_ids=loaded_ids
             )
+        elif type_ == "modified":
+            return ModifiedPrior.from_dict(
+                d, reference=dereference(reference, "prior"), loaded_ids=loaded_ids
+            )
+        elif type_ == "dict":
+            return {
+                key: from_dict(
+                    value, reference=dereference(reference, key), loaded_ids=loaded_ids
+                )
+                for (key, value) in d["arguments"].items()
+                if value
+            }
+        elif type_ == "instance":
+            class_path = get_class_path()
+            try:
+                cls_ = get_class(class_path)
+                return cls_(
+                    **{
+                        key: from_dict(
+                            value,
+                            reference=dereference(reference, key),
+                            loaded_ids=loaded_ids,
+                        )
+                        for (key, value) in d["arguments"].items()
+                    }
+                )
+            except (ModuleNotFoundError, AttributeError):
+                from autofit.mapper.model import ModelInstance
+
+                logger.warning(
+                    f"Could not find type for class path {class_path}. Defaulting to Instance placeholder."
+                )
+                instance = ModelInstance()
+        elif type_ == "array":
+            from autofit.mapper.prior_model.array import Array
+
+            return Array.from_dict(d)
         else:
             try:
-                return Prior.from_dict(d)
+                return Prior.from_dict(d, loaded_ids=loaded_ids)
             except KeyError:
-                cls = get_class(type_)
-                instance = object.__new__(cls)
-        d.pop("type")
-        for (key, value) in d.items():
-            setattr(instance, key, AbstractPriorModel.from_dict(value))
+                cls_ = get_class(type_)
+                instance = object.__new__(cls_)
+        for (key, value) in d["arguments"].items():
+            try:
+                setattr(
+                    instance,
+                    key,
+                    from_dict(
+                        value,
+                        reference=dereference(reference, key),
+                        loaded_ids=loaded_ids,
+                    ),
+                )
+            except KeyError:
+                pass
+        if "assertions" in d:
+            instance.assertions = [
+                from_dict(
+                    value,
+                    reference=dereference(reference, "assertions"),
+                    loaded_ids=loaded_ids,
+                )
+                for value in d["assertions"]
+            ]
         return instance
 
     def dict(self):
@@ -156,6 +276,7 @@ class ModelObject:
         from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.tuple_prior import (
             TuplePrior,
         )
+        from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.array import Array
 
         if isinstance(self, Collection):
             type_ = "collection"
@@ -165,21 +286,29 @@ class ModelObject:
             type_ = "model"
         elif isinstance(self, TuplePrior):
             type_ = "tuple_prior"
+        elif isinstance(self, Array):
+            type_ = "array"
         else:
             raise AssertionError(
                 f"{self.__class__.__name__} cannot be serialised to dict"
             )
+        try:
+            assertions = [assertion.dict() for assertion in self._assertions]
+        except AttributeError:
+            assertions = []
         dict_ = {"type": type_}
+        if assertions:
+            dict_["assertions"] = assertions
+        arguments = {}
         for (key, value) in self._dict.items():
             try:
-                if not isinstance(value, ModelObject):
-                    value = AbstractPriorModel.from_instance(value)
-                value = value.dict()
+                value = to_dict(value)
             except AttributeError:
                 pass
             except TypeError:
                 pass
-            dict_[key] = value
+            arguments[key] = value
+        dict_["arguments"] = arguments
         return dict_
 
     @property
@@ -188,7 +317,7 @@ class ModelObject:
             key: value
             for (key, value) in self.__dict__.items()
             if (
-                (key not in ("component_number", "item_number", "id", "cls"))
+                (key not in ("component_number", "item_number", "id", "cls", "label"))
                 and (not key.startswith("_"))
             )
         }

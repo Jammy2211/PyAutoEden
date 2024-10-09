@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import itertools
+from scipy.spatial import ConvexHull
 from typing import List, Union
 from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Wrap.SLE_Model_TwoD.abstract import (
     AbstractMatWrap2D,
@@ -9,7 +10,6 @@ from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.uniform_2d import 
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.irregular_2d import (
     Grid2DIrregular,
 )
-from SLE_Model_Autoarray import exc
 
 
 class GridScatter(AbstractMatWrap2D):
@@ -26,8 +26,8 @@ class GridScatter(AbstractMatWrap2D):
     on every figure:
 
     - `OriginScatter`: plots the (y,x) coordinates of the origin of a data structure (e.g. as a black cross).
-    - `MaskScatter`: plots a mask over an image, using the `Mask2d` object's (y,x)  `edge_sub_1` property.
-    - `BorderScatter: plots a border over an image, using the `Mask2d` object's (y,x) `border_sub_1` property.
+    - `MaskScatter`: plots a mask over an image, using the `Mask2d` object's (y,x)  `edge` property.
+    - `BorderScatter: plots a border over an image, using the `Mask2d` object's (y,x) `border` property.
     - `PositionsScatter`: plots the (y,x) coordinates that are input in a plotter via the `positions` input.
     - `IndexScatter`: plots specific (y,x) coordinates of a grid (or grids) via their 1d or 2d indexes.
     - `MeshGridScatter`: plots the grid of a `Mesh` object (see `autoarray.inversion`).
@@ -114,41 +114,13 @@ class GridScatter(AbstractMatWrap2D):
         indexes
             The 1D indexes of the grid that are colored in when plotted.
         """
-        if not isinstance(grid, np.ndarray):
-            raise exc.PlottingException(
-                "The grid passed into scatter_grid_indexes is not a ndarray and thus its1D indexes cannot be marked and plotted."
-            )
-        if len(grid.shape) != 2:
-            raise exc.PlottingException(
-                "The grid passed into scatter_grid_indexes is not 2D (e.g. a flattened 1Dgrid) and thus its 1D indexes cannot be marked."
-            )
-        if isinstance(indexes, list):
-            if not any((isinstance(i, list) for i in indexes)):
-                indexes = [indexes]
         color = itertools.cycle(self.config_dict["c"])
         config_dict = self.config_dict
         config_dict.pop("c")
         for index_list in indexes:
-            if all([isinstance(index, float) for index in index_list]) or all(
-                [isinstance(index, int) for index in index_list]
-            ):
-                plt.scatter(
-                    y=grid[(index_list, 0)],
-                    x=grid[(index_list, 1)],
-                    color=next(color),
-                    **config_dict
-                )
-            elif all([isinstance(index, tuple) for index in index_list]) or all(
-                [isinstance(index, list) for index in index_list]
-            ):
-                (ys, xs) = map(list, zip(*index_list))
-                plt.scatter(
-                    y=grid.native[(ys, xs, 0)],
-                    x=grid.native[(ys, xs, 1)],
-                    color=next(color),
-                    **config_dict
-                )
-            else:
-                raise exc.PlottingException(
-                    "The indexes input into the grid_scatter_index method do not conform to a useable type"
-                )
+            plt.scatter(
+                y=grid[(index_list, 0)],
+                x=grid[(index_list, 1)],
+                color=next(color),
+                **config_dict
+            )

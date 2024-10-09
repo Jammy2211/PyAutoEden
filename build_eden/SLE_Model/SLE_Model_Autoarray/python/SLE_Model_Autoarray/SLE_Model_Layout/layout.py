@@ -1,4 +1,4 @@
-from typing import Tuple, List
+from typing import Tuple
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays.uniform_1d import Array1D
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays.uniform_2d import Array2D
 from SLE_Model_Autoarray.SLE_Model_Layout.region import Region1D

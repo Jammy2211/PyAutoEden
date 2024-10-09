@@ -42,7 +42,7 @@ class MassProfileCSE(ABC):
         return np.vstack((defl_y, defl_x))
 
     @abstractmethod
-    def decompose_convergence_via_cse(self):
+    def decompose_convergence_via_cse(self, grid_radii):
         pass
 
     def _decompose_convergence_via_cse_from(
@@ -91,10 +91,10 @@ class MassProfileCSE(ABC):
         amplitude_list = results[0]
         return (amplitude_list, core_radius_list)
 
-    def convergence_2d_via_cse_from(self, grid_radii):
+    def convergence_2d_via_cse_from(self, grid_radii, **kwargs):
         pass
 
-    def _convergence_2d_via_cse_from(self, grid_radii):
+    def _convergence_2d_via_cse_from(self, grid_radii, **kwargs):
         """
         Calculate the projected 2D convergence from a grid of radial coordinates, by computing and summing the
         convergence of each individual cse used to decompose the mass profile.
@@ -107,7 +107,9 @@ class MassProfileCSE(ABC):
         grid_radii
             The grid of 1D radial arc-second coordinates the convergence is computed on.
         """
-        (amplitude_list, core_radius_list) = self.decompose_convergence_via_cse()
+        (amplitude_list, core_radius_list) = self.decompose_convergence_via_cse(
+            grid_radii=grid_radii
+        )
         return sum(
             (
                 (
@@ -120,7 +122,7 @@ class MassProfileCSE(ABC):
             )
         )
 
-    def _deflections_2d_via_cse_from(self, grid):
+    def _deflections_2d_via_cse_from(self, grid, **kwargs):
         """
         Calculate the projected 2D deflection angles from a grid of radial coordinates, by computing and summing the
         deflections of each individual cse used to decompose the mass profile.
@@ -133,7 +135,9 @@ class MassProfileCSE(ABC):
         grid_radii
             The grid of 1D radial arc-second coordinates the convergence is computed on.
         """
-        (amplitude_list, core_radius_list) = self.decompose_convergence_via_cse()
+        (amplitude_list, core_radius_list) = self.decompose_convergence_via_cse(
+            grid_radii=self.radial_grid_from(grid=grid, **kwargs)
+        )
         q = self.axis_ratio
         q2 = q**2.0
         grid_y = grid[:, 0]

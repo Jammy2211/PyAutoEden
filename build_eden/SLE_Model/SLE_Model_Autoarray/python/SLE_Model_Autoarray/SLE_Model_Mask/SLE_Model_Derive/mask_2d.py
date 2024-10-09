@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 import copy
 import numpy as np
-from typing import TYPE_CHECKING, List, Tuple, Union
+from typing import TYPE_CHECKING, Tuple
 
 if TYPE_CHECKING:
     from SLE_Model_Autoarray.SLE_Model_Mask.mask_2d import Mask2D
@@ -95,227 +95,10 @@ class DeriveMask2D:
         return self.mask.derive_indexes
 
     @property
-    def sub_1(self):
-        """
-        Returns the same ``Mask2D`` but with its geometry and (y,x) Cartesian coordinates reduced to a `sub_size=1`.
-
-        For example, for the following ``Mask2D``:
-
-        ::
-           [[ True,  True],
-            [False, False]]
-
-        The ``sub_1``` mask (given via ``mask_2d.derive_mask.sub_1``) returns the same mask but its ``sub_size``
-        parameter will be reduced to 1 if it was above 1 before.
-
-        ::
-           [[ True,  True],
-            [False, False]]
-
-        Examples
-        --------
-
-        .. code-block:: python
-
-            import autoarray as aa
-
-            mask_2d = aa.Mask2D(
-                mask=[
-                     [ True,  True],
-                     [False, False]
-                ],
-                pixel_scales=1.0,
-                sub_size=2,
-            )
-
-            derive_mask_2d = aa.DeriveMask2D(mask=mask_2d)
-
-            mask_sub_1 = derive_mask_2d.sub_1
-
-            print(mask_sub_1)
-
-            # The sub_size of the mask is 1.
-            print(mask_sub_1.sub_size)
-        """
-        from SLE_Model_Autoarray.SLE_Model_Mask.mask_2d import Mask2D
-
-        return Mask2D(
-            mask=self.mask,
-            sub_size=1,
-            pixel_scales=self.mask.pixel_scales,
-            origin=self.mask.origin,
-        )
-
-    def rescaled_from(self, rescale_factor):
-        """
-        Returns the ``Mask2D`` rescaled to a bigger or small shape via input ``rescale_factor``.
-
-        For example, for a ``rescale_factor=2.0`` the following mask:
-
-        ::
-           [[ True,  True],
-            [False, False]]
-
-        Will double in size and become:
-
-        ::
-            [[True,   True,  True,  True],
-             [True,   True,  True,  True],
-             [False, False, False, False],
-             [False, False, False, False]]
-
-        Parameters
-        ----------
-        rescale_factor
-            The factor by which the ``Mask2D`` is rescaled (less than 1.0 produces a smaller mask, greater than 1.0
-            produces a bigger mask).
-
-        Examples
-        --------
-
-        .. code-block:: python
-
-            import autoarray as aa
-
-            mask_2d = aa.Mask2D(
-                mask=[
-                     [ True,  True],
-                     [False, False]
-                ],
-                pixel_scales=1.0,
-            )
-
-            derive_mask_2d = aa.DeriveMask2D(mask=mask_2d)
-
-            print(derive_mask_2d.rescaled_from(rescale_factor=2.0)
-        """
-        from SLE_Model_Autoarray.SLE_Model_Mask.mask_2d import Mask2D
-
-        rescaled_mask = mask_2d_util.rescaled_mask_2d_from(
-            mask_2d=self.mask, rescale_factor=rescale_factor
-        )
-        return Mask2D(
-            mask=rescaled_mask,
-            pixel_scales=self.mask.pixel_scales,
-            sub_size=self.mask.sub_size,
-            origin=self.mask.origin,
-        )
-
-    def resized_from(self, new_shape, pad_value=0.0):
-        """
-        Returns the ``Mask2D`` resized to a small or bigger ``ndarraay``, but with the same distribution of
-         ``False`` and ``True`` entries.
-
-        Resizing which increases the ``Mask2D`` shape pads it with values on its edge.
-
-        Resizing which reduces the ``Mask2D`` shape removes entries on its edge.
-
-        For example, for a ``new_shape=(4,4)`` the following mask:
-
-        ::
-           [[ True,  True],
-            [False, False]]
-
-        Will be padded with zeros (``False`` values) and become:
-
-        ::
-          [[True,  True,  True, True]
-           [True,  True,  True, True],
-           [True, False, False, True],
-           [True,  True,  True, True]]
-
-        Parameters
-        ----------
-        new_shape
-            The new two-dimensional shape of the resized ``Mask2D``.
-        pad_value
-            The value new values are padded using if the resized ``Mask2D`` is bigger.
-
-        Examples
-        --------
-
-        .. code-block:: python
-
-            import autoarray as aa
-
-            mask_2d = aa.Mask2D(
-                mask=[
-                     [ True,  True],
-                     [False, False]
-                ],
-                pixel_scales=1.0,
-            )
-
-            derive_mask_2d = aa.DeriveMask2D(mask=mask_2d)
-
-            print(derive_mask_2d.resized_from(new_shape=(4,4))
-        """
-        from SLE_Model_Autoarray.SLE_Model_Mask.mask_2d import Mask2D
-
-        mask = copy.deepcopy(self.mask)
-        resized_mask = array_2d_util.resized_array_2d_from(
-            array_2d=mask, resized_shape=new_shape, pad_value=pad_value
-        ).astype("bool")
-        return Mask2D(
-            mask=resized_mask,
-            pixel_scales=self.mask.pixel_scales,
-            sub_size=self.mask.sub_size,
-            origin=self.mask.origin,
-        )
-
-    @property
-    def sub(self):
-        """
-        Returns the sub-mask of the ``Mask2D``, which is the mask on the sub-grid which has ``False``  / ``True``
-        entries where the original mask is ``False`` / ``True``.
-
-        For example, for the following ``Mask2D``:
-
-        ::
-           [[ True,  True],
-            [False, False]]
-
-        The sub-mask (given via ``mask_2d.derive_mask.sub``) for a ``sub_size=2`` is:
-
-        ::
-            [[True,   True,  True,  True],
-             [True,   True,  True,  True],
-             [False, False, False, False],
-             [False, False, False, False]]
-
-        Examples
-        --------
-
-        .. code-block:: python
-
-            import autoarray as aa
-
-            mask_2d = aa.Mask2D(
-                mask=[
-                     [ True,  True],
-                     [False, False]
-                ],
-                pixel_scales=1.0,
-            )
-
-            derive_mask_2d = aa.DeriveMask2D(mask=mask_2d)
-
-            print(derive_mask_2d.sub)
-        """
-        sub_shape = (
-            (self.mask.shape[0] * self.mask.sub_size),
-            (self.mask.shape[1] * self.mask.sub_size),
-        )
-        return mask_2d_util.mask_2d_via_shape_native_and_native_for_slim(
-            shape_native=sub_shape,
-            native_for_slim=self.derive_indexes.sub_mask_native_for_sub_mask_slim,
-        ).astype("bool")
-
-    @property
     def all_false(self):
         """
         Returns a ``Mask2D`` which has the same
-        geometry (``shape_native`` / ``sub_size`` / ``pixel_scales`` / ``origin``) as this ``Mask2D`` but all
+        geometry (``shape_native`` / ``pixel_scales`` / ``origin``) as this ``Mask2D`` but all
         entries are unmasked (given by``False``).
 
         For example, for the following ``Mask2D``:
@@ -353,7 +136,6 @@ class DeriveMask2D:
 
         return Mask2D.all_false(
             shape_native=self.mask.shape_native,
-            sub_size=self.mask.sub_size,
             pixel_scales=self.mask.pixel_scales,
             origin=self.mask.origin,
         )
@@ -419,11 +201,10 @@ class DeriveMask2D:
         if ((kernel_shape_native[0] % 2) == 0) or ((kernel_shape_native[1] % 2) == 0):
             raise exc.MaskException("psf_size of exterior region must be odd")
         blurring_mask = mask_2d_util.blurring_mask_2d_from(
-            mask_2d=self.mask, kernel_shape_native=kernel_shape_native
+            mask_2d=np.array(self.mask), kernel_shape_native=kernel_shape_native
         )
         return Mask2D(
             mask=blurring_mask,
-            sub_size=1,
             pixel_scales=self.mask.pixel_scales,
             origin=self.mask.origin,
         )
@@ -485,10 +266,7 @@ class DeriveMask2D:
             )
         ] = False
         return Mask2D(
-            mask=mask,
-            sub_size=self.mask.sub_size,
-            pixel_scales=self.mask.pixel_scales,
-            origin=self.mask.origin,
+            mask=mask, pixel_scales=self.mask.pixel_scales, origin=self.mask.origin
         )
 
     @property
@@ -541,13 +319,12 @@ class DeriveMask2D:
         """
         from SLE_Model_Autoarray.SLE_Model_Mask.mask_2d import Mask2D
 
-        edge_buffed_mask = mask_2d_util.buffed_mask_2d_from(mask_2d=self.mask).astype(
-            "bool"
-        )
+        edge_buffed_mask = mask_2d_util.buffed_mask_2d_from(
+            mask_2d=np.array(self.mask)
+        ).astype("bool")
         return Mask2D(
             mask=edge_buffed_mask,
             pixel_scales=self.mask.pixel_scales,
-            sub_size=self.mask.sub_size,
             origin=self.mask.origin,
         )
 
@@ -622,8 +399,5 @@ class DeriveMask2D:
             )
         ] = False
         return Mask2D(
-            mask=mask,
-            sub_size=self.mask.sub_size,
-            pixel_scales=self.mask.pixel_scales,
-            origin=self.mask.origin,
+            mask=mask, pixel_scales=self.mask.pixel_scales, origin=self.mask.origin
         )

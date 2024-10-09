@@ -1,3 +1,4 @@
+import inspect
 import json
 import os
 import sys
@@ -5,6 +6,7 @@ import zipfile
 from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
+from typing import Union
 import numpy as np
 from SLE_Model_Autoconf import conf
 

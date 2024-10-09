@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import itertools
 from typing import List, Union, Tuple
+from SLE_Model_Autoarray.SLE_Model_Geometry.geometry_2d import Geometry2D
+from SLE_Model_Autoarray.SLE_Model_Operators.contour import Grid2DContour
 from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Wrap.SLE_Model_TwoD.abstract import (
     AbstractMatWrap2D,
 )
@@ -92,3 +94,38 @@ class GridPlot(AbstractMatWrap2D):
                 plt.plot(grid[:, 1], grid[:, 0], c=next(color), **config_dict)
         except IndexError:
             pass
+
+    def plot_grid_indexes_x1(self, grid, indexes):
+        color = itertools.cycle(self.config_dict["c"])
+        config_dict = self.config_dict
+        config_dict.pop("c")
+        if isinstance(indexes[0], int):
+            indexes = [indexes]
+        for index_list in indexes:
+            grid_contour = Grid2DContour(
+                grid=grid[index_list, :], pixel_scales=None, shape_native=None
+            )
+            grid_hull = grid_contour.hull
+            if grid_hull is not None:
+                plt.plot(
+                    grid_hull[:, 1], grid_hull[:, 0], color=next(color), **config_dict
+                )
+
+    def plot_grid_indexes_multi(self, grid, indexes, geometry):
+        color = itertools.cycle(self.config_dict["c"])
+        config_dict = self.config_dict
+        config_dict.pop("c")
+        if isinstance(indexes[0], int):
+            indexes = [indexes]
+        for index_list in indexes:
+            grid_in = grid[index_list, :]
+            if isinstance(index_list[0], tuple):
+                grid_in = grid_in[0]
+            grid_contour = Grid2DContour(
+                grid=grid_in,
+                pixel_scales=geometry.pixel_scales,
+                shape_native=geometry.shape_native,
+            )
+            color_plot = next(color)
+            for contour in grid_contour.contour_list:
+                plt.plot(contour[:, 1], contour[:, 0], color=color_plot, **config_dict)

@@ -1,13 +1,19 @@
 import logging
+from typing import Optional
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Analysis.analysis import Analysis
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Analysis.combined import (
     CombinedAnalysis,
     CombinedResult,
 )
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Paths.abstract import AbstractPaths
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Paths.abstract import AbstractPaths
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.summary import (
+    SamplesSummary,
+)
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.collection import (
     Collection,
 )
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples import SamplesPDF
 
 logger = logging.getLogger(__name__)
 
@@ -41,18 +47,22 @@ class IndexedAnalysis:
 
     def visualize_combined(self, analyses, paths, instance, during_analysis):
         return self.analysis.visualize_combined(
-            paths, instance[self.index], during_analysis
+            analyses, paths, instance[self.index], during_analysis
         )
 
     def profile_log_likelihood_function(self, paths, instance):
         return self.profile_log_likelihood_function(paths, instance[self.index])
 
     def __getattr__(self, item):
+        if item in ("__getstate__", "__setstate__"):
+            raise AttributeError(item)
         return getattr(self.analysis, item)
 
-    def make_result(self, samples, model, sigma=3.0, use_errors=True, use_widths=True):
+    def make_result(
+        self, samples_summary, paths, samples=None, search_internal=None, analysis=None
+    ):
         return self.analysis.make_result(
-            samples, model, sigma=sigma, use_errors=use_errors, use_widths=use_widths
+            samples_summary, paths, samples, search_internal, analysis
         )
 
 
@@ -74,21 +84,29 @@ class IndexCollectionAnalysis(CombinedAnalysis):
             ]
         )
 
-    def make_result(self, samples, model, sigma=1.0, use_errors=True, use_widths=False):
+    def make_result(
+        self, samples_summary, paths, samples=None, search_internal=None, analysis=None
+    ):
         """
         Associate each model with an analysis when creating the result.
         """
         child_results = [
             analysis.make_result(
-                samples.subsamples(model),
-                model,
-                sigma=sigma,
-                use_errors=use_errors,
-                use_widths=use_widths,
+                (
+                    samples_summary.subsamples(model)
+                    if (samples_summary is not None)
+                    else None
+                ),
+                paths,
+                (samples.subsamples(model) if (samples is not None) else None),
+                search_internal,
+                analysis,
             )
-            for (model, analysis) in zip(model, self.analyses)
+            for (model, analysis) in zip(samples_summary.model, self.analyses)
         ]
-        return CombinedResult(child_results)
+        return CombinedResult(
+            child_results, samples=samples, samples_summary=samples_summary
+        )
 
     def modify_before_fit(self, paths, model):
         """

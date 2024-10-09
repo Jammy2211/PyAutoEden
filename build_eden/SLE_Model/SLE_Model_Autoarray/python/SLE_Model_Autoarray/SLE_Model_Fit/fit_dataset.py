@@ -3,29 +3,32 @@ from abc import ABC
 from abc import abstractmethod
 from typing import Dict, Optional
 import numpy as np
-from SLE_Model_Autoarray import type as ty
-from SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Abstract.dataset import (
-    AbstractDataset,
-)
+from SLE_Model_Autoconf import cached_property
+from SLE_Model_Autoarray.SLE_Model_Dataset.grids import GridsInterface
+from SLE_Model_Autoarray.SLE_Model_Dataset.dataset_model import DatasetModel
 from SLE_Model_Autoarray.SLE_Model_Fit import fit_util
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.abstract import (
     AbstractInversion,
 )
-from SLE_Model_Autoarray.SLE_Model_Mask.abstract_mask import Mask
+from SLE_Model_Autoarray.SLE_Model_Mask.mask_2d import Mask2D
 from SLE_Model_Autoarray.numba_util import profile_func
-from SLE_Model_Autoarray.SLE_Model_Structures.abstract_structure import Structure
+from SLE_Model_Autoarray import type as ty
 
 
-class AbstractFitInversion(ABC):
+class AbstractFit(ABC):
     @property
     @abstractmethod
     def data(self):
-        pass
+        """
+        Overwrite this method to returns the data of the dataset.
+        """
 
     @property
     @abstractmethod
     def noise_map(self):
-        pass
+        """
+        Overwrite this method to returns the noise-map of the dataset.
+        """
 
     @property
     @abstractmethod
@@ -40,7 +43,7 @@ class AbstractFitInversion(ABC):
         The signal-to-noise_map of the dataset and noise-map which are fitted.
         """
         warnings.filterwarnings("ignore")
-        signal_to_noise_map = np.divide(self.data, self.noise_map)
+        signal_to_noise_map = self.data / self.noise_map
         signal_to_noise_map[(signal_to_noise_map < 0)] = 0
         return signal_to_noise_map
 
@@ -103,41 +106,21 @@ class AbstractFitInversion(ABC):
         )
 
 
-class SimpleFit(AbstractFitInversion):
-    def __init__(self, data, model_data, noise_map):
-        self._data = data
-        self._model_data = model_data
-        self._noise_map = noise_map
-
-    @property
-    def data(self):
-        return self._data
-
-    @property
-    def noise_map(self):
-        return self._noise_map
-
-    @property
-    def model_data(self):
-        return self._model_data
-
-
-class FitDataset(AbstractFitInversion):
-    def __init__(self, dataset, use_mask_in_fit=False, profiling_dict=None):
+class FitDataset(AbstractFit):
+    def __init__(
+        self, dataset, use_mask_in_fit=False, dataset_model=None, run_time_dict=None
+    ):
         """Class to fit a masked dataset where the dataset's data structures are any dimension.
 
         Parameters
         ----------
-        dataset : MaskedDataset
+        dataset
             The masked dataset (data, mask, noise-map, etc.) that is fitted.
-        model_data
-            The model data the masked dataset is fitted with.
-        inversion : Inversion
-            If the fit uses an `Inversion` this is the instance of the object used to perform the fit. This determines
-            if the `log_likelihood` or `log_evidence` is used as the `figure_of_merit`.
         use_mask_in_fit
             If `True`, masked data points are omitted from the fit. If `False` they are not (in most use cases the
             `dataset` will have been processed to remove masked points, for example the `slim` representation).
+        dataset_model
+            Attributes which allow for parts of a dataset to be treated as a model (e.g. the background sky level).
 
         Attributes
         -----------
@@ -156,14 +139,49 @@ class FitDataset(AbstractFitInversion):
         """
         self.dataset = dataset
         self.use_mask_in_fit = use_mask_in_fit
-        self.profiling_dict = profiling_dict
+        self.dataset_model = dataset_model or DatasetModel()
+        self.run_time_dict = run_time_dict
 
     @property
-    @abstractmethod
     def mask(self):
-        """
-        Overwrite this method so it returns the mask of the dataset which is fitted to the input data.
-        """
+        return self.dataset.mask
+
+    @cached_property
+    def grids(self):
+        offset = self.dataset_model.grid_offset
+        if (offset[0] == 0.0) and (offset[1] == 0.0):
+            return GridsInterface(
+                uniform=self.dataset.grids.uniform,
+                non_uniform=self.dataset.grids.non_uniform,
+                pixelization=self.dataset.grids.pixelization,
+                blurring=self.dataset.grids.blurring,
+                border_relocator=self.dataset.grids.border_relocator,
+            )
+
+        def subtracted_from(grid, offset):
+            if grid is None:
+                return None
+            return grid.subtracted_from(offset=offset)
+
+        uniform = subtracted_from(
+            grid=self.dataset.grids.uniform, offset=self.dataset_model.grid_offset
+        )
+        non_uniform = subtracted_from(
+            grid=self.dataset.grids.non_uniform, offset=self.dataset_model.grid_offset
+        )
+        pixelization = subtracted_from(
+            grid=self.dataset.grids.pixelization, offset=self.dataset_model.grid_offset
+        )
+        blurring = subtracted_from(
+            grid=self.dataset.grids.blurring, offset=self.dataset_model.grid_offset
+        )
+        return GridsInterface(
+            uniform=uniform,
+            non_uniform=non_uniform,
+            pixelization=pixelization,
+            blurring=blurring,
+            border_relocator=self.dataset.grids.border_relocator,
+        )
 
     @property
     def data(self):
@@ -294,7 +312,29 @@ class FitDataset(AbstractFitInversion):
     def figure_of_merit(self):
         if self.inversion is not None:
             return self.log_evidence
-        return self.log_likelihood
+        try:
+            return self.log_likelihood.array
+        except AttributeError:
+            return self.log_likelihood
+
+    @property
+    def residual_flux_fraction_map(self):
+        """
+        Returns the residual flux fraction map, which shows the fraction of signal in each pixel that is not fitted
+        by the model, therefore where:
+
+        Residual_Flux_Fraction = ((Residuals) / (Data)) = ((Data - Model))/(Data)
+
+        This quantity is not used for computing the log likelihood, but is available for plotting and inspection.
+
+        It does not use the noise-map in its calculation, and therefore the residual flux fraction should only be
+        reliably interpreted in high signal-to-noise regions of a dataset.
+        """
+        if self.use_mask_in_fit:
+            return fit_util.chi_squared_map_with_mask_from(
+                residual_map=self.residual_map, noise_map=self.noise_map, mask=self.mask
+            )
+        return super().chi_squared_map
 
     @property
     def inversion(self):

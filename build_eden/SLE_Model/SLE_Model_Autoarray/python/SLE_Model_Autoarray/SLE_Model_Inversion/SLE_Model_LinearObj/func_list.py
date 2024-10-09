@@ -18,7 +18,7 @@ from SLE_Model_Autoarray.numba_util import profile_func
 
 
 class AbstractLinearObjFuncList(LinearObj):
-    def __init__(self, grid, regularization, profiling_dict=None):
+    def __init__(self, grid, regularization, run_time_dict=None):
         """
         A linear object which reconstructs a dataset based on mapping between the data points of that dataset and
         the parameters of the linear object.
@@ -42,10 +42,10 @@ class AbstractLinearObjFuncList(LinearObj):
             is evaluated.
         regularization
             The regularization scheme which may be applied to this linear object in order to smooth its solution.
-        profiling_dict
+        run_time_dict
             A dictionary which contains timing of certain functions calls which is used for profiling.
         """
-        super().__init__(regularization=regularization, profiling_dict=profiling_dict)
+        super().__init__(regularization=regularization, run_time_dict=run_time_dict)
         self.grid = grid
 
     @cached_property
@@ -88,7 +88,7 @@ class AbstractLinearObjFuncList(LinearObj):
 
         For a `LinearObjFuncList` every data pixel's group of sub-pixels maps directly to the linear function.
         """
-        sub_size = self.grid.sub_size
+        sub_size = np.max(self.grid.over_sampling.sub_size)
         shape_slim = self.grid.mask.shape_slim
         data_to_pix_unique = (-1.0) * np.ones(
             shape=(shape_slim, (sub_size**2))

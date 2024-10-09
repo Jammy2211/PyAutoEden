@@ -3,7 +3,7 @@ from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel import abstract
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Mock.mock_samples import (
     MockSamples,
 )
-from SLE_Model_Autofit.SLE_Model_NonLinear import abstract_search
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Search import abstract_search
 from SLE_Model_Autofit.SLE_Model_NonLinear import SLE_Model_Paths
 from SLE_Model_Autofit.SLE_Model_NonLinear.result import Result
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Grid.SLE_Model_GridSearch import (
@@ -42,7 +42,6 @@ class GridSearch:
             samples=MockSamples(
                 max_log_likelihood_instance=best_instance,
                 log_likelihood_list=likelihoods,
-                gaussian_tuples=None,
             ),
             model=model,
         )

@@ -1,15 +1,15 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from typing import Optional, List, Union
+from typing import Optional, List, Tuple, Union
 from SLE_Model_Autoconf import conf
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.rectangular import (
-    MapperRectangularNoInterp,
+    MapperRectangular,
 )
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.delaunay import (
     MapperDelaunay,
 )
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.voronoi import (
-    MapperVoronoiNoInterp,
+    MapperVoronoi,
 )
 from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_MatPlot.abstract import (
     AbstractMatPlot,
@@ -43,6 +43,7 @@ class MatPlot2D(AbstractMatPlot):
         legend=None,
         output=None,
         array_overlay=None,
+        contour=None,
         grid_scatter=None,
         grid_plot=None,
         grid_errorbar=None,
@@ -55,10 +56,12 @@ class MatPlot2D(AbstractMatPlot):
         border_scatter=None,
         positions_scatter=None,
         index_scatter=None,
+        index_plot=None,
         mesh_grid_scatter=None,
         parallel_overscan_plot=None,
         serial_prescan_plot=None,
         serial_overscan_plot=None,
+        use_log10=False,
     ):
         """
         Visualizes 2D data structures (e.g an `Array2D`, `Grid2D`, `VectorField`, etc.) using Matplotlib.
@@ -74,7 +77,7 @@ class MatPlot2D(AbstractMatPlot):
         - `Line`: using `plt.plot`, `plt.semilogy`, `plt.loglog` or `plt.scatter`.
         - `VectorField`: using `plt.quiver`.
         - `RectangularMapper`: using `plt.imshow`.
-        - `MapperVoronoiNoInterp`: using `plt.fill`.
+        - `MapperVoronoi`: using `plt.fill`.
 
         Parameters
         ----------
@@ -117,6 +120,8 @@ class MatPlot2D(AbstractMatPlot):
             Sets if the figure is displayed on the user's screen or output to `.png` using `plt.show` and `plt.savefig`
         array_overlay
             Overlays an input `Array2D` over the figure using `plt.imshow`.
+        contour
+            Overlays contours of an input `Array2D` over the figure using `plt.contour`.
         grid_scatter
             Scatters a `Grid2D` of (y,x) coordinates over the figure using `plt.scatter`.
         grid_plot
@@ -147,6 +152,8 @@ class MatPlot2D(AbstractMatPlot):
             Plots the serial prescan on an `Array2D` data structure representing a CCD imaging via `plt.plot`.
         serial_overscan_plot
             Plots the serial overscan on an `Array2D` data structure representing a CCD imaging via `plt.plot`.
+        use_log10
+            If True, the plot has a log10 colormap, colorbar and contours showing the values.
         """
         super().__init__(
             units=units,
@@ -167,6 +174,7 @@ class MatPlot2D(AbstractMatPlot):
             output=output,
         )
         self.array_overlay = array_overlay or w2d.ArrayOverlay(is_default=True)
+        self.contour = contour or w2d.Contour(is_default=True)
         self.grid_scatter = grid_scatter or w2d.GridScatter(is_default=True)
         self.grid_plot = grid_plot or w2d.GridPlot(is_default=True)
         self.grid_errorbar = grid_errorbar or w2d.GridErrorbar(is_default=True)
@@ -184,6 +192,7 @@ class MatPlot2D(AbstractMatPlot):
             is_default=True
         )
         self.index_scatter = index_scatter or w2d.IndexScatter(is_default=True)
+        self.index_plot = index_plot or w2d.IndexPlot(is_default=True)
         self.mesh_grid_scatter = mesh_grid_scatter or w2d.MeshGridScatter(
             is_default=True
         )
@@ -196,9 +205,49 @@ class MatPlot2D(AbstractMatPlot):
         self.serial_overscan_plot = serial_overscan_plot or w2d.SerialOverscanPlot(
             is_default=True
         )
+        self.use_log10 = use_log10
         self.is_for_subplot = False
 
-    def plot_array(self, array, visuals_2d, auto_labels, bypass=False):
+    def zoomed_array_and_extent_from(self, array):
+        """
+        Returns the array and extent of the array, zoomed around the mask of the array, if the config file is set to
+        do this.
+
+        Many plots zoom in around the mask of an array, to emphasize the signal of the data and not waste
+        plotting space on empty pixels. This function computes the zoomed array and extent of this array, given the
+        array.
+
+        If the mask is all false, the array is returned without zooming by disabling the buffer.
+
+        Parameters
+        ----------
+        array
+
+        Returns
+        -------
+
+        """
+        if array.mask.is_all_false:
+            buffer = 0
+        else:
+            buffer = 1
+        zoom_around_mask = conf.instance["visualize"]["general"]["general"][
+            "zoom_around_mask"
+        ]
+        if (self.output.format == "fits") and conf.instance["visualize"]["general"][
+            "general"
+        ]["disable_zoom_for_fits"]:
+            zoom_around_mask = False
+        if zoom_around_mask:
+            extent = array.extent_of_zoomed_array(buffer=buffer)
+            array = array.zoomed_around_mask(buffer=buffer)
+        else:
+            extent = array.geometry.extent
+        return (array, extent)
+
+    def plot_array(
+        self, array, visuals_2d, auto_labels, grid_indexes=None, bypass=False
+    ):
         """
         Plot an `Array2D` data structure as a figure using the matplotlib wrapper objects and tools.
 
@@ -215,30 +264,23 @@ class MatPlot2D(AbstractMatPlot):
         """
         if (array is None) or np.all((array == 0)):
             return
+        if self.use_log10 and (np.all((array == array[0])) or np.all((array < 0))):
+            return
         if (array.pixel_scales is None) and self.units.use_scaled:
             raise exc.ArrayException(
                 "You cannot plot an array using its scaled unit_label if the input array does not have a pixel scales attribute."
             )
-        array = array.binned
-        if array.mask.is_all_false:
-            buffer = 0
-        else:
-            buffer = 1
-        if conf.instance["visualize"]["general"]["general"]["zoom_around_mask"]:
-            extent = array.extent_of_zoomed_array(buffer=buffer)
-            array = array.zoomed_around_mask(buffer=buffer)
-        else:
-            extent = array.geometry.extent
+        (array, extent) = self.zoomed_array_and_extent_from(array=array)
         ax = None
         if not self.is_for_subplot:
             (fig, ax) = self.figure.open()
         elif not bypass:
             ax = self.setup_subplot()
         aspect = self.figure.aspect_from(shape_native=array.shape_native)
-        norm = self.cmap.norm_from(array=array)
+        norm = self.cmap.norm_from(array=array, use_log10=self.use_log10)
         origin = conf.instance["visualize"]["general"]["general"]["imshow_origin"]
         plt.imshow(
-            X=array.native,
+            X=array.native.array,
             aspect=aspect,
             cmap=self.cmap.cmap,
             norm=norm,
@@ -266,7 +308,7 @@ class MatPlot2D(AbstractMatPlot):
             units=self.units,
             pixels=array.shape_native[1],
         )
-        self.title.set(auto_title=auto_labels.title)
+        self.title.set(auto_title=auto_labels.title, use_log10=self.use_log10)
         self.ylabel.set()
         self.xlabel.set()
         if not isinstance(self.text, list):
@@ -279,13 +321,21 @@ class MatPlot2D(AbstractMatPlot):
             [annotate.set() for annotate in self.annotate]
         if self.colorbar is not False:
             cb = self.colorbar.set(
-                units=self.units, ax=ax, norm=norm, cb_unit=auto_labels.cb_unit
+                units=self.units,
+                ax=ax,
+                norm=norm,
+                cb_unit=auto_labels.cb_unit,
+                use_log10=self.use_log10,
             )
             self.colorbar_tickparams.set(cb=cb)
-        grid_indexes = None
-        if (visuals_2d.indexes is not None) or (visuals_2d.pix_indexes is not None):
-            grid_indexes = array.mask.derive_grid.unmasked
-        visuals_2d.plot_via_plotter(plotter=self, grid_indexes=grid_indexes)
+        if self.contour is not False:
+            try:
+                self.contour.set(array=array, extent=extent, use_log10=self.use_log10)
+            except ValueError:
+                pass
+        visuals_2d.plot_via_plotter(
+            plotter=self, grid_indexes=grid_indexes, geometry=array.geometry
+        )
         if (not self.is_for_subplot) and (not bypass):
             self.output.to_figure(structure=array, auto_filename=auto_labels.filename)
             self.figure.close()
@@ -298,7 +348,9 @@ class MatPlot2D(AbstractMatPlot):
         color_array=None,
         y_errors=None,
         x_errors=None,
-        buffer=1.0,
+        plot_grid_lines=False,
+        plot_over_sampled_grid=False,
+        buffer=0.1,
     ):
         """Plot a grid of (y,x) Cartesian coordinates as a scatter plotter of points.
 
@@ -313,12 +365,16 @@ class MatPlot2D(AbstractMatPlot):
             (fig, ax) = self.figure.open()
         else:
             ax = self.setup_subplot()
+        if plot_over_sampled_grid:
+            grid_plot = grid.over_sampler.over_sampled_grid
+        else:
+            grid_plot = grid
         if color_array is None:
             if (y_errors is None) and (x_errors is None):
-                self.grid_scatter.scatter_grid(grid=grid)
+                self.grid_scatter.scatter_grid(grid=grid_plot)
             else:
                 self.grid_errorbar.errorbar_grid(
-                    grid=grid, y_errors=y_errors, x_errors=x_errors
+                    grid=grid_plot, y_errors=y_errors, x_errors=x_errors
                 )
         elif color_array is not None:
             cmap = plt.get_cmap(self.cmap.cmap)
@@ -356,14 +412,21 @@ class MatPlot2D(AbstractMatPlot):
             [annotate.set() for annotate in self.annotate]
         extent = self.axis.config_dict.get("extent")
         if extent is None:
-            extent = np.asarray(grid.geometry.extent)
-            extent = extent + (buffer * extent)
+            extent = grid.extent_with_buffer_from(buffer=buffer)
+        if plot_grid_lines:
+            self.grid_plot.plot_rectangular_grid_lines(
+                extent=grid.geometry.extent, shape_native=grid.shape_native
+            )
         self.axis.set(extent=extent, grid=grid)
         self.tickparams.set()
         if not self.axis.symmetric_around_centre:
             self.yticks.set(min_value=extent[2], max_value=extent[3], units=self.units)
             self.xticks.set(min_value=extent[0], max_value=extent[1], units=self.units)
-        visuals_2d.plot_via_plotter(plotter=self, grid_indexes=grid)
+        if self.contour is not False:
+            self.contour.set(array=color_array, extent=extent, use_log10=self.use_log10)
+        visuals_2d.plot_via_plotter(
+            plotter=self, grid_indexes=grid, geometry=grid.geometry
+        )
         if not self.is_for_subplot:
             self.output.to_figure(structure=grid, auto_filename=auto_labels.filename)
             self.figure.close()
@@ -377,7 +440,7 @@ class MatPlot2D(AbstractMatPlot):
         pixel_values=Optional[None],
         zoom_to_brightest=True,
     ):
-        if isinstance(mapper, MapperRectangularNoInterp):
+        if isinstance(mapper, MapperRectangular):
             self._plot_rectangular_mapper(
                 mapper=mapper,
                 visuals_2d=visuals_2d,
@@ -418,11 +481,9 @@ class MatPlot2D(AbstractMatPlot):
                 mask_2d=np.full(
                     fill_value=False, shape=mapper.source_plane_mesh_grid.shape_native
                 ),
-                sub_size=1,
             )
             pixel_values = Array2D.no_mask(
                 values=solution_array_2d,
-                sub_size=1,
                 pixel_scales=mapper.source_plane_mesh_grid.pixel_scales,
                 origin=mapper.source_plane_mesh_grid.origin,
             )
@@ -463,7 +524,10 @@ class MatPlot2D(AbstractMatPlot):
         self.ylabel.set()
         self.xlabel.set()
         visuals_2d.plot_via_plotter(
-            plotter=self, grid_indexes=mapper.source_plane_data_grid, mapper=mapper
+            plotter=self,
+            grid_indexes=mapper.source_plane_data_grid,
+            mapper=mapper,
+            geometry=mapper.mapper_grids.mask.geometry,
         )
         if not self.is_for_subplot:
             self.output.to_figure(structure=None, auto_filename=auto_labels.filename)
@@ -509,12 +573,16 @@ class MatPlot2D(AbstractMatPlot):
             colorbar_tickparams=self.colorbar_tickparams,
             aspect=aspect_inv,
             ax=ax,
+            use_log10=self.use_log10,
         )
         self.title.set(auto_title=auto_labels.title)
         self.ylabel.set()
         self.xlabel.set()
         visuals_2d.plot_via_plotter(
-            plotter=self, grid_indexes=mapper.source_plane_data_grid, mapper=mapper
+            plotter=self,
+            grid_indexes=mapper.source_plane_data_grid,
+            mapper=mapper,
+            geometry=mapper.mapper_grids.mask.geometry,
         )
         if not self.is_for_subplot:
             self.output.to_figure(
@@ -563,6 +631,7 @@ class MatPlot2D(AbstractMatPlot):
                 colorbar=self.colorbar,
                 colorbar_tickparams=self.colorbar_tickparams,
                 ax=ax,
+                use_log10=self.use_log10,
             )
         else:
             self.interpolated_reconstruction.imshow_reconstruction(
@@ -574,12 +643,16 @@ class MatPlot2D(AbstractMatPlot):
                 colorbar_tickparams=self.colorbar_tickparams,
                 aspect=aspect_inv,
                 ax=ax,
+                use_log10=self.use_log10,
             )
         self.title.set(auto_title=auto_labels.title)
         self.ylabel.set()
         self.xlabel.set()
         visuals_2d.plot_via_plotter(
-            plotter=self, grid_indexes=mapper.source_plane_data_grid, mapper=mapper
+            plotter=self,
+            grid_indexes=mapper.source_plane_data_grid,
+            mapper=mapper,
+            geometry=mapper.mapper_grids.mask.geometry,
         )
         if pixel_values is not None:
             interpolation_array = mapper.interpolated_array_from(values=pixel_values)

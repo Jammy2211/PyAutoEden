@@ -1,8 +1,15 @@
 import copy
 import numpy as np
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from SLE_Model_Autoconf import cached_property
 from SLE_Model_Autoarray.numba_util import profile_func
+from SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.dataset import Imaging
+from SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.w_tilde import (
+    WTildeImaging,
+)
+from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.dataset_interface import (
+    DatasetInterface,
+)
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.SLE_Model_Imaging.abstract import (
     AbstractInversionImaging,
 )
@@ -20,10 +27,6 @@ from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Ma
 )
 from SLE_Model_Autoarray.preloads import Preloads
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays.uniform_2d import Array2D
-from SLE_Model_Autoarray.SLE_Model_Operators.convolver import Convolver
-from SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.w_tilde import (
-    WTildeImaging,
-)
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion import inversion_util
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.SLE_Model_Imaging import (
     inversion_imaging_util,
@@ -33,14 +36,12 @@ from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.SLE_Model_Imagi
 class InversionImagingWTilde(AbstractInversionImaging):
     def __init__(
         self,
-        data,
-        noise_map,
-        convolver,
+        dataset,
         w_tilde,
         linear_obj_list,
         settings=SettingsInversion(),
         preloads=Preloads(),
-        profiling_dict=None,
+        run_time_dict=None,
     ):
         """
         Constructs linear equations (via vectors and matrices) which allow for sets of simultaneous linear equations
@@ -58,28 +59,27 @@ class InversionImagingWTilde(AbstractInversionImaging):
         noise_map
             The noise-map of the observed imaging data which values are solved for.
         convolver
-            The convolver used to include 2D convolution of the mapping matrix with the imaigng data's PSF.
+            The convolver used to perform 2D convolution of the imaigng data's PSF when computing the operated
+            mapping matrix.
         w_tilde
             An object containing matrices that construct the linear equations via the w-tilde formalism which bypasses
             the mapping matrix.
         linear_obj_list
             The linear objects used to reconstruct the data's observed values. If multiple linear objects are passed
             the simultaneous linear equations are combined and solved simultaneously.
-        profiling_dict
+        run_time_dict
             A dictionary which contains timing of certain functions calls which is used for profiling.
         """
         super().__init__(
-            data=data,
-            noise_map=noise_map,
-            convolver=convolver,
+            dataset=dataset,
             linear_obj_list=linear_obj_list,
             settings=settings,
             preloads=preloads,
-            profiling_dict=profiling_dict,
+            run_time_dict=run_time_dict,
         )
         if self.settings.use_w_tilde:
             self.w_tilde = w_tilde
-            self.w_tilde.check_noise_map(noise_map=noise_map)
+            self.w_tilde.check_noise_map(noise_map=dataset.noise_map)
         else:
             self.w_tilde = None
 
@@ -87,9 +87,9 @@ class InversionImagingWTilde(AbstractInversionImaging):
     @profile_func
     def w_tilde_data(self):
         return inversion_imaging_util.w_tilde_data_imaging_from(
-            image_native=self.data.native,
-            noise_map_native=self.noise_map.native,
-            kernel_native=self.convolver.kernel.native,
+            image_native=np.array(self.data.native),
+            noise_map_native=np.array(self.noise_map.native),
+            kernel_native=np.array(self.convolver.kernel.native),
             native_index_for_slim_index=self.data.mask.derive_indexes.native_for_slim,
         )
 
@@ -216,8 +216,8 @@ class InversionImagingWTilde(AbstractInversionImaging):
             ]
             diag = inversion_imaging_util.data_vector_via_blurred_mapping_matrix_from(
                 blurred_mapping_matrix=operated_mapping_matrix,
-                image=self.data,
-                noise_map=self.noise_map,
+                image=np.array(self.data),
+                noise_map=np.array(self.noise_map),
             )
             param_range = linear_func_param_range[linear_func_index]
             data_vector[param_range[0] : param_range[1]] = diag
@@ -502,7 +502,7 @@ class InversionImagingWTilde(AbstractInversionImaging):
                     reconstruction=reconstruction,
                 )
                 mapped_reconstructed_image = Array2D(
-                    values=mapped_reconstructed_image, mask=self.mask.derive_mask.sub_1
+                    values=mapped_reconstructed_image, mask=self.mask
                 )
                 mapped_reconstructed_image = self.convolver.convolve_image_no_blurring(
                     image=mapped_reconstructed_image
@@ -515,7 +515,7 @@ class InversionImagingWTilde(AbstractInversionImaging):
                     (reconstruction * operated_mapping_matrix), axis=1
                 )
                 mapped_reconstructed_image = Array2D(
-                    values=mapped_reconstructed_image, mask=self.mask.derive_mask.sub_1
+                    values=mapped_reconstructed_image, mask=self.mask
                 )
             mapped_reconstructed_data_dict[linear_obj] = mapped_reconstructed_image
         return mapped_reconstructed_data_dict

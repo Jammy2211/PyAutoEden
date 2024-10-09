@@ -23,7 +23,7 @@ def zeroth_regularization_matrix_from(coefficient, pixels):
     Returns
     -------
     np.ndarray
-        The regularization matrix computed using a constant regularization scheme where the effective regularization
+        The regularization matrix computed using Regularization where the effective regularization
         coefficient of every source pixel is the same.
     """
     regularization_matrix = np.zeros(shape=(pixels, pixels))
@@ -55,7 +55,7 @@ def constant_regularization_matrix_from(coefficient, neighbors, neighbors_sizes)
     Returns
     -------
     np.ndarray
-        The regularization matrix computed using a constant regularization scheme where the effective regularization
+        The regularization matrix computed using Regularization where the effective regularization
         coefficient of every source pixel is the same.
     """
     parameters = len(neighbors)
@@ -94,7 +94,7 @@ def constant_zeroth_regularization_matrix_from(
     Returns
     -------
     np.ndarray
-        The regularization matrix computed using a constant regularization scheme where the effective regularization
+        The regularization matrix computed using Regularization where the effective regularization
         coefficient of every source pixel is the same.
     """
     pixels = len(neighbors)

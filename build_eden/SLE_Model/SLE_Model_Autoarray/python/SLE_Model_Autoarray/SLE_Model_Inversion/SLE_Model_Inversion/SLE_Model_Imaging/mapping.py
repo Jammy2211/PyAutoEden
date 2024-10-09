@@ -1,8 +1,12 @@
 import copy
 import numpy as np
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from SLE_Model_Autoconf import cached_property
 from SLE_Model_Autoarray.numba_util import profile_func
+from SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Imaging.dataset import Imaging
+from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.dataset_interface import (
+    DatasetInterface,
+)
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.SLE_Model_Imaging.abstract import (
     AbstractInversionImaging,
 )
@@ -16,7 +20,6 @@ from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.settings import
     SettingsInversion,
 )
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays.uniform_2d import Array2D
-from SLE_Model_Autoarray.SLE_Model_Operators.convolver import Convolver
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion import inversion_util
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.SLE_Model_Imaging import (
     inversion_imaging_util,
@@ -26,13 +29,11 @@ from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.SLE_Model_Imagi
 class InversionImagingMapping(AbstractInversionImaging):
     def __init__(
         self,
-        data,
-        noise_map,
-        convolver,
+        dataset,
         linear_obj_list,
         settings=SettingsInversion(),
         preloads=None,
-        profiling_dict=None,
+        run_time_dict=None,
     ):
         """
         Constructs linear equations (via vectors and matrices) which allow for sets of simultaneous linear equations
@@ -54,17 +55,15 @@ class InversionImagingMapping(AbstractInversionImaging):
         linear_obj_list
             The linear objects used to reconstruct the data's observed values. If multiple linear objects are passed
             the simultaneous linear equations are combined and solved simultaneously.
-        profiling_dict
+        run_time_dict
             A dictionary which contains timing of certain functions calls which is used for profiling.
         """
         super().__init__(
-            data=data,
-            noise_map=noise_map,
-            convolver=convolver,
+            dataset=dataset,
             linear_obj_list=linear_obj_list,
             settings=settings,
             preloads=preloads,
-            profiling_dict=profiling_dict,
+            run_time_dict=run_time_dict,
         )
 
     @property
@@ -123,8 +122,8 @@ class InversionImagingMapping(AbstractInversionImaging):
             operated_mapping_matrix = self.operated_mapping_matrix
         return inversion_imaging_util.data_vector_via_blurred_mapping_matrix_from(
             blurred_mapping_matrix=operated_mapping_matrix,
-            image=self.data,
-            noise_map=self.noise_map,
+            image=np.array(self.data),
+            noise_map=np.array(self.noise_map),
         )
 
     @property
@@ -235,7 +234,7 @@ class InversionImagingMapping(AbstractInversionImaging):
                 )
             )
             mapped_reconstructed_image = Array2D(
-                values=mapped_reconstructed_image, mask=self.mask.derive_mask.sub_1
+                values=mapped_reconstructed_image, mask=self.mask
             )
             mapped_reconstructed_data_dict[linear_obj] = mapped_reconstructed_image
         return mapped_reconstructed_data_dict

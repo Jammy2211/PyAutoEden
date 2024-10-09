@@ -84,6 +84,9 @@ from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Wrap.SLE_Model_TwoD.positions_
 from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Wrap.SLE_Model_TwoD.index_scatter import (
     IndexScatter,
 )
+from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Wrap.SLE_Model_TwoD.index_plot import (
+    IndexPlot,
+)
 from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Wrap.SLE_Model_TwoD.mesh_grid_scatter import (
     MeshGridScatter,
 )

@@ -5,7 +5,6 @@ import logging
 import random
 import types
 from collections import defaultdict
-from functools import wraps
 from typing import Tuple, Optional, Dict, List, Iterable, Generator, Union, Type
 import numpy as np
 from SLE_Model_Autoconf import conf
@@ -14,6 +13,7 @@ from SLE_Model_Autofit import exc
 from SLE_Model_Autofit.SLE_Model_Mapper import model
 from SLE_Model_Autofit.SLE_Model_Mapper.model import AbstractModel, frozen_cache
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior import GaussianPrior
+from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior import UniformPrior
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.abstract import Prior
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.deferred import DeferredArgument
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_Prior.tuple_prior import TuplePrior
@@ -30,6 +30,9 @@ from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.attribute_pair impo
 )
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.recursion import (
     DynamicRecursionCache,
+)
+from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.representative import (
+    find_groups,
 )
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.util import (
     PriorModelNameValue,
@@ -165,6 +168,14 @@ class AbstractPriorModel(AbstractModel):
     def __init__(self, label=None):
         super().__init__(label=label)
         self._assertions = list()
+
+    @property
+    def assertions(self):
+        return self._assertions
+
+    @assertions.setter
+    def assertions(self, assertions):
+        self._assertions = assertions
 
     def check_assertions(self, arguments):
         """
@@ -457,12 +468,22 @@ class AbstractPriorModel(AbstractModel):
 
                     item = Collection(item)
                 for attribute in path:
-                    item = copy.copy(getattr(item, attribute))
+                    if isinstance(attribute, int):
+                        item = item[attribute]
+                    else:
+                        item = copy.copy(getattr(item, attribute))
                 target = self
                 for attribute in path[:(-1)]:
-                    target = getattr(target, attribute)
+                    if isinstance(attribute, int):
+                        target = target[attribute]
+                    else:
+                        target = getattr(target, attribute)
                     assert_no_assertions(target)
-                setattr(target, path[(-1)], item)
+                attribute = path[(-1)]
+                if isinstance(attribute, int):
+                    target[attribute] = item
+                else:
+                    setattr(target, path[(-1)], item)
             except AttributeError:
                 pass
 
@@ -721,7 +742,9 @@ class AbstractPriorModel(AbstractModel):
         if not ignore_prior_limits:
             for (prior, value) in arguments.items():
                 prior.assert_within_limits(value)
-        return self.instance_for_arguments(arguments)
+        return self.instance_for_arguments(
+            arguments, ignore_assertions=ignore_prior_limits
+        )
 
     def has(self, cls):
         """
@@ -843,9 +866,7 @@ class AbstractPriorModel(AbstractModel):
     def gaussian_prior_model_for_arguments(self, arguments):
         raise NotImplementedError()
 
-    def mapper_from_gaussian_tuples(
-        self, tuples, a=None, r=None, use_errors=True, use_widths=True, no_limits=False
-    ):
+    def mapper_from_prior_means(self, means, a=None, r=None, no_limits=False):
         """
         The widths of the new priors are taken from the
         width_config. The new gaussian priors must be provided in the same order as
@@ -854,6 +875,8 @@ class AbstractPriorModel(AbstractModel):
         If r is not None then all priors are created with a relative width of r.
         Parameters
         ----------
+        means
+            The median PDF value of every Gaussian, which centres each `GaussianPrior`.
         no_limits
             If `True` generated priors have infinite limits
         r
@@ -861,14 +884,6 @@ class AbstractPriorModel(AbstractModel):
         a
             print(tuples[i][1], width)
             The absolute width to be assigned to gaussian priors
-        use_errors
-            If True, the passed errors of the model components estimated in a previous `NonLinearSearch` (computed
-            at the prior_passer.sigma value) are used to set the pass Gaussian Prior sigma value (if both width and
-            passed errors are used, the maximum of these two values are used).
-        use_widths
-            If True, the minimum prior widths specified in the prior configs of the model components are used to
-            set the passed Gaussian Prior sigma value (if both widths and passed errors are used, the maximum of
-            these two values are used).
         tuples
             A list of tuples each containing the mean and width of a prior
         Returns
@@ -879,10 +894,9 @@ class AbstractPriorModel(AbstractModel):
         prior_tuples = self.prior_tuples_ordered_by_id
         prior_class_dict = self.prior_class_dict
         arguments = {}
-        for (i, prior_tuple) in enumerate(prior_tuples):
+        for (prior_tuple, mean) in zip(prior_tuples, means):
             prior = prior_tuple.prior
             cls = prior_class_dict[prior]
-            (mean, sigma) = tuples[i]
             name = prior_tuple.name
             if name.isdigit():
                 name = self.path_for_prior(prior_tuple.prior)[(-2)]
@@ -907,16 +921,7 @@ class AbstractPriorModel(AbstractModel):
                     limits = Limits.for_class_and_attributes_name(cls, name)
                 except ConfigException:
                     limits = prior.limits
-            if use_errors and (not use_widths):
-                sigma = tuples[i][1]
-            elif (not use_errors) and use_widths:
-                sigma = width
-            elif use_errors and use_widths:
-                sigma = max(tuples[i][1], width)
-            else:
-                raise exc.PriorException(
-                    "use_passed_errors and use_widths are both False, meaning there is no way to pass priors to set up the new model's Gaussian Priors."
-                )
+            sigma = width
             new_prior = GaussianPrior(mean, sigma, *limits)
             new_prior.id = prior.id
             new_prior.width_modifier = prior.width_modifier
@@ -943,6 +948,34 @@ class AbstractPriorModel(AbstractModel):
                 for (prior, prior_limits) in zip(self.priors_ordered_by_id, limits)
             }
         )
+
+    def mapper_from_uniform_floats(self, floats, b):
+        """
+        The widths of the new priors are the `floats` value minus and plus the input bound `b`.
+
+        Parameters
+        ----------
+        floats
+            A list of floats each containing the centre of the new uniform priors.
+        b
+            The bound value which is subtracted from each float to calculate the `lower_limit` and `upper_limit`
+            of each uniform prior.
+
+        Returns
+        -------
+        mapper: ModelMapper
+            A new model mapper with all priors replaced by uniform priors.
+        """
+        prior_tuples = self.prior_tuples_ordered_by_id
+        arguments = {}
+        for (i, prior_tuple) in enumerate(prior_tuples):
+            prior = prior_tuple.prior
+            new_prior = UniformPrior(
+                lower_limit=(floats[i] - b), upper_limit=(floats[i] + b)
+            )
+            new_prior.id = prior.id
+            arguments[prior] = new_prior
+        return self.mapper_from_prior_arguments(arguments)
 
     def instance_from_prior_medians(self, ignore_prior_limits=False):
         """
@@ -1082,10 +1115,11 @@ class AbstractPriorModel(AbstractModel):
         return result
 
     def items(self):
-        return (
-            (self.direct_prior_tuples + self.direct_instance_tuples)
-            + self.direct_prior_model_tuples
-        ) + self.direct_tuple_priors
+        return [
+            (key, value)
+            for (key, value) in self.__dict__.items()
+            if ((not key.startswith("_")) and (key not in ("cls", "id")))
+        ]
 
     @property
     @cast_collection(PriorNameValue)
@@ -1174,7 +1208,7 @@ class AbstractPriorModel(AbstractModel):
                 d.update(prior_model[1].prior_class_dict)
         return d
 
-    def _instance_for_arguments(self, arguments):
+    def _instance_for_arguments(self, arguments, ignore_assertions=False):
         raise NotImplementedError()
 
     def instance_for_arguments(self, arguments, ignore_assertions=False):
@@ -1197,7 +1231,9 @@ class AbstractPriorModel(AbstractModel):
         ):
             self.check_assertions(arguments)
         logger.debug(f"Creating an instance for arguments")
-        return self._instance_for_arguments(arguments)
+        return self._instance_for_arguments(
+            arguments, ignore_assertions=ignore_assertions
+        )
 
     def path_for_name(self, name):
         """
@@ -1243,7 +1279,9 @@ class AbstractPriorModel(AbstractModel):
                     return path + (name,)
         raise AssertionError(f"No path was found matching {name}")
 
-    def instance_from_prior_name_arguments(self, prior_name_arguments):
+    def instance_from_prior_name_arguments(
+        self, prior_name_arguments, ignore_assertions=False
+    ):
         """
         Instantiate the model from the names of priors and
         corresponding values.
@@ -1254,6 +1292,8 @@ class AbstractPriorModel(AbstractModel):
             The names of priors where names of models and the
             name of the prior have been joined by underscores,
             mapped to corresponding values.
+        ignore_assertions
+            If True, assertions will not be checked
 
         Returns
         -------
@@ -1263,10 +1303,11 @@ class AbstractPriorModel(AbstractModel):
             {
                 self.path_for_name(name): value
                 for (name, value) in prior_name_arguments.items()
-            }
+            },
+            ignore_assertions=ignore_assertions,
         )
 
-    def instance_from_path_arguments(self, path_arguments):
+    def instance_from_path_arguments(self, path_arguments, ignore_assertions=False):
         """
         Create an instance from a dictionary mapping paths to tuples
         to corresponding values.
@@ -1278,6 +1319,8 @@ class AbstractPriorModel(AbstractModel):
             Note that, for linked priors, each path only needs to be
             specified once. If multiple paths for the same prior are
             specified then the value for the last path will be used.
+        ignore_assertions
+            If True, assertions will not be checked
 
         Returns
         -------
@@ -1287,7 +1330,9 @@ class AbstractPriorModel(AbstractModel):
             self.object_for_path(path): value
             for (path, value) in path_arguments.items()
         }
-        return self._instance_for_arguments(arguments)
+        return self._instance_for_arguments(
+            arguments, ignore_assertions=ignore_assertions
+        )
 
     @property
     def prior_count(self):
@@ -1295,6 +1340,13 @@ class AbstractPriorModel(AbstractModel):
         How many unique priors does this model contain?
         """
         return len(self.unique_prior_tuples)
+
+    @property
+    def total_free_parameters(self):
+        """
+        Returns the prior count, but with a name that is more easy to interpret for users.
+        """
+        return self.prior_count
 
     @property
     def priors(self):
@@ -1363,6 +1415,18 @@ class AbstractPriorModel(AbstractModel):
         ids
         """
         return [path for (path, _) in self.path_priors_tuples]
+
+    @property
+    def paths_formatted(self):
+        """
+        A list of paths to all the priors in the model, ordered by their
+        ids
+        """
+        return [path for (path, _) in self.path_priors_tuples]
+
+    @property
+    def composition(self):
+        return [".".join(path) for path in self.paths]
 
     def sort_priors_alphabetically(self, priors):
         """
@@ -1454,9 +1518,18 @@ class AbstractPriorModel(AbstractModel):
         This information is extracted from each priors *model_info* property.
         """
         formatter = TextFormatter(line_length=info_whitespace())
-        for t in self.path_instance_tuples_for_class(
-            (Prior, float, tuple), ignore_children=True
+        for t in find_groups(
+            [
+                t
+                for t in self.path_instance_tuples_for_class(
+                    (Prior, float, int, tuple, ConfigException), ignore_children=True
+                )
+                if (t[0][(-1)] not in ("id", "item_number"))
+            ],
+            limit=1,
         ):
+            if isinstance(t[1], ConfigException):
+                t = (t[0], "Prior Missing: Enter Manually or Add to Config")
             formatter.add(*t)
         return """
 
@@ -1499,6 +1572,7 @@ class AbstractPriorModel(AbstractModel):
         )
 
         formatter = TextFormatter(line_length=info_whitespace())
+        paths = []
         for t in self.path_instance_tuples_for_class(
             (Prior, float, tuple), ignore_children=True
         ):
@@ -1515,7 +1589,9 @@ class AbstractPriorModel(AbstractModel):
                     name = obj.cls.__name__
                 else:
                     name = type(obj).__name__
-                formatter.add((("model",) + path), f"{name} (N={n})")
+                paths.append(((("model",) + path), f"{name} (N={n})"))
+        for group in find_groups(paths, limit=0):
+            formatter.add(*group)
         return formatter.text
 
     @property
@@ -1560,38 +1636,46 @@ class AbstractPriorModel(AbstractModel):
         """
         path_modifier = TuplePathModifier(self)
         return [
-            (tuple(("_".join(path_modifier(path)) for path in paths)), prior)
+            (tuple((".".join(path_modifier(path)) for path in paths)), prior)
             for (paths, prior) in self.all_paths_prior_tuples
         ]
 
     @property
     def model_component_and_parameter_names(self):
-        """The param_names vector is a list each parameter's analysis_path, and is used
-        for *corner.py* visualization.
-        The parameter names are determined from the class instance names of the
-        model_mapper. Latex tags are properties of each model class."""
+        """
+        Lists each parameter's name and path, and is used for labeling visualization with parameter labels.
+
+        The parameter names are determined from the class instance names of the model_mapper. Latex tags are properties
+        of each model class.
+        """
         prior_paths = self.unique_prior_paths
         tuple_filter = TuplePathModifier(self)
         prior_paths = list(map(tuple_filter, prior_paths))
-        return ["_".join(path) for path in prior_paths]
+        return [".".join(path) for path in prior_paths]
+
+    @property
+    def joined_paths(self):
+        prior_paths = self.unique_prior_paths
+        return [".".join(path) for path in prior_paths]
 
     @property
     def parameter_names(self):
         """
-        The param_names vector is a list each parameter's analysis_path, and is used
-        for *corner.py* visualization.
+        Returns a list of labels containing the name of every parameter in a model.
 
-        The parameter names are determined from the class instance names of the
-        model_mapper. Latex tags are properties of each model class.
+        This is used for displaying model results as text and for visualization.
+
+        The parameter labels are defined for every parameter of every model component in the config files label.ini and
+        label_format.ini.
         """
         return [parameter_name[(-1)] for parameter_name in self.unique_prior_paths]
 
     @property
     def parameter_labels(self):
         """
-        Returns a list of the label of every parameter in a model.
+        Returns a list of labels containing latex labels of every parameter in a model.
 
-        This is used for displaying model results as text and for visualization with *corner.py*.
+        This is used for displaying model results as text and for visualization.
 
         The parameter labels are defined for every parameter of every model component in the config files label.ini and
         label_format.ini.
@@ -1627,7 +1711,7 @@ class AbstractPriorModel(AbstractModel):
         tuple_filter = TuplePathModifier(self)
         prior_paths = map(tuple_filter, prior_paths)
         superscripts = [
-            (path[(-2)] if (len(path) > 1) else path[0]) for path in prior_paths
+            (path[(-2)] if (len(path) > 1) else None) for path in prior_paths
         ]
         return [
             (superscript if (not superscript_overwrite) else superscript_overwrite)
@@ -1674,11 +1758,10 @@ class AbstractPriorModel(AbstractModel):
         The parameter labels are defined for every parameter of every model component in the config file `label.ini`.
         This file can also be used to overwrite superscripts, that are assigned based on the model component name.
 
-        This is used for displaying model results as text and for visualization, for example labelling parameters on a
-        cornerplot.
+        This is used for displaying model results as text and for visualization, for example labelling parameters.
         """
         return [
-            f"{label}^{{\rm {superscript}}}"
+            (f"{label}^{{\rm {superscript}}}" if superscript else f"{label}")
             for (label, superscript) in zip(self.parameter_labels, self.superscripts)
         ]
 
@@ -1690,8 +1773,7 @@ class AbstractPriorModel(AbstractModel):
         The parameter labels are defined for every parameter of every model component in the config file `label.ini`.
         This file can also be used to overwrite superscripts, that are assigned based on the model component name.
 
-        This is used for displaying model results as text and for visualization, for example labelling parameters on a
-        cornerplot.
+        This is used for displaying model results as text and for visualization, for example labelling parameters.
         """
         return [f"${label}$" for label in self.parameter_labels_with_superscripts]
 

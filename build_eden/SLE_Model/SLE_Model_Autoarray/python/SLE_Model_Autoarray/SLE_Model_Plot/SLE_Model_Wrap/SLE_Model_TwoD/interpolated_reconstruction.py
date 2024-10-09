@@ -6,9 +6,6 @@ from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Wrap.SLE_Model_TwoD.abstract i
 )
 from SLE_Model_Autoarray.SLE_Model_Plot.SLE_Model_Wrap.SLE_Model_Base.units import Units
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.voronoi import (
-    MapperVoronoiNoInterp,
-)
-from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.voronoi import (
     MapperVoronoi,
 )
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.delaunay import (
@@ -45,6 +42,7 @@ class InterpolatedReconstruction(AbstractMatWrap2D):
         colorbar_tickparams=None,
         aspect=None,
         ax=None,
+        use_log10=False,
     ):
         """
         Given a `Mapper` and a corresponding array of `pixel_values` (e.g. the reconstruction values of a Delaunay
@@ -80,21 +78,28 @@ class InterpolatedReconstruction(AbstractMatWrap2D):
         """
         if pixel_values is None:
             return
-        vmin = cmap.vmin_from(array=pixel_values)
-        vmax = cmap.vmax_from(array=pixel_values)
+        interpolation_array = mapper.interpolated_array_from(values=pixel_values)
+        norm = cmap.norm_from(array=interpolation_array, use_log10=use_log10)
+        vmin = cmap.vmin_from(array=pixel_values, use_log10=use_log10)
+        vmax = cmap.vmax_from(array=pixel_values, use_log10=use_log10)
         color_values = np.where((pixel_values > vmax), vmax, pixel_values)
         color_values = np.where((pixel_values < vmin), vmin, color_values)
         cmap = plt.get_cmap(cmap.cmap)
         if colorbar is not None:
             colorbar = colorbar.set_with_color_values(
-                units=units, cmap=cmap, color_values=color_values, ax=ax
+                units=units,
+                cmap=cmap,
+                norm=norm,
+                color_values=color_values,
+                ax=ax,
+                use_log10=use_log10,
             )
             if (colorbar is not None) and (colorbar_tickparams is not None):
                 colorbar_tickparams.set(cb=colorbar)
-        interpolation_array = mapper.interpolated_array_from(values=pixel_values)
         plt.imshow(
             X=interpolation_array.native,
             cmap=cmap,
+            norm=norm,
             extent=mapper.source_plane_mesh_grid.geometry.extent_square,
             aspect=aspect,
         )

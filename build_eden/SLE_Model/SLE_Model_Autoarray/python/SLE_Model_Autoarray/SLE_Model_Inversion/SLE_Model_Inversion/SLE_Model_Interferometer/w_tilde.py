@@ -1,6 +1,12 @@
 import numpy as np
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from SLE_Model_Autoconf import cached_property
+from SLE_Model_Autoarray.SLE_Model_Dataset.SLE_Model_Interferometer.dataset import (
+    Interferometer,
+)
+from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.dataset_interface import (
+    DatasetInterface,
+)
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion.SLE_Model_Interferometer.abstract import (
     AbstractInversionInterferometer,
 )
@@ -17,9 +23,7 @@ from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Ma
     AbstractMapper,
 )
 from SLE_Model_Autoarray.preloads import Preloads
-from SLE_Model_Autoarray.SLE_Model_Operators.transformer import TransformerNUFFT
 from SLE_Model_Autoarray.SLE_Model_Structures.visibilities import Visibilities
-from SLE_Model_Autoarray.SLE_Model_Structures.visibilities import VisibilitiesNoiseMap
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Inversion import inversion_util
 from SLE_Model_Autoarray.numba_util import profile_func
 
@@ -27,14 +31,12 @@ from SLE_Model_Autoarray.numba_util import profile_func
 class InversionInterferometerWTilde(AbstractInversionInterferometer):
     def __init__(
         self,
-        data,
-        noise_map,
-        transformer,
+        dataset,
         w_tilde,
         linear_obj_list,
         settings=SettingsInversion(),
         preloads=Preloads(),
-        profiling_dict=None,
+        run_time_dict=None,
     ):
         """
         Constructs linear equations (via vectors and matrices) which allow for sets of simultaneous linear equations
@@ -61,19 +63,17 @@ class InversionInterferometerWTilde(AbstractInversionInterferometer):
         linear_obj_list
             The linear objects used to reconstruct the data's observed values. If multiple linear objects are passed
             the simultaneous linear equations are combined and solved simultaneously.
-        profiling_dict
+        run_time_dict
             A dictionary which contains timing of certain functions calls which is used for profiling.
         """
         self.w_tilde = w_tilde
-        self.w_tilde.check_noise_map(noise_map=noise_map)
+        self.w_tilde.check_noise_map(noise_map=dataset.noise_map)
         super().__init__(
-            data=data,
-            noise_map=noise_map,
-            transformer=transformer,
+            dataset=dataset,
             linear_obj_list=linear_obj_list,
             settings=settings,
             preloads=preloads,
-            profiling_dict=profiling_dict,
+            run_time_dict=run_time_dict,
         )
         self.settings = settings
 

@@ -11,8 +11,8 @@ from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Ma
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mesh.abstract import (
     AbstractMesh,
 )
-from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.settings import (
-    SettingsPixelization,
+from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.border_relocator import (
+    BorderRelocator,
 )
 from SLE_Model_Autoarray import exc
 from SLE_Model_Autoarray.numba_util import profile_func
@@ -54,42 +54,39 @@ class Rectangular(AbstractMesh):
         self.shape = (int(shape[0]), int(shape[1]))
         self.pixels = self.shape[0] * self.shape[1]
         super().__init__()
-        self.profiling_dict = {}
-
-    @property
-    def uses_interpolation(self):
-        """
-        Does this ``Mesh`` object use interpolation when pairing with another 2D grid?
-        """
-        return False
+        self.run_time_dict = {}
 
     def mapper_grids_from(
         self,
+        mask,
         source_plane_data_grid,
+        border_relocator=None,
         source_plane_mesh_grid=None,
         image_plane_mesh_grid=None,
-        hyper_data=None,
-        settings=SettingsPixelization(),
+        adapt_data=None,
         preloads=Preloads(),
-        profiling_dict=None,
+        run_time_dict=None,
     ):
         """
         Mapper objects describe the mappings between pixels in the masked 2D data and the pixels in a pixelization,
         in both the `data` and `source` frames.
 
-        This function returns a `MapperRectangularNoInterp` as follows:
+        This function returns a `MapperRectangular` as follows:
 
-        1) If `settings.use_border=True`, the border of the input `source_plane_data_grid` is used to relocate all of the
+        1) If the bordr relocator is input, the border of the input `source_plane_data_grid` is used to relocate all of the
            grid's (y,x) coordinates beyond the border to the edge of the border.
 
         2) Determine the (y,x) coordinates of the pixelization's rectangular pixels, by laying this rectangular grid
            over the 2D grid of relocated (y,x) coordinates computed in step 1 (or the input `source_plane_data_grid` if step 1
            is bypassed).
 
-        3) Return the `MapperRectangularNoInterp`.
+        3) Return the `MapperRectangular`.
 
         Parameters
         ----------
+        border_relocator
+           The border relocator, which relocates coordinates outside the border of the source-plane data grid to its
+           edge.
         source_plane_data_grid
             A 2D grid of (y,x) coordinates associated with the unmasked 2D data after it has been transformed to the
             `source` reference frame.
@@ -98,39 +95,33 @@ class Rectangular(AbstractMesh):
             by overlaying the `source_plane_data_grid` with the rectangular pixelization.
         image_plane_mesh_grid
             Not used for a rectangular pixelization.
-        hyper_data
+        adapt_data
             Not used for a rectangular pixelization.
-        settings
-            Settings controlling the pixelization for example if a border is used to relocate its exterior coordinates.
         preloads
             Object which may contain preloaded arrays of quantities computed in the pixelization, which are passed via
             this object speed up the calculation.
-        profiling_dict
+        run_time_dict
             A dictionary which contains timing of certain functions calls which is used for profiling.
         """
-        self.profiling_dict = profiling_dict
+        self.run_time_dict = run_time_dict
         relocated_grid = self.relocated_grid_from(
+            border_relocator=border_relocator,
             source_plane_data_grid=source_plane_data_grid,
-            settings=settings,
             preloads=preloads,
         )
         mesh_grid = self.mesh_grid_from(source_plane_data_grid=relocated_grid)
         return MapperGrids(
+            mask=mask,
             source_plane_data_grid=relocated_grid,
             source_plane_mesh_grid=mesh_grid,
             image_plane_mesh_grid=image_plane_mesh_grid,
-            hyper_data=hyper_data,
+            adapt_data=adapt_data,
             preloads=preloads,
-            profiling_dict=profiling_dict,
+            run_time_dict=run_time_dict,
         )
 
     @profile_func
-    def mesh_grid_from(
-        self,
-        source_plane_data_grid=None,
-        source_plane_mesh_grid=None,
-        sparse_index_for_slim_index=None,
-    ):
+    def mesh_grid_from(self, source_plane_data_grid=None, source_plane_mesh_grid=None):
         """
         Return the rectangular `source_plane_mesh_grid` as a `Mesh2DRectangular` object, which provides additional
         functionality for perform operatons that exploit the geometry of a rectangular pixelization.
@@ -143,17 +134,11 @@ class Rectangular(AbstractMesh):
         source_plane_mesh_grid
             Not used for a rectangular pixelization, because the pixelization grid in the `source` frame is computed
             by overlaying the `source_plane_data_grid` with the rectangular pixelization.
-        sparse_index_for_slim_index
-            Not used for a rectangular pixelization.
         """
         return Mesh2DRectangular.overlay_grid(
             shape_native=self.shape, grid=source_plane_data_grid
         )
 
-    def image_plane_mesh_grid_from(
-        self, image_plane_data_grid, hyper_data=None, settings=SettingsPixelization()
-    ):
-        """
-        Not used for rectangular pixelization.
-        """
-        return None
+    @property
+    def requires_image_mesh(self):
+        return False

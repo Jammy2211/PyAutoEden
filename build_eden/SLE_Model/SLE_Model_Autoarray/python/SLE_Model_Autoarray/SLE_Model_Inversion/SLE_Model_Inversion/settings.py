@@ -1,6 +1,6 @@
-from SLE_Model_Autoconf import conf
 import logging
 from typing import Optional
+from SLE_Model_Autoconf import conf
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -12,6 +12,7 @@ class SettingsInversion:
         use_w_tilde=True,
         use_positive_only_solver=None,
         positive_only_uses_p_initial=None,
+        use_border_relocator=None,
         force_edge_pixels_to_zeros=True,
         force_edge_image_pixels_to_zeros=False,
         image_pixels_source_zero=None,
@@ -19,6 +20,10 @@ class SettingsInversion:
         use_w_tilde_numpy=False,
         use_source_loop=False,
         use_linear_operators=False,
+        image_mesh_min_mesh_pixels_per_pixel=None,
+        image_mesh_min_mesh_number=5,
+        image_mesh_adapt_background_percent_threshold=None,
+        image_mesh_adapt_background_percent_check=0.8,
         tolerance=1e-08,
         maxiter=250,
     ):
@@ -37,6 +42,9 @@ class SettingsInversion:
             Whether to use a positive-only linear system solver, which requires that every reconstructed value is
             positive but is computationally much slower than the default solver (which allows for positive and
             negative values).
+        use_border_relocator
+            If `True`, all coordinates of all pixelization source mesh grids have pixels outside their border
+            relocated to their edge.
         no_regularization_add_to_curvature_diag_value
             If a linear func object does not have a corresponding regularization, this value is added to its
             diagonal entries of the curvature regularization matrix to ensure the matrix is positive-definite.
@@ -47,23 +55,45 @@ class SettingsInversion:
             Shhhh its a secret.
         use_linear_operators
             For an interferometer inversion, whether to use the linear operator solution to solve the linear system
-            or not (this input does nothing for imaging data).
+            or not (this input does nothing for dataset data).
+        image_mesh_min_mesh_pixels_per_pixel
+            If not None, the image-mesh must place this many mesh pixels per image pixels in the N highest weighted
+            regions of the adapt data, or an `InversionException` is raised. This can be used to force the image-mesh
+            to cluster large numbers of source pixels to the adapt-datas brightest regions.
+        image_mesh_min_mesh_number
+            The value N given above in the docstring for `image_mesh_min_mesh_pixels_per_pixel`, indicating how many
+            image pixels are checked for having a threshold number of mesh pixels.
+        image_mesh_adapt_background_percent_threshold
+            If not None, the image-mesh must place this percentage of mesh-pixels in the background regions of the
+            `adapt_data`, where the background is the `image_mesh_adapt_background_percent_check` masked data pixels
+            with the lowest values.
+        image_mesh_adapt_background_percent_check
+            The percentage of masked data pixels which are checked for the background criteria.
         tolerance
             For an interferometer inversion using the linear operators method, sets the tolerance of the solver
-            (this input does nothing for imaging data and other interferometer methods).
+            (this input does nothing for dataset data and other interferometer methods).
         maxiter
             For an interferometer inversion using the linear operators method, sets the maximum number of iterations
-            of the solver (this input does nothing for imaging data and other interferometer methods).
+            of the solver (this input does nothing for dataset data and other interferometer methods).
         """
         self.use_w_tilde = use_w_tilde
         self._use_positive_only_solver = use_positive_only_solver
         self._positive_only_uses_p_initial = positive_only_uses_p_initial
+        self._use_border_relocator = use_border_relocator
         self.use_linear_operators = use_linear_operators
         self.force_edge_pixels_to_zeros = force_edge_pixels_to_zeros
         self.force_edge_image_pixels_to_zeros = force_edge_image_pixels_to_zeros
         self.image_pixels_source_zero = image_pixels_source_zero
         self._no_regularization_add_to_curvature_diag_value = (
             no_regularization_add_to_curvature_diag_value
+        )
+        self.image_mesh_min_mesh_pixels_per_pixel = image_mesh_min_mesh_pixels_per_pixel
+        self.image_mesh_min_mesh_number = image_mesh_min_mesh_number
+        self.image_mesh_adapt_background_percent_threshold = (
+            image_mesh_adapt_background_percent_threshold
+        )
+        self.image_mesh_adapt_background_percent_check = (
+            image_mesh_adapt_background_percent_check
         )
         self.tolerance = tolerance
         self.maxiter = maxiter
@@ -81,6 +111,12 @@ class SettingsInversion:
         if self._positive_only_uses_p_initial is None:
             return conf.instance["general"]["inversion"]["positive_only_uses_p_initial"]
         return self._positive_only_uses_p_initial
+
+    @property
+    def use_border_relocator(self):
+        if self._use_border_relocator is None:
+            return conf.instance["general"]["inversion"]["use_border_relocator"]
+        return self._use_border_relocator
 
     @property
     def no_regularization_add_to_curvature_diag_value(self):

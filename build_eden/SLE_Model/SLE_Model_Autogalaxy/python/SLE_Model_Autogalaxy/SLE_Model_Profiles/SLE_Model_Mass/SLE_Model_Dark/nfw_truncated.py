@@ -22,8 +22,7 @@ class NFWTruncatedSph(AbstractgNFW):
         self.truncation_radius = truncation_radius
         self.tau = self.truncation_radius / self.scale_radius
 
-    @aa.grid_dec.grid_2d_to_vector_yx
-    @aa.grid_dec.grid_2d_to_structure
+    @aa.grid_dec.to_vector_yx
     @aa.grid_dec.transform
     @aa.grid_dec.relocate_to_radial_minimum
     def deflections_yx_2d_from(self, grid, **kwargs):
@@ -35,12 +34,14 @@ class NFWTruncatedSph(AbstractgNFW):
         grid
             The grid of (y,x) arc-second coordinates the deflection angles are computed on.
         """
-        eta = np.multiply((1.0 / self.scale_radius), self.radial_grid_from(grid=grid))
+        eta = np.multiply(
+            (1.0 / self.scale_radius), self.radial_grid_from(grid=grid, **kwargs)
+        )
         deflection_grid = np.multiply(
             (((4.0 * self.kappa_s) * self.scale_radius) / eta),
             self.deflection_func_sph(grid_radius=eta),
         )
-        return self._cartesian_grid_via_radial_from(grid, deflection_grid)
+        return self._cartesian_grid_via_radial_from(grid=grid, radius=deflection_grid)
 
     def deflection_func_sph(self, grid_radius):
         grid_radius = grid_radius + 0j
@@ -52,8 +53,8 @@ class NFWTruncatedSph(AbstractgNFW):
             ((2.0 * self.kappa_s) * self.coord_func_l(grid_radius=grid_radius))
         )
 
-    @aa.grid_dec.grid_2d_to_structure
-    def potential_2d_from(self, grid):
+    @aa.grid_dec.to_array
+    def potential_2d_from(self, grid, **kwargs):
         return np.zeros(shape=grid.shape[0])
 
     def coord_func_k(self, grid_radius):

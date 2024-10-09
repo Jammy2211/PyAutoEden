@@ -5,7 +5,7 @@ import SLE_Model_Autoarray as aa
 import SLE_Model_Autogalaxy as ag
 from SLE_Model_Autogalaxy.abstract_fit import AbstractFitInversion
 from SLE_Model_Autolens.SLE_Model_Analysis.preloads import Preloads
-from SLE_Model_Autolens.SLE_Model_Lens.ray_tracing import Tracer
+from SLE_Model_Autolens.SLE_Model_Lens.tracer import Tracer
 from SLE_Model_Autolens.SLE_Model_Lens.to_inversion import TracerToInversion
 
 
@@ -14,10 +14,11 @@ class FitInterferometer(aa.FitInterferometer, AbstractFitInversion):
         self,
         dataset,
         tracer,
-        settings_pixelization=aa.SettingsPixelization(),
+        dataset_model=None,
+        adapt_images=None,
         settings_inversion=aa.SettingsInversion(),
         preloads=Preloads(),
-        profiling_dict=None,
+        run_time_dict=None,
     ):
         """
         Fits an interferometer dataset using a `Tracer` object.
@@ -50,16 +51,18 @@ class FitInterferometer(aa.FitInterferometer, AbstractFitInversion):
             The interforometer dataset which is fitted by the galaxies in the tracer.
         tracer
             The tracer of galaxies whose light profile images are used to fit the interferometer data.
-        settings_pixelization
-            Settings controlling how a pixelization is fitted for example if a border is used when creating the
-            pixelization.
+        dataset_model
+            Attributes which allow for parts of a dataset to be treated as a model (e.g. the background sky level).
+        adapt_images
+            Contains the adapt-images which are used to make a pixelization's mesh and regularization adapt to the
+            reconstructed galaxy's morphology.
         settings_inversion
             Settings controlling how an inversion is fitted for example which linear algebra formalism is used.
         preloads
             Contains preloaded calculations (e.g. linear algebra matrices) which can skip certain calculations in
             the fit.
-        profiling_dict
-            A dictionary which if passed to the fit records how long fucntion calls which have the `profile_func`
+        run_time_dict
+            A dictionary which if passed to the fit records how long function calls which have the `profile_func`
             decorator take to run.
         """
         try:
@@ -69,11 +72,13 @@ class FitInterferometer(aa.FitInterferometer, AbstractFitInversion):
         except ImportError:
             settings_inversion.use_w_tilde = False
         self.tracer = tracer
-        self.settings_pixelization = settings_pixelization
+        self.adapt_images = adapt_images
         self.settings_inversion = settings_inversion
         self.preloads = preloads
-        self.profiling_dict = profiling_dict
-        super().__init__(dataset=dataset, profiling_dict=profiling_dict)
+        self.run_time_dict = run_time_dict
+        super().__init__(
+            dataset=dataset, dataset_model=dataset_model, run_time_dict=run_time_dict
+        )
         AbstractFitInversion.__init__(
             self=self, model_obj=tracer, settings_inversion=settings_inversion
         )
@@ -85,7 +90,7 @@ class FitInterferometer(aa.FitInterferometer, AbstractFitInversion):
         transform to the sum of light profile images.
         """
         return self.tracer.visibilities_from(
-            grid=self.dataset.grid, transformer=self.dataset.transformer
+            grid=self.grids.uniform, transformer=self.dataset.transformer
         )
 
     @property
@@ -94,17 +99,21 @@ class FitInterferometer(aa.FitInterferometer, AbstractFitInversion):
         Returns the interferometer dataset's visibilities with all transformed light profile images in the fit's
         tracer subtracted.
         """
-        return self.visibilities - self.profile_visibilities
+        return self.data - self.profile_visibilities
 
     @property
     def tracer_to_inversion(self):
-        return TracerToInversion(
-            tracer=self.tracer,
-            dataset=self.dataset,
+        dataset = aa.DatasetInterface(
             data=self.profile_subtracted_visibilities,
             noise_map=self.noise_map,
+            grids=self.grids,
+            transformer=self.dataset.transformer,
             w_tilde=self.w_tilde,
-            settings_pixelization=self.settings_pixelization,
+        )
+        return TracerToInversion(
+            dataset=dataset,
+            tracer=self.tracer,
+            adapt_images=self.adapt_images,
             settings_inversion=self.settings_inversion,
             preloads=self.preloads,
         )
@@ -137,10 +146,6 @@ class FitInterferometer(aa.FitInterferometer, AbstractFitInversion):
         return self.profile_visibilities
 
     @property
-    def grid(self):
-        return self.interferometer.grid
-
-    @property
     def galaxy_model_image_dict(self):
         """
         A dictionary which associates every galaxy in the tracer with its `image`.
@@ -154,7 +159,9 @@ class FitInterferometer(aa.FitInterferometer, AbstractFitInversion):
         For modeling, this dictionary is used to set up the `adapt_images` that adapt certain pixelizations to the
         data being fitted.
         """
-        galaxy_model_image_dict = self.tracer.galaxy_image_2d_dict_from(grid=self.grid)
+        galaxy_model_image_dict = self.tracer.galaxy_image_2d_dict_from(
+            grid=self.grids.uniform
+        )
         galaxy_linear_obj_image_dict = self.galaxy_linear_obj_data_dict_from(
             use_image=True
         )
@@ -171,12 +178,9 @@ class FitInterferometer(aa.FitInterferometer, AbstractFitInversion):
           space.
         - The visibilities of all linear objects (e.g. linear light profiles / pixelizations), where the visibilities
           are solved for first via the inversion.
-
-        For modeling, this dictionary is used to set up the `hyper_visibilities` that adapt certain pixelizations to the
-        data being fitted.
         """
         galaxy_model_visibilities_dict = self.tracer.galaxy_visibilities_dict_from(
-            grid=self.interferometer.grid, transformer=self.interferometer.transformer
+            grid=self.grids.uniform, transformer=self.dataset.transformer
         )
         galaxy_linear_obj_visibilities_dict = self.galaxy_linear_obj_data_dict_from(
             use_image=False
@@ -199,11 +203,11 @@ class FitInterferometer(aa.FitInterferometer, AbstractFitInversion):
         """
         galaxy_model_visibilities_dict = self.galaxy_model_visibilities_dict
         model_visibilities_of_planes_list = [
-            aa.Visibilities.zeros(shape_slim=(self.dataset.visibilities.shape_slim,))
+            aa.Visibilities.zeros(shape_slim=(self.dataset.data.shape_slim,))
             for i in range(self.tracer.total_planes)
         ]
-        for (plane_index, plane) in enumerate(self.tracer.planes):
-            for galaxy in plane.galaxies:
+        for (plane_index, galaxies) in enumerate(self.tracer.planes):
+            for galaxy in galaxies:
                 model_visibilities_of_planes_list[
                     plane_index
                 ] += galaxy_model_visibilities_dict[galaxy]
@@ -239,17 +243,18 @@ class FitInterferometer(aa.FitInterferometer, AbstractFitInversion):
         -------
         A new fit which has used new preloads input into this function but the same dataset, tracer and other settings.
         """
-        if self.profiling_dict is not None:
-            profiling_dict = {}
+        if self.run_time_dict is not None:
+            run_time_dict = {}
         else:
-            profiling_dict = None
+            run_time_dict = None
         if settings_inversion is None:
             settings_inversion = self.settings_inversion
         return FitInterferometer(
-            dataset=self.interferometer,
+            dataset=self.dataset,
             tracer=self.tracer,
-            settings_pixelization=self.settings_pixelization,
+            dataset_model=self.dataset_model,
+            adapt_images=self.adapt_images,
             settings_inversion=settings_inversion,
             preloads=preloads,
-            profiling_dict=profiling_dict,
+            run_time_dict=run_time_dict,
         )

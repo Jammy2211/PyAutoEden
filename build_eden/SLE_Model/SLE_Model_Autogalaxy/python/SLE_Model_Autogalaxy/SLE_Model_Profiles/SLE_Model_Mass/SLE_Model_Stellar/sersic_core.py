@@ -57,8 +57,8 @@ class SersicCore(Sersic):
         self.alpha = alpha
         self.gamma = gamma
 
-    def deflections_yx_2d_from(self, grid):
-        return self.deflections_2d_via_mge_from(grid=grid)
+    def deflections_yx_2d_from(self, grid, **kwargs):
+        return self.deflections_2d_via_mge_from(grid=grid, **kwargs)
 
     def image_2d_via_radii_from(self, grid_radii):
         """

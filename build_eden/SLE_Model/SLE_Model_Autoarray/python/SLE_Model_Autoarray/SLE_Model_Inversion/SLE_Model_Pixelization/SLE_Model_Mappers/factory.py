@@ -2,6 +2,12 @@ from typing import Dict, Optional
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.mapper_grids import (
     MapperGrids,
 )
+from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.border_relocator import (
+    BorderRelocator,
+)
+from SLE_Model_Autoarray.SLE_Model_Operators.SLE_Model_OverSampling.abstract import (
+    AbstractOverSampler,
+)
 from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Regularization.abstract import (
     AbstractRegularization,
 )
@@ -16,7 +22,13 @@ from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Mesh.voronoi_2d import (
 )
 
 
-def mapper_from(mapper_grids, regularization, profiling_dict=None):
+def mapper_from(
+    mapper_grids,
+    regularization,
+    over_sampler,
+    border_relocator=None,
+    run_time_dict=None,
+):
     """
     Factory which given input `MapperGrids` and `Regularization` objects creates a `Mapper`.
 
@@ -35,7 +47,7 @@ def mapper_from(mapper_grids, regularization, profiling_dict=None):
     regularization
         The regularization scheme which may be applied to this linear object in order to smooth its solution,
         which for a mapper smooths neighboring pixels on the mesh.
-    profiling_dict
+    run_time_dict
         A dictionary which contains timing of certain functions calls which is used for profiling.
 
     Returns
@@ -43,7 +55,7 @@ def mapper_from(mapper_grids, regularization, profiling_dict=None):
     A mapper whose type is determined by the input `mapper_grids` mesh type.
     """
     from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.rectangular import (
-        MapperRectangularNoInterp,
+        MapperRectangular,
     )
     from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.delaunay import (
         MapperDelaunay,
@@ -51,31 +63,28 @@ def mapper_from(mapper_grids, regularization, profiling_dict=None):
     from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.voronoi import (
         MapperVoronoi,
     )
-    from SLE_Model_Autoarray.SLE_Model_Inversion.SLE_Model_Pixelization.SLE_Model_Mappers.voronoi import (
-        MapperVoronoiNoInterp,
-    )
 
     if isinstance(mapper_grids.source_plane_mesh_grid, Mesh2DRectangular):
-        return MapperRectangularNoInterp(
+        return MapperRectangular(
             mapper_grids=mapper_grids,
+            over_sampler=over_sampler,
+            border_relocator=border_relocator,
             regularization=regularization,
-            profiling_dict=profiling_dict,
+            run_time_dict=run_time_dict,
         )
     elif isinstance(mapper_grids.source_plane_mesh_grid, Mesh2DDelaunay):
         return MapperDelaunay(
             mapper_grids=mapper_grids,
+            over_sampler=over_sampler,
+            border_relocator=border_relocator,
             regularization=regularization,
-            profiling_dict=profiling_dict,
+            run_time_dict=run_time_dict,
         )
     elif isinstance(mapper_grids.source_plane_mesh_grid, Mesh2DVoronoi):
-        if mapper_grids.source_plane_mesh_grid.uses_interpolation:
-            return MapperVoronoi(
-                mapper_grids=mapper_grids,
-                regularization=regularization,
-                profiling_dict=profiling_dict,
-            )
-        return MapperVoronoiNoInterp(
+        return MapperVoronoi(
             mapper_grids=mapper_grids,
+            over_sampler=over_sampler,
+            border_relocator=border_relocator,
             regularization=regularization,
-            profiling_dict=profiling_dict,
+            run_time_dict=run_time_dict,
         )

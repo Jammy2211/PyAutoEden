@@ -30,6 +30,7 @@ class YXPlot(AbstractMatWrap1D):
         y_errors=None,
         x_errors=None,
         y_extra=None,
+        y_extra_2=None,
         ls_errorbar="",
     ):
         """
@@ -60,19 +61,19 @@ class YXPlot(AbstractMatWrap1D):
             plt.scatter(x, y, label=label, **self.config_dict)
         elif (plot_axis_type == "errorbar") or (plot_axis_type == "errorbar_logy"):
             plt.errorbar(
-                x,
-                y,
-                yerr=y_errors,
-                xerr=x_errors,
-                marker="o",
-                fmt="o",
-                **self.config_dict
+                x, y, yerr=y_errors, xerr=x_errors, fmt="o", **self.config_dict
             )
-            if y_extra is not None:
-                plt.plot(x, y_extra, c="r")
             if plot_axis_type == "errorbar_logy":
                 plt.yscale("log")
         else:
             raise exc.PlottingException(
                 "The plot_axis_type supplied to the plotter is not a valid string (must be linear {semilogy, loglog})"
             )
+        if y_extra is not None:
+            if isinstance(y_extra, list):
+                for y_extra_ in y_extra:
+                    plt.plot(x, y_extra_)
+            else:
+                plt.plot(x, y_extra, c="r")
+        if y_extra_2 is not None:
+            plt.plot(x, y_extra_2, c="r")

@@ -55,11 +55,12 @@ class ElsonFreeFall(LightProfile):
             (1 + ((grid_radii / self.effective_radius) ** 2)) ** (-self.eta)
         )
 
-    @aa.grid_dec.grid_2d_to_structure
+    @aa.over_sample
+    @aa.grid_dec.to_array
     @check_operated_only
     @aa.grid_dec.transform
     @aa.grid_dec.relocate_to_radial_minimum
-    def image_2d_from(self, grid, operated_only=None):
+    def image_2d_from(self, grid, operated_only=None, **kwargs):
         """
         Returns the Eff light profile's 2D image from a 2D grid of Cartesian (y,x) coordinates.
 
@@ -76,7 +77,9 @@ class ElsonFreeFall(LightProfile):
         image
             The image of the Eff evaluated at every (y,x) coordinate on the transformed grid.
         """
-        return self.image_2d_via_radii_from(self.eccentric_radii_grid_from(grid))
+        return self.image_2d_via_radii_from(
+            self.eccentric_radii_grid_from(grid=grid, **kwargs)
+        )
 
     @property
     def half_light_radius(self):

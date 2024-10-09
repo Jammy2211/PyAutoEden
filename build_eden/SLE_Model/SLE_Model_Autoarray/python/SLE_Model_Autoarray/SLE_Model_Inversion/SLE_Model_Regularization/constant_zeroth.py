@@ -43,7 +43,7 @@ class ConstantZeroth(AbstractRegularization):
 
     def regularization_matrix_from(self, linear_obj):
         """
-        Returns the regularization matrix of this regularization scheme.
+        Returns the regularization matrix with shape [pixels, pixels].
 
         Parameters
         ----------

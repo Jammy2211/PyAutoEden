@@ -1,12 +1,24 @@
+import inspect
 import logging
 from abc import ABC
-import os
-from SLE_Model_Autoconf import conf
+from typing import Optional, Dict
 from SLE_Model_Autofit.SLE_Model_Mapper.SLE_Model_PriorModel.abstract import (
     AbstractPriorModel,
 )
 from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Paths.abstract import AbstractPaths
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.summary import (
+    SamplesSummary,
+)
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.pdf import SamplesPDF
 from SLE_Model_Autofit.SLE_Model_NonLinear.result import Result
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.samples import Samples
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.sample import Sample
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Analysis.visualize import (
+    Visualizer,
+)
+from SLE_Model_Autofit.SLE_Model_NonLinear.SLE_Model_Samples.util import (
+    simple_model_for_kwargs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +29,88 @@ class Analysis(ABC):
     must be implemented to define a class that compute the
     likelihood that some instance fits some data.
     """
+
+    Result = Result
+    Visualizer = Visualizer
+
+    def __getattr__(self, item):
+        """
+        If a method starts with 'visualize_' then we assume it is associated with
+        the Visualizer and forward the call to the visualizer.
+
+        It may be desirable to remove this behaviour as the visualizer component of
+        the system becomes more sophisticated.
+        """
+        if item.startswith("visualize") or item.startswith("should_visualize"):
+            _method = getattr(self.Visualizer, item)
+        else:
+            raise AttributeError(f"Analysis has no attribute {item}")
+
+        def method(*args, **kwargs):
+            parameters = inspect.signature(_method).parameters
+            if "analyses" in parameters:
+                logger.debug(f"Skipping {item} as this is not a combined analysis")
+                return
+            return _method(self, *args, **kwargs)
+
+        return method
+
+    def compute_latent_samples(self, samples):
+        """
+        Internal method that manages computation of latent samples from samples.
+
+        Parameters
+        ----------
+        samples
+            The samples from the non-linear search.
+
+        Returns
+        -------
+        The computed latent samples or None if compute_latent_variable is not implemented.
+        """
+        try:
+            latent_samples = []
+            model = samples.model
+            for sample in samples.sample_list:
+                latent_samples.append(
+                    Sample(
+                        log_likelihood=sample.log_likelihood,
+                        log_prior=sample.log_prior,
+                        weight=sample.weight,
+                        kwargs=self.compute_latent_variables(
+                            sample.instance_for_model(model, ignore_assertions=True)
+                        ),
+                    )
+                )
+            return type(samples)(
+                sample_list=latent_samples,
+                model=simple_model_for_kwargs(latent_samples[0].kwargs),
+                samples_info=samples.samples_info,
+            )
+        except NotImplementedError:
+            return None
+
+    def compute_latent_variables(self, instance):
+        """
+        Override to compute latent variables from the instance.
+
+        Latent variables are expressed as a dictionary:
+        {"name": value}
+
+        More complex models can be expressed by separating variables
+        names by \'.\'
+        {"name.attribute": value}
+
+        Parameters
+        ----------
+        instance
+            An instance of the model.
+
+        Returns
+        -------
+        The computed latent variables.
+        """
+        raise NotImplementedError()
 
     def with_model(self, model):
         """
@@ -39,54 +133,16 @@ class Analysis(ABC):
 
         return ModelAnalysis(analysis=self, model=model)
 
-    def should_visualize(self, paths):
-        """
-        Whether a visualize method should continue and perform visualization, or be terminated early.
-
-        If a model-fit has already completed, the default behaviour is for visualization to be bypassed in order
-        to make model-fits run faster. However, visualization can be forced to run via
-        the `force_visualization_overwrite`, for example if a user wants to plot additional images that were not
-        output on the original run.
-
-        PyAutoFit test mode also disables visualization, irrespective of the `force_visualization_overwite`
-        config input.
-
-        Parameters
-        ----------
-        paths
-            The PyAutoFit paths object which manages all paths, e.g. where the non-linear search outputs are stored,
-            visualization and the pickled objects used by the aggregator output by this function.
-
-
-        Returns
-        -------
-        A bool determining whether visualization should be performed or not.
-        """
-        if os.environ.get("PYAUTOFIT_TEST_MODE") == "1":
-            return False
-        return (not paths.is_complete) or conf.instance["general"]["output"][
-            "force_visualize_overwrite"
-        ]
-
     def log_likelihood_function(self, instance):
         raise NotImplementedError()
 
-    def visualize_before_fit(self, paths, model):
+    def save_attributes(self, paths):
         pass
 
-    def visualize(self, paths, instance, during_analysis):
+    def save_results(self, paths, result):
         pass
 
-    def visualize_before_fit_combined(self, analyses, paths, model):
-        pass
-
-    def visualize_combined(self, analyses, paths, instance, during_analysis):
-        pass
-
-    def save_attributes_for_aggregator(self, paths):
-        pass
-
-    def save_results_for_aggregator(self, paths, result):
+    def save_results_combined(self, paths, result):
         pass
 
     def modify_before_fit(self, paths, model):
@@ -110,13 +166,56 @@ class Analysis(ABC):
         """
         return self
 
-    def make_result(self, samples, model, sigma=1.0, use_errors=True, use_widths=False):
-        return Result(
+    def make_result(
+        self, samples_summary, paths, samples=None, search_internal=None, analysis=None
+    ):
+        """
+        Returns the `Result` of the non-linear search after it is completed.
+
+        The result type is defined as a class variable in the `Analysis` class. It can be manually overwritten
+        by a user to return a user-defined result object, which can be extended with additional methods and attributes
+        specific to the model-fit.
+
+        The standard `Result` object may include:
+
+        - The samples summary, which contains the maximum log likelihood instance and median PDF model.
+
+        - The paths of the search, which are used for loading the samples and search internal below when a search
+        is resumed.
+
+        - The samples of the non-linear search (e.g. MCMC chains) also stored in `samples.csv`.
+
+        - The non-linear search used for the fit in its internal representation, which is used for resuming a search
+        and making bespoke visualization using the search's internal results.
+
+        - The analysis used to fit the model (default disabled to save memory, but option may be useful for certain
+        projects).
+
+        Parameters
+        ----------
+        samples_summary
+            The summary of the samples of the non-linear search, which include the maximum log likelihood instance and
+            median PDF model.
+        paths
+            An object describing the paths for saving data (e.g. hard-disk directories or entries in sqlite database).
+        samples
+            The samples of the non-linear search, for example the chains of an MCMC run.
+        search_internal
+            The internal representation of the non-linear search used to perform the model-fit.
+        analysis
+            The analysis used to fit the model.
+
+        Returns
+        -------
+        Result
+            The result of the non-linear search, which is defined as a class variable in the `Analysis` class.
+        """
+        return self.Result(
+            samples_summary=samples_summary,
+            paths=paths,
             samples=samples,
-            model=model,
-            sigma=sigma,
-            use_errors=use_errors,
-            use_widths=use_widths,
+            search_internal=search_internal,
+            analysis=analysis,
         )
 
     def profile_log_likelihood_function(self, paths, instance):

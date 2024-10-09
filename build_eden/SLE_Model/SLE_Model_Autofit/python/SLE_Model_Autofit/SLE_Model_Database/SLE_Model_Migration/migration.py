@@ -1,6 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from hashlib import md5
+from sqlalchemy import text
 from typing import Union, Generator, Iterable, Optional
 from SLE_Model_Autofit.SLE_Model_Database.SLE_Model_Migration.session_wrapper import (
     SessionWrapper,
@@ -189,7 +190,7 @@ class Migrator:
         for step in steps:
             for string in step.strings:
                 try:
-                    session.execute(string)
+                    session.execute(text(string))
                 except sa.exc.OperationalError as e:
                     logger.debug(e)
         wrapper.revision_id = self.latest_revision.id

@@ -80,21 +80,21 @@ def jit_integrand(integrand_function):
 
 
 class gNFW(AbstractgNFW):
-    def deflections_yx_2d_from(self, grid):
-        return self.deflections_2d_via_mge_from(grid=grid)
+    def deflections_yx_2d_from(self, grid, **kwargs):
+        return self.deflections_2d_via_mge_from(grid=grid, **kwargs)
 
-    @aa.grid_dec.grid_2d_to_structure
+    @aa.grid_dec.to_vector_yx
     @aa.grid_dec.transform
     @aa.grid_dec.relocate_to_radial_minimum
-    def deflections_2d_via_mge_from(self, grid):
+    def deflections_2d_via_mge_from(self, grid, **kwargs):
         return self._deflections_2d_via_mge_from(
             grid=grid, sigmas_factor=self.axis_ratio
         )
 
-    @aa.grid_dec.grid_2d_to_structure
+    @aa.grid_dec.to_vector_yx
     @aa.grid_dec.transform
     @aa.grid_dec.relocate_to_radial_minimum
-    def deflections_2d_via_integral_from(self, grid, tabulate_bins=1000):
+    def deflections_2d_via_integral_from(self, grid, tabulate_bins=1000, **kwargs):
         """
         Calculate the deflection angles at a given set of arc-second gridded coordinates.
 
@@ -210,10 +210,11 @@ class gNFW(AbstractgNFW):
             )
         return grid_radius
 
-    @aa.grid_dec.grid_2d_to_structure
+    @aa.over_sample
+    @aa.grid_dec.to_array
     @aa.grid_dec.transform
     @aa.grid_dec.relocate_to_radial_minimum
-    def potential_2d_from(self, grid, tabulate_bins=1000):
+    def potential_2d_from(self, grid, tabulate_bins=1000, **kwargs):
         """
         Calculate the potential at a given set of arc-second gridded coordinates.
 
@@ -333,7 +334,7 @@ class gNFWSph(gNFW):
             scale_radius=scale_radius,
         )
 
-    @aa.grid_dec.grid_2d_to_structure
+    @aa.grid_dec.to_vector_yx
     @aa.grid_dec.transform
     @aa.grid_dec.relocate_to_radial_minimum
     def deflections_2d_via_integral_from(self, grid, **kwargs):
@@ -345,14 +346,16 @@ class gNFWSph(gNFW):
         grid
             The grid of (y,x) arc-second coordinates the deflection angles are computed on.
         """
-        eta = np.multiply((1.0 / self.scale_radius), self.radial_grid_from(grid))
+        eta = np.multiply(
+            (1.0 / self.scale_radius), self.radial_grid_from(grid, **kwargs)
+        )
         deflection_grid = np.zeros(grid.shape[0])
         for i in range(grid.shape[0]):
             deflection_grid[i] = np.multiply(
                 ((4.0 * self.kappa_s) * self.scale_radius),
                 self.deflection_func_sph(eta[i]),
             )
-        return self._cartesian_grid_via_radial_from(grid, deflection_grid)
+        return self._cartesian_grid_via_radial_from(grid=grid, radius=deflection_grid)
 
     @staticmethod
     def deflection_integrand(y, eta, inner_slope):

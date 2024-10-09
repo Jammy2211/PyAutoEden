@@ -5,6 +5,9 @@ from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Dark.gnfw 
 from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Dark.gnfw_mcr import (
     gNFWMCRLudlow,
 )
+from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Dark.gnfw_virial_mass_conc import (
+    gNFWVirialMassConcSph,
+)
 from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Dark.nfw import (
     NFW,
     NFWSph,
@@ -27,4 +30,7 @@ from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Dark.nfw_t
 )
 from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Dark.nfw_truncated_mcr_scatter import (
     NFWTruncatedMCRScatterLudlowSph,
+)
+from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Dark.nfw_virial_mass_conc import (
+    NFWVirialMassConcSph,
 )

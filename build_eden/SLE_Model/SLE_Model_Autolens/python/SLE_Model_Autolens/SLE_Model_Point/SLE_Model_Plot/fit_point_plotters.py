@@ -1,8 +1,6 @@
 from SLE_Model_Autoarray.SLE_Model_Plot.abstract_plotters import AbstractPlotter
 import SLE_Model_Autogalaxy.SLE_Model_Plot as aplt
-from SLE_Model_Autolens.SLE_Model_Point.SLE_Model_FitPoint.point_dataset import (
-    FitPointDataset,
-)
+from SLE_Model_Autolens.SLE_Model_Point.SLE_Model_Fit.dataset import FitPointDataset
 
 
 class FitPointDatasetPlotter(AbstractPlotter):
@@ -35,16 +33,14 @@ class FitPointDatasetPlotter(AbstractPlotter):
     def figures_2d(self, positions=False, fluxes=False):
         if positions:
             visuals_2d = self.get_visuals_2d()
-            visuals_2d += visuals_2d.__class__(
-                positions=self.fit.positions.model_positions
-            )
+            visuals_2d += visuals_2d.__class__(positions=self.fit.positions.model_data)
             self.mat_plot_2d.plot_grid(
-                grid=self.fit.point_dataset.positions,
-                y_errors=self.fit.point_dataset.positions_noise_map,
-                x_errors=self.fit.point_dataset.positions_noise_map,
+                grid=self.fit.dataset.positions,
+                y_errors=self.fit.dataset.positions_noise_map,
+                x_errors=self.fit.dataset.positions_noise_map,
                 visuals_2d=visuals_2d,
                 auto_labels=aplt.AutoLabels(
-                    title=f"{self.fit.point_dataset.name} Fit Positions",
+                    title=f"{self.fit.dataset.name} Fit Positions",
                     filename="fit_point_dataset_positions",
                 ),
                 buffer=0.1,
@@ -56,17 +52,17 @@ class FitPointDatasetPlotter(AbstractPlotter):
                 self.mat_plot_1d.subplot_index, self.mat_plot_2d.subplot_index
             )
         if fluxes:
-            if self.fit.point_dataset.fluxes is not None:
+            if self.fit.dataset.fluxes is not None:
                 visuals_1d = self.get_visuals_1d()
                 visuals_1d += visuals_1d.__class__(
                     model_fluxes=self.fit.flux.model_fluxes
                 )
                 self.mat_plot_1d.plot_yx(
-                    y=self.fit.point_dataset.fluxes,
-                    y_errors=self.fit.point_dataset.fluxes_noise_map,
+                    y=self.fit.dataset.fluxes,
+                    y_errors=self.fit.dataset.fluxes_noise_map,
                     visuals_1d=visuals_1d,
                     auto_labels=aplt.AutoLabels(
-                        title=f" {self.fit.point_dataset.name} Fit Fluxes",
+                        title=f" {self.fit.dataset.name} Fit Fluxes",
                         filename="fit_point_dataset_fluxes",
                         xlabel="Point Number",
                     ),

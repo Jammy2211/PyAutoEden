@@ -1,43 +1,55 @@
+from __future__ import annotations
 import numpy as np
-from typing import List, Optional, Tuple, Union
+from pathlib import Path
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
+
+if TYPE_CHECKING:
+    from SLE_Model_Autoarray.SLE_Model_Operators.SLE_Model_OverSampling.abstract import (
+        AbstractOverSampling,
+    )
 from SLE_Model_Autoconf import conf
 from SLE_Model_Autoconf import cached_property
 from SLE_Model_Autoarray.SLE_Model_Mask.mask_2d import Mask2D
+from SLE_Model_Autoarray.SLE_Model_Operators.SLE_Model_OverSampling.abstract import (
+    AbstractOverSampler,
+)
 from SLE_Model_Autoarray.SLE_Model_Structures.abstract_structure import Structure
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays.uniform_2d import Array2D
-from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays.irregular import (
-    ArrayIrregular,
-)
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.irregular_2d import (
     Grid2DIrregular,
-)
-from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.sparse_2d import (
-    Grid2DSparse,
 )
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Arrays import array_2d_util
 from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids import grid_2d_util
 from SLE_Model_Autoarray.SLE_Model_Geometry import geometry_util
-from SLE_Model_Autoarray import exc
 from SLE_Model_Autoarray import type as ty
 
 
 class Grid2D(Structure):
-    def __new__(cls, values, mask, store_native=False, *args, **kwargs):
+    def __init__(
+        self,
+        values,
+        mask,
+        store_native=False,
+        over_sampling=None,
+        over_sampling_non_uniform=None,
+        *args,
+        **kwargs,
+    ):
         """
-        A grid of 2D (y,x) coordinates, which are paired to a uniform 2D mask of pixels and sub-pixels. Each entry
-        on the grid corresponds to the (y,x) coordinates at the centre of a sub-pixel of an unmasked pixel.
+        A grid of 2D (y,x) coordinates, which are paired to a uniform 2D mask of pixels. Each entry
+        on the grid corresponds to the (y,x) coordinates at the centre of a pixel of an unmasked pixel.
 
         A `Grid2D` is ordered such that pixels begin from the top-row (e.g. index [0, 0]) of the corresponding mask
         and go right and down. The positive y-axis is upwards and positive x-axis to the right.
 
         The grid can be stored in two formats:
 
-        - slimmed: all masked entries are removed so the ndarray is shape [total_unmasked_coordinates*sub_size**2, 2]
+        - slimmed: all masked entries are removed so the ndarray is shape [total_unmasked_coordinates**2, 2]
         - native: it retains the original shape of the grid so the ndarray is
-          shape [total_y_coordinates*sub_size, total_x_coordinates*sub_size, 2].
+          shape [total_y_coordinates, total_x_coordinates, 2].
 
 
-        **Case 1 (sub-size=1, slim)**
+        __Slim__
 
         The Grid2D is an ndarray of shape [total_unmasked_coordinates, 2], therefore when `slim` the shape of
         the grid is 2, not 1.
@@ -84,88 +96,7 @@ class Grid2D(Structure):
              x x x x x x x x x x \\/   grid[8] = [-0.5,  0.5]
              x x x x x x x x x x      grid[9] = [-0.5,  1.5]
 
-
-        **Case 2 (sub-size>1, slim)**
-
-        If the mask\'s `sub_size` is > 1, the grid is defined as a sub-grid where each entry corresponds to the (y,x)
-        coordinates at the centre of each sub-pixel of an unmasked pixel. The Grid2D is therefore stored as an ndarray
-        of shape [total_unmasked_coordinates*sub_size**2, 2]
-
-        The sub-grid indexes are ordered such that pixels begin from the first (top-left) sub-pixel in the first
-        unmasked pixel. Indexes then go over the sub-pixels in each unmasked pixel, for every unmasked pixel.
-        Therefore, the sub-grid is an ndarray of shape [total_unmasked_coordinates*(sub_grid_shape)**2, 2].
-
-        For example:
-
-        - grid[9, 1] - using a 2x2 sub-grid, gives the 3rd unmasked pixel\'s 2nd sub-pixel x-coordinate.
-        - grid[9, 1] - using a 3x3 sub-grid, gives the 2nd unmasked pixel\'s 1st sub-pixel x-coordinate.
-        - grid[27, 0] - using a 3x3 sub-grid, gives the 4th unmasked pixel\'s 1st sub-pixel y-coordinate.
-
-        Below is a visual illustration of a sub grid. Indexing of each sub-pixel goes from the top-left corner. In
-        contrast to the grid above, our illustration below restricts the mask to just 2 pixels, to keep the
-        illustration brief.
-
-        .. code-block:: bash
-
-             x x x x x x x x x x
-             x x x x x x x x x x     This is an example mask.Mask2D, where:
-             x x x x x x x x x x
-             x x x x x x x x x x     x = `True` (Pixel is masked and excluded from lens)
-             x x x x O O x x x x     O = `False` (Pixel is not masked and included in lens)
-             x x x x x x x x x x
-             x x x x x x x x x x
-             x x x x x x x x x x
-             x x x x x x x x x x
-             x x x x x x x x x x
-
-        Our grid with a sub-size looks like it did before:
-
-        .. code-block:: bash
-
-            pixel_scales = 1.0"
-
-            <--- -ve  x  +ve -->
-
-             x x x x x x x x x x  ^
-             x x x x x x x x x x  I
-             x x x x x x x x x x  I                        y     x
-             x x x x x x x x x x +ve  grid[0] = [0.5,  -1.5]
-             x x x x 0 1 x x x x  y   grid[1] = [0.5,  -0.5]
-             x x x x x x x x x x -ve
-             x x x x x x x x x x  I
-             x x x x x x x x x x  I
-             x x x x x x x x x x \\/
-             x x x x x x x x x x
-
-        However, if the sub-size is 2, we go to each unmasked pixel and allocate sub-pixel coordinates for it. For
-        example, for pixel 0, if *sub_size=2*, we use a 2x2 sub-grid:
-
-        .. code-block:: bash
-
-            Pixel 0 - (2x2):
-                                y      x
-                   grid[0] = [0.66, -1.66]
-            I0I1I  grid[1] = [0.66, -1.33]
-            I2I3I  grid[2] = [0.33, -1.66]
-                   grid[3] = [0.33, -1.33]
-
-        If we used a sub_size of 3, for the pixel we we would create a 3x3 sub-grid:
-
-        .. code-block:: bash
-
-                                  y      x
-                     grid[0] = [0.75, -0.75]
-                     grid[1] = [0.75, -0.5]
-                     grid[2] = [0.75, -0.25]
-            I0I1I2I  grid[3] = [0.5,  -0.75]
-            I3I4I5I  grid[4] = [0.5,  -0.5]
-            I6I7I8I  grid[5] = [0.5,  -0.25]
-                     grid[6] = [0.25, -0.75]
-                     grid[7] = [0.25, -0.5]
-                     grid[8] = [0.25, -0.25]
-
-
-        **Case 3 (sub_size=1, native)**
+        __native__
 
         The Grid2D has the same properties as Case 1, but is stored as an an ndarray of shape
         [total_y_coordinates, total_x_coordinates, 2]. Therefore when `native` the shape of the
@@ -198,17 +129,12 @@ class Grid2D(Structure):
             - grid[3,4,1] = -0.5
 
 
-        **Case 4 (sub_size>1 native)**
 
-        The properties of this grid can be derived by combining Case\'s 2 and 3 above, whereby the grid is stored as
-        an ndarray of shape [total_y_coordinates*sub_size, total_x_coordinates*sub_size, 2].
-
-        All sub-pixels in masked pixels have values (0.0, 0.0).
 
 
         **Grid2D Mapping:**
 
-        Every set of (y,x) coordinates in a pixel of the sub-grid maps to an unmasked pixel in the mask. For a uniform
+        Every set of (y,x) coordinates in a pixel of the grid maps to an unmasked pixel in the mask. For a uniform
         grid, every (y,x) coordinate directly corresponds to the location of its paired unmasked pixel.
 
         It is not a requirement that grid is uniform and that their coordinates align with the mask. The input grid
@@ -230,18 +156,28 @@ class Grid2D(Structure):
         store_native
             If True, the ndarray is stored in its native format [total_y_pixels, total_x_pixels, 2]. This avoids
             mapping large data arrays to and from the slim / native formats, which can be a computational bottleneck.
+        over_sampling
+            The over sampling scheme, which divides the grid into a sub grid of smaller pixels when computing values
+            (e.g. images) from the grid so as to approximate the 2D line integral of the amount of light that falls
+            into each pixel.
         """
         values = grid_2d_util.convert_grid_2d(
             grid_2d=values, mask_2d=mask, store_native=store_native
         )
-        obj = values.view(cls)
-        obj.mask = mask
-        grid_2d_util.check_grid_2d(grid_2d=obj)
-        return obj
+        super().__init__(values)
+        self.mask = mask
+        grid_2d_util.check_grid_2d(grid_2d=values)
+        self.over_sampling = over_sampling
+        self.over_sampling_non_uniform = over_sampling_non_uniform
 
     @classmethod
     def no_mask(
-        cls, values, pixel_scales, shape_native=None, sub_size=1, origin=(0.0, 0.0)
+        cls,
+        values,
+        pixel_scales,
+        shape_native=None,
+        origin=(0.0, 0.0),
+        over_sampling=None,
     ):
         """
         Create a Grid2D (see *Grid2D.__new__*) by inputting the grid coordinates in 1D or 2D, automatically
@@ -256,15 +192,13 @@ class Grid2D(Structure):
         Parameters
         ----------
         values
-            The (y,x) coordinates of the grid input as an ndarray of shape [total_unmasked_pixells*(sub_size**2), 2]
+            The (y,x) coordinates of the grid input as an ndarray of shape [total_unmasked_pixels, 2]
             or a list of lists.
         shape_native
             The 2D shape of the mask the grid is paired with.
         pixel_scales
-            The (y,x) scaled units to pixel units conversion factors of every pixel. If this is input as a ``float``,
-            it is converted to a (float, float) structure.
-        sub_size
-            The size (sub_size x sub_size) of each unmasked pixels sub-grid.
+            The (y,x) arcsecond-to-pixel units conversion factor of every pixel. If this is input as a `float`,
+            it is converted to a (float, float).
         origin
             The origin of the grid's mask.
         """
@@ -273,21 +207,15 @@ class Grid2D(Structure):
         if len(values.shape) == 2:
             grid_2d_util.check_grid_slim(grid=values, shape_native=shape_native)
         else:
-            shape_native = (
-                int((values.shape[0] / sub_size)),
-                int((values.shape[1] / sub_size)),
-            )
+            shape_native = (int(values.shape[0]), int(values.shape[1]))
         mask = Mask2D.all_false(
-            shape_native=shape_native,
-            pixel_scales=pixel_scales,
-            sub_size=sub_size,
-            origin=origin,
+            shape_native=shape_native, pixel_scales=pixel_scales, origin=origin
         )
-        return Grid2D(values=values, mask=mask)
+        return Grid2D(values=values, mask=mask, over_sampling=over_sampling)
 
     @classmethod
     def from_yx_1d(
-        cls, y, x, shape_native, pixel_scales, sub_size=1, origin=(0.0, 0.0)
+        cls, y, x, shape_native, pixel_scales, origin=(0.0, 0.0), over_sampling=None
     ):
         """
         Create a Grid2D (see *Grid2D.__new__*) by inputting the grid coordinates as 1D y and x values.
@@ -304,10 +232,8 @@ class Grid2D(Structure):
         shape_native
             The 2D shape of the mask the grid is paired with.
         pixel_scales
-            The (y,x) scaled units to pixel units conversion factors of every pixel. If this is input as a ``float``,
-            it is converted to a (float, float) structure.
-        sub_size
-            The size (sub_size x sub_size) of each unmasked pixels sub-grid.
+            The (y,x) arcsecond-to-pixel units conversion factor of every pixel. If this is input as a `float`,
+            it is converted to a (float, float).
         origin
             The origin of the grid's mask.
 
@@ -350,12 +276,12 @@ class Grid2D(Structure):
             values=np.stack((y, x), axis=(-1)),
             shape_native=shape_native,
             pixel_scales=pixel_scales,
-            sub_size=sub_size,
             origin=origin,
+            over_sampling=over_sampling,
         )
 
     @classmethod
-    def from_yx_2d(cls, y, x, pixel_scales, sub_size=1, origin=(0.0, 0.0)):
+    def from_yx_2d(cls, y, x, pixel_scales, origin=(0.0, 0.0), over_sampling=None):
         """
         Create a Grid2D (see *Grid2D.__new__*) by inputting the grid coordinates as 2D y and x values.
 
@@ -369,10 +295,8 @@ class Grid2D(Structure):
         x or list
             The x coordinates of the grid input as an ndarray of shape [total_coordinates] or list.
         pixel_scales
-            The (y,x) scaled units to pixel units conversion factors of every pixel. If this is input as a ``float``,
-            it is converted to a (float, float) structure.
-        sub_size
-            The size (sub_size x sub_size) of each unmasked pixels sub-grid.
+            The (y,x) arcsecond-to-pixel units conversion factor of every pixel. If this is input as a `float`,
+            it is converted to a (float, float).
         origin
             The origin of the grid's mask.
 
@@ -398,12 +322,12 @@ class Grid2D(Structure):
         return cls.no_mask(
             values=np.stack((y, x), axis=(-1)),
             pixel_scales=pixel_scales,
-            sub_size=sub_size,
             origin=origin,
+            over_sampling=over_sampling,
         )
 
     @classmethod
-    def from_extent(cls, extent, shape_native, sub_size=1):
+    def from_extent(cls, extent, shape_native, over_sampling=None):
         """
         Create a Grid2D (see *Grid2D.__new__*) by inputting the extent of the (y,x) grid coordinates as an input
         (x0, x1, y0, y1) tuple.
@@ -423,31 +347,29 @@ class Grid2D(Structure):
         shape_native
             The 2D shape of the grid that is created within this extent.
         pixel_scales
-            The (y,x) scaled units to pixel units conversion factors of every pixel. If this is input as a ``float``,
-            it is converted to a (float, float) structure.
-        sub_size
-            The size (sub_size x sub_size) of each unmasked pixels sub-grid.
+            The (y,x) arcsecond-to-pixel units conversion factor of every pixel. If this is input as a `float`,
+            it is converted to a (float, float).
         origin
             The origin of the grid's mask.
         """
         (x0, x1, y0, y1) = extent
-        ys = np.linspace(y1, y0, (shape_native[0] * sub_size))
-        xs = np.linspace(x0, x1, (shape_native[1] * sub_size))
+        ys = np.linspace(y1, y0, shape_native[0])
+        xs = np.linspace(x0, x1, shape_native[1])
         (xs_grid, ys_grid) = np.meshgrid(xs, ys)
         xs_grid_1d = xs_grid.ravel()
         ys_grid_1d = ys_grid.ravel()
         grid_2d = np.vstack((ys_grid_1d, xs_grid_1d)).T
-        grid_2d = grid_2d.reshape(
-            ((shape_native[0] * sub_size), (shape_native[1] * sub_size), 2)
-        )
+        grid_2d = grid_2d.reshape((shape_native[0], shape_native[1], 2))
         pixel_scales = (
             abs((grid_2d[(0, 0, 0)] - grid_2d[(1, 0, 0)])),
             abs((grid_2d[(0, 0, 1)] - grid_2d[(0, 1, 1)])),
         )
-        return Grid2D.no_mask(values=grid_2d, pixel_scales=pixel_scales)
+        return Grid2D.no_mask(
+            values=grid_2d, pixel_scales=pixel_scales, over_sampling=over_sampling
+        )
 
     @classmethod
-    def uniform(cls, shape_native, pixel_scales, sub_size=1, origin=(0.0, 0.0)):
+    def uniform(cls, shape_native, pixel_scales, origin=(0.0, 0.0), over_sampling=None):
         """
         Create a `Grid2D` (see *Grid2D.__new__*) as a uniform grid of (y,x) values given an input `shape_native` and
         `pixel_scales` of the grid:
@@ -459,29 +381,24 @@ class Grid2D(Structure):
         pixel_scales
             The (y,x) scaled units to pixel units conversion factors of every pixel. If this is input as a `float`,
             it is converted to a (float, float) tuple.
-        sub_size
-            The size (sub_size x sub_size) of each unmasked pixels sub-grid.
         origin
             The origin of the grid's mask.
         """
         pixel_scales = geometry_util.convert_pixel_scales_2d(pixel_scales=pixel_scales)
         grid_slim = grid_2d_util.grid_2d_slim_via_shape_native_from(
-            shape_native=shape_native,
-            pixel_scales=pixel_scales,
-            sub_size=sub_size,
-            origin=origin,
+            shape_native=shape_native, pixel_scales=pixel_scales, origin=origin
         )
         return cls.no_mask(
             values=grid_slim,
             shape_native=shape_native,
             pixel_scales=pixel_scales,
-            sub_size=sub_size,
             origin=origin,
+            over_sampling=over_sampling,
         )
 
     @classmethod
     def bounding_box(
-        cls, bounding_box, shape_native, sub_size=1, buffer_around_corners=False
+        cls, bounding_box, shape_native, buffer_around_corners=False, over_sampling=None
     ):
         """
         Create a Grid2D (see *Grid2D.__new__*) from an input bounding box with coordinates [y_min, y_max, x_min, x_max],
@@ -497,10 +414,8 @@ class Grid2D(Structure):
         shape_native
             The 2D shape of the uniform grid and the mask that it is paired with.
         pixel_scales
-            The (y,x) scaled units to pixel units conversion factors of every pixel. If this is input as a ``float``,
-            it is converted to a (float, float) structure.
-        sub_size
-            The size (sub_size x sub_size) of each unmasked pixels sub-grid.
+            The (y,x) arcsecond-to-pixel units conversion factor of every pixel. If this is input as a `float`,
+            it is converted to a (float, float).
         origin
             The origin of the grid's mask.
         buffer_around_corners
@@ -522,63 +437,58 @@ class Grid2D(Structure):
         return cls.uniform(
             shape_native=shape_native,
             pixel_scales=pixel_scales,
-            sub_size=sub_size,
             origin=origin,
+            over_sampling=over_sampling,
         )
 
     @classmethod
-    def from_mask(cls, mask):
+    def from_mask(cls, mask, over_sampling=None):
         """
         Create a Grid2D (see *Grid2D.__new__*) from a mask, where only unmasked pixels are included in the grid (if the
         grid is represented in its native 2D masked values are (0.0, 0.0)).
 
-        The mask's pixel_scales, sub_size and origin properties are used to compute the grid (y,x) coordinates.
+        The mask's pixel_scales and origin properties are used to compute the grid (y,x) coordinates.
 
         Parameters
         ----------
         mask
-            The mask whose masked pixels are used to setup the sub-pixel grid.
+            The mask whose masked pixels are used to setup the grid.
         """
-        sub_grid_1d = grid_2d_util.grid_2d_slim_via_mask_from(
-            mask_2d=mask,
-            pixel_scales=mask.pixel_scales,
-            sub_size=mask.sub_size,
-            origin=mask.origin,
+        grid_1d = grid_2d_util.grid_2d_slim_via_mask_from(
+            mask_2d=np.array(mask), pixel_scales=mask.pixel_scales, origin=mask.origin
         )
-        return Grid2D(values=sub_grid_1d, mask=mask)
+        return Grid2D(values=grid_1d, mask=mask, over_sampling=over_sampling)
 
     @classmethod
-    def from_fits(cls, file_path, pixel_scales, sub_size=1, origin=(0.0, 0.0)):
+    def from_fits(cls, file_path, pixel_scales, origin=(0.0, 0.0), over_sampling=None):
         """
         Create a Grid2D (see *Grid2D.__new__*) from a mask, where only unmasked pixels are included in the grid (if the
         grid is represented in its native 2D masked values are (0.0, 0.0)).
 
-        The mask's pixel_scales, sub_size and origin properties are used to compute the grid (y,x) coordinates.
+        The mask's pixel_scales and origin properties are used to compute the grid (y,x) coordinates.
 
         Parameters
         ----------
         mask
-            The mask whose masked pixels are used to setup the sub-pixel grid.
+            The mask whose masked pixels are used to setup the grid.
         """
-        sub_grid_2d = array_2d_util.numpy_array_2d_via_fits_from(
-            file_path=file_path, hdu=0
-        )
+        grid_2d = array_2d_util.numpy_array_2d_via_fits_from(file_path=file_path, hdu=0)
         return Grid2D.no_mask(
-            values=sub_grid_2d,
+            values=grid_2d,
             pixel_scales=pixel_scales,
-            sub_size=sub_size,
             origin=origin,
+            over_sampling=over_sampling,
         )
 
     @classmethod
-    def blurring_grid_from(cls, mask, kernel_shape_native):
+    def blurring_grid_from(cls, mask, kernel_shape_native, over_sampling=None):
         """
         Setup a blurring-grid from a mask, where a blurring grid consists of all pixels that are masked (and
         therefore have their values set to (0.0, 0.0)), but are close enough to the unmasked pixels that their values
         will be convolved into the unmasked those pixels. This when computing images from
         light profile objects.
 
-        The mask\'s pixel_scales, sub_size and origin properties are used to compute the blurring grid\'s (y,x)
+        The mask\'s pixel_scales and origin properties are used to compute the blurring grid\'s (y,x)
         coordinates.
 
         For example, if our mask is as follows:
@@ -654,57 +564,54 @@ class Grid2D(Structure):
         blurring_mask = mask.derive_mask.blurring_from(
             kernel_shape_native=kernel_shape_native
         )
-        return cls.from_mask(mask=blurring_mask)
+        return cls.from_mask(mask=blurring_mask, over_sampling=over_sampling)
+
+    def subtracted_from(self, offset):
+        if (offset[0] == 0.0) and (offset[1] == 0.0):
+            return self
+        mask = Mask2D(
+            mask=self.mask,
+            pixel_scales=self.pixel_scales,
+            origin=((self.origin[0] - offset[0]), (self.origin[1] - offset[1])),
+        )
+        return Grid2D(
+            values=(self - np.array(offset)),
+            mask=mask,
+            over_sampling=self.over_sampling,
+        )
 
     @property
     def slim(self):
         """
         Return a `Grid2D` where the data is stored its `slim` representation, which is an ndarray of shape
-        [total_unmasked_pixels * sub_size**2, 2].
+        [total_unmasked_pixels, 2].
 
         If it is already stored in its `slim` representation  it is returned as it is. If not, it is  mapped from
         `native` to `slim` and returned as a new `Grid2D`.
         """
-        return Grid2D(values=self, mask=self.mask)
+        return Grid2D(values=self, mask=self.mask, over_sampling=self.over_sampling)
 
     @property
     def native(self):
         """
         Return a `Grid2D` where the data is stored in its `native` representation, which has shape
-        [sub_size*total_y_pixels, sub_size*total_x_pixels, 2].
+        [total_y_pixels, total_x_pixels, 2].
 
         If it is already stored in its `native` representation it is return as it is. If not, it is mapped from
         `slim` to `native` and returned as a new `Grid2D`.
 
         This method is used in the child `Grid2D` classes to create their `native` properties.
         """
-        return Grid2D(values=self, mask=self.mask, store_native=True)
-
-    @property
-    def binned(self):
-        """
-        Return a `Grid2D` of the binned-up grid in its 1D representation, which is stored with
-        shape [total_unmasked_pixels, 2].
-
-        The binning up process converts a grid from (y,x) values where each value is a coordinate on the sub-grid to
-        (y,x) values where each coordinate is at the centre of its mask (e.g. a grid with a sub_size of 1). This is
-        performed by taking the mean of all (y,x) values in each sub pixel.
-
-        If the grid is stored in 1D it is return as is. If it is stored in 2D, it must first be mapped from 2D to 1D.
-        """
-        grid_2d_slim = self.slim
-        grid_2d_slim_binned_y = np.multiply(
-            self.mask.sub_fraction,
-            grid_2d_slim[:, 0].reshape((-1), self.mask.sub_length).sum(axis=1),
+        return Grid2D(
+            values=self,
+            mask=self.mask,
+            over_sampling=self.over_sampling,
+            store_native=True,
         )
-        grid_2d_slim_binned_x = np.multiply(
-            self.mask.sub_fraction,
-            grid_2d_slim[:, 1].reshape((-1), self.mask.sub_length).sum(axis=1),
-        )
-        grid_2d_binned = np.stack(
-            (grid_2d_slim_binned_y, grid_2d_slim_binned_x), axis=(-1)
-        )
-        return Grid2D(values=grid_2d_binned, mask=self.mask.derive_mask.sub_1)
+
+    @cached_property
+    def over_sampler(self):
+        return self.over_sampling.over_sampler_from(mask=self.mask)
 
     @property
     def flipped(self):
@@ -714,7 +621,7 @@ class Grid2D(Structure):
 
         This is used to interface with Python libraries that require the grid in (x,y) format.
         """
-        return np.fliplr(self)
+        return self.with_new_array(np.fliplr(self.array))
 
     @property
     def in_radians(self):
@@ -737,21 +644,31 @@ class Grid2D(Structure):
         deflection_grid
             The grid of (y,x) coordinates which is subtracted from this grid.
         """
-        return Grid2D(values=(self - deflection_grid), mask=self.mask)
+        return Grid2D(
+            values=(self - deflection_grid),
+            mask=self.mask,
+            over_sampling=self.over_sampling,
+        )
 
     def blurring_grid_via_kernel_shape_from(self, kernel_shape_native):
         """
         Returns the blurring grid from a grid, via an input 2D kernel shape.
 
-            For a full description of blurring grids, checkout *blurring_grid_from*.
+        For a full description of blurring grids, checkout *blurring_grid_from*.
 
-            Parameters
-            ----------
-            kernel_shape_native
-                The 2D shape of the kernel which convolves signal from masked pixels to unmasked pixels.
+        Parameters
+        ----------
+        kernel_shape_native
+            The 2D shape of the kernel which convolves signal from masked pixels to unmasked pixels.
         """
+        from SLE_Model_Autoarray.SLE_Model_Operators.SLE_Model_OverSampling.uniform import (
+            OverSamplingUniform,
+        )
+
         return Grid2D.blurring_grid_from(
-            mask=self.mask, kernel_shape_native=kernel_shape_native
+            mask=self.mask,
+            kernel_shape_native=kernel_shape_native,
+            over_sampling=OverSamplingUniform(sub_size=1),
         )
 
     def grid_with_coordinates_within_distance_removed_from(self, coordinates, distance):
@@ -774,67 +691,9 @@ class Grid2D(Structure):
             distances = self.distances_to_coordinate_from(coordinate=coordinate)
             distance_mask += distances.native < distance
         mask = Mask2D(
-            mask=distance_mask,
-            pixel_scales=self.pixel_scales,
-            sub_size=self.sub_size,
-            origin=self.origin,
+            mask=distance_mask, pixel_scales=self.pixel_scales, origin=self.origin
         )
-        return Grid2D.from_mask(mask=mask)
-
-    def structure_2d_from(self, result):
-        """
-        Convert a result from an ndarray to an aa.Array2D or aa.Grid2D structure, where the conversion depends on
-        type(result) as follows:
-
-        - 1D np.ndarray   -> aa.Array2D
-        - 2D np.ndarray   -> aa.Grid2D
-
-        This function is used by the grid_2d_to_structure decorator to convert the output result of a function
-        to an autoarray structure when a `Grid2D` instance is passed to the decorated function.
-
-        Parameters
-        ----------
-        result or [np.ndarray]
-            The input result (e.g. of a decorated function) that is converted to a PyAutoArray structure.
-        """
-        from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.transformed_2d import (
-            Grid2DTransformed,
-        )
-        from SLE_Model_Autoarray.SLE_Model_Structures.SLE_Model_Grids.transformed_2d import (
-            Grid2DTransformedNumpy,
-        )
-
-        if len(result.shape) == 1:
-            return Array2D(values=result, mask=self.mask)
-        else:
-            if isinstance(result, Grid2DTransformedNumpy):
-                return Grid2DTransformed(values=result, mask=self.mask)
-            return Grid2D(values=result, mask=self.mask)
-
-    def structure_2d_list_from(self, result_list):
-        """
-        Convert a result from a list of ndarrays to a list of aa.Array2D or aa.Grid2D structure, where the conversion
-        depends on type(result) as follows:
-
-        - [1D np.ndarray] -> [aa.Array2D]
-        - [2D np.ndarray] -> [aa.Grid2D]
-
-        This function is used by the grid_like_list_to_structure-list decorator to convert the output result of a
-        function to a list of autoarray structure when a `Grid2D` instance is passed to the decorated function.
-
-        Parameters
-        ----------
-        result_list or [np.ndarray]
-            The input result (e.g. of a decorated function) that is converted to a PyAutoArray structure.
-        """
-        return [self.structure_2d_from(result=result) for result in result_list]
-
-    def values_from(self, array_slim):
-        """
-        Create a *ArrayIrregular* object from a 1D NumPy array of values of shape [total_coordinates]. The
-        *ArrayIrregular* are structured following this `Grid2DIrregular` instance.
-        """
-        return ArrayIrregular(values=array_slim)
+        return Grid2D.from_mask(mask=mask, over_sampling=self.over_sampling)
 
     def squared_distances_to_coordinate_from(self, coordinate=(0.0, 0.0)):
         """
@@ -905,8 +764,6 @@ class Grid2D(Structure):
             The (y,x) central coordinate which the radial grid is traced outwards from.
         pixel_scales
             The (y,x) scaled units to pixel units conversion factor of the 2D mask array.
-        sub_size
-            The size of the sub-grid that each pixel of the 2D mask array is divided into.
 
         Returns
         -------
@@ -918,10 +775,11 @@ class Grid2D(Structure):
             extent=self.geometry.extent,
             centre=centre,
             pixel_scales=self.mask.pixel_scales,
-            sub_size=self.mask.sub_size,
         )
 
-    def grid_2d_radial_projected_from(self, centre=(0.0, 0.0), angle=0.0, shape_slim=0):
+    def grid_2d_radial_projected_from(
+        self, centre=(0.0, 0.0), angle=0.0, shape_slim=0, remove_projected_centre=None
+    ):
         """
         Determine a projected radial grid of points from a 2D region of coordinates defined by an
         extent [xmin, xmax, ymin, ymax] and with a (y,x) centre.
@@ -972,7 +830,6 @@ class Grid2D(Structure):
                 extent=self.geometry.extent,
                 centre=centre,
                 pixel_scales=self.mask.pixel_scales,
-                sub_size=self.mask.sub_size,
                 shape_slim=shape_slim,
             )
         )
@@ -982,7 +839,11 @@ class Grid2D(Structure):
         grid_radial_projected_2d = geometry_util.transform_grid_2d_from_reference_frame(
             grid_2d=grid_radial_projected_2d, centre=centre, angle=0.0
         )
-        if conf.instance["general"]["grid"]["remove_projected_centre"]:
+        if remove_projected_centre is None:
+            remove_projected_centre = conf.instance["general"]["grid"][
+                "remove_projected_centre"
+            ]
+        if remove_projected_centre:
             grid_radial_projected_2d = grid_radial_projected_2d[1:, :]
         return Grid2DIrregular(values=grid_radial_projected_2d)
 
@@ -1001,6 +862,28 @@ class Grid2D(Structure):
             (np.amax(self[:, 1]) - np.amin(self[:, 1])),
         )
 
+    @property
+    def scaled_minima(self):
+        """
+        The (y,x) minimum values of the grid in scaled units, buffed such that their extent is further than the grid's
+        extent.
+        """
+        return (
+            np.amin(self[:, 0]).astype("float"),
+            np.amin(self[:, 1]).astype("float"),
+        )
+
+    @property
+    def scaled_maxima(self):
+        """
+        The (y,x) maximum values of the grid in scaled units, buffed such that their extent is further than the grid's
+        extent.
+        """
+        return (
+            np.amax(self[:, 0]).astype("float"),
+            np.amax(self[:, 1]).astype("float"),
+        )
+
     def extent_with_buffer_from(self, buffer=1e-08):
         """
         The extent of the grid in scaled units returned as a list [x_min, x_max, y_min, y_max], where all values are
@@ -1015,16 +898,6 @@ class Grid2D(Structure):
             (self.scaled_minima[0] - buffer),
             (self.scaled_maxima[0] + buffer),
         ]
-
-    @cached_property
-    def sub_border_grid(self):
-        """
-        The (y,x) grid of all sub-pixels which are at the border of the mask.
-
-        This is NOT all sub-pixels which are in mask pixels at the mask's border, but specifically the sub-pixels
-        within these border pixels which are at the extreme edge of the border.
-        """
-        return self[self.mask.derive_indexes.sub_border_slim]
 
     def padded_grid_from(self, kernel_shape_native):
         """
@@ -1045,63 +918,26 @@ class Grid2D(Structure):
             ((shape[1] + kernel_shape_native[1]) - 1),
         )
         padded_mask = Mask2D.all_false(
-            shape_native=padded_shape,
-            pixel_scales=self.mask.pixel_scales,
-            sub_size=self.mask.sub_size,
+            shape_native=padded_shape, pixel_scales=self.mask.pixel_scales
         )
-        return Grid2D.from_mask(mask=padded_mask)
+        return Grid2D.from_mask(mask=padded_mask, over_sampling=self.over_sampling)
 
-    def relocated_grid_from(self, grid):
+    @cached_property
+    def is_uniform(self):
         """
-        Relocate the coordinates of a grid to the border of this grid if they are outside the border, where the
-        border is defined as all pixels at the edge of the grid's mask (see *mask._border_1d_indexes*).
+        Returns if the grid is uniform, where a uniform grid is defined as a grid where all pixels are separated by
+        the same pixel-scale in both the y and x directions.
 
-        This is performed as follows:
+        The method does not check if the x coordinates are uniformly spaced, only the y coordinates, under the
+        assumption that no calculation will be performed on a grid where the y coordinates are uniformly spaced but the
+        x coordinates are not. If such a case arises, the method should be updated to check both the y and x coordinates.
 
-        1: Use the mean value of the grid's y and x coordinates to determine the origin of the grid.
-        2: Compute the radial distance of every grid coordinate from the origin.
-        3: For every coordinate, find its nearest pixel in the border.
-        4: Determine if it is outside the border, by comparing its radial distance from the origin to its paired
-        border pixel's radial distance.
-        5: If its radial distance is larger, use the ratio of radial distances to move the coordinate to the
-        border (if its inside the border, do nothing).
-
-        The method can be used on uniform or irregular grids, however for irregular grids the border of the
-        'image-plane' mask is used to define border pixels.
-
-        Parameters
-        ----------
-        grid : Grid2D
-            The grid (uniform or irregular) whose pixels are to be relocated to the border edge if outside it.
+        Returns
+        -------
+        Whether the grid is uniform.
         """
-        if len(self.sub_border_grid) == 0:
-            return grid
-        return Grid2D(
-            values=grid_2d_util.relocated_grid_via_jit_from(
-                grid=grid, border_grid=self.sub_border_grid
-            ),
-            mask=grid.mask,
-            sub_size=grid.mask.sub_size,
-        )
-
-    def relocated_mesh_grid_from(self, mesh_grid):
-        """
-        Relocate the coordinates of a pixelization grid to the border of this grid. See the
-        method ``relocated_grid_from()`` for a full description of how this grid relocation works.
-
-        This function operates the same as other grid relocation functions but instead returns the grid as
-        a ``Grid2DSparse``  instance, which contains information pairing the grid to a pixelization.
-
-        Parameters
-        ----------
-        grid
-            The pixelization grid whose pixels are relocated to the border edge if outside it.
-        """
-        if len(self.sub_border_grid) == 0:
-            return mesh_grid
-        return Grid2DSparse(
-            values=grid_2d_util.relocated_grid_via_jit_from(
-                grid=mesh_grid, border_grid=self.sub_border_grid
-            ),
-            sparse_index_for_slim_index=mesh_grid.sparse_index_for_slim_index,
-        )
+        y_diff = self[:, 0][:(-1)] - self[:, 0][1:]
+        y_diff = y_diff[(y_diff != 0)]
+        if any((abs((y_diff - self.pixel_scales[0])) > 1e-08)):
+            return False
+        return True

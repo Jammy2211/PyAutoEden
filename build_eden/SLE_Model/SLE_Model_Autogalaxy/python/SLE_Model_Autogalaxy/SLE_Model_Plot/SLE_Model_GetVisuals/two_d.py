@@ -1,4 +1,4 @@
-from typing import Union
+from typing import List, Union
 import SLE_Model_Autoarray as aa
 import SLE_Model_Autoarray.SLE_Model_Plot as aplt
 from SLE_Model_Autogalaxy.SLE_Model_Imaging.fit_imaging import FitImaging
@@ -11,7 +11,6 @@ from SLE_Model_Autogalaxy.SLE_Model_Profiles.SLE_Model_Mass.SLE_Model_Abstract.a
     MassProfile,
 )
 from SLE_Model_Autogalaxy.SLE_Model_Galaxy.galaxy import Galaxy
-from SLE_Model_Autogalaxy.SLE_Model_Plane.plane import Plane
 
 
 class GetVisuals2D(aplt.GetVisuals2D):
@@ -38,7 +37,7 @@ class GetVisuals2D(aplt.GetVisuals2D):
 
     def via_light_obj_from(self, light_obj, grid):
         """
-        From an object with light profiles (e.g. a `LightProfile`, `Galaxy`, `Plane`) get its attributes that can be
+        From an object with light profiles (e.g. a `LightProfile`, `Galaxy`) get its attributes that can be
         plotted and return them  in a `Visuals2D` object.
 
         Only attributes not already in `self.visuals` and with `True` entries in the `Include1D` object are extracted
@@ -54,7 +53,7 @@ class GetVisuals2D(aplt.GetVisuals2D):
         Parameters
         ----------
         light_obj
-            The light object (e.g. a `LightProfile`, `Galaxy`, `Plane`) whose attributes are extracted for plotting.
+            The light object (e.g. a `LightProfile`, `Galaxy`) whose attributes are extracted for plotting.
         grid
             The 2D grid of (y,x) coordinates used to plot the light object's quantities in 2D.
 
@@ -79,7 +78,7 @@ class GetVisuals2D(aplt.GetVisuals2D):
 
     def via_mass_obj_from(self, mass_obj, grid):
         """
-        From an object with mass profiles (e.g. a `MassProfile`, `Galaxy`, `Plane`) get its attributes that can be
+        From an object with mass profiles (e.g. a `MassProfile`, `Galaxy`) get its attributes that can be
         plotted and return them  in a `Visuals2D` object.
 
         Only attributes not already in `self.visuals` and with `True` entries in the `Include1D` object are extracted
@@ -96,7 +95,7 @@ class GetVisuals2D(aplt.GetVisuals2D):
         Parameters
         ----------
         mass_obj
-            The mass object (e.g. a `MassProfile`, `Galaxy`, `Plane`) whose attributes are extracted for plotting.
+            The mass object (e.g. a `MassProfile`, `Galaxy`) whose attributes are extracted for plotting.
         grid
             The 2D grid of (y,x) coordinates used to plot the mass object's quantities in 2D.
 
@@ -120,11 +119,16 @@ class GetVisuals2D(aplt.GetVisuals2D):
             mass_obj.tangential_critical_curve_list_from(grid=grid),
             "tangential_critical_curves",
         )
-        radial_critical_curves = self.get(
-            "radial_critical_curves",
-            mass_obj.radial_critical_curve_list_from(grid=grid),
-            "radial_critical_curves",
+        radial_critical_curves = None
+        radial_critical_curve_area_list = mass_obj.radial_critical_curve_area_list_from(
+            grid=grid
         )
+        if any([(area > grid.pixel_scale) for area in radial_critical_curve_area_list]):
+            radial_critical_curves = self.get(
+                "radial_critical_curves",
+                mass_obj.radial_critical_curve_list_from(grid=grid),
+                "radial_critical_curves",
+            )
         return (self.visuals + visuals_via_mask) + self.visuals.__class__(
             mass_profile_centres=mass_profile_centres,
             tangential_critical_curves=tangential_critical_curves,
@@ -133,7 +137,7 @@ class GetVisuals2D(aplt.GetVisuals2D):
 
     def via_light_mass_obj_from(self, light_mass_obj, grid):
         """
-        From an object that contains both light profiles and / or mass profiles (e.g. a `Galaxy`, `Plane`), get the
+        From an object that contains both light profiles and / or mass profiles (e.g. a `Galaxy`), get the
         attributes that can be plotted and returns them in a `Visuals2D` object.
 
         Only attributes with `True` entries in the `Include` object are extracted.
@@ -148,7 +152,7 @@ class GetVisuals2D(aplt.GetVisuals2D):
         Parameters
         ----------
         light_mass_obj
-            The light and mass object (e.g. a `Galaxy`, `Plane`) whose attributes are extracted for plotting.
+            The light and mass object (e.g. a `Galaxy`) whose attributes are extracted for plotting.
         grid
             The 2D grid of (y,x) coordinates used to plot the light and mass object's quantities in 2D.
 
@@ -164,33 +168,33 @@ class GetVisuals2D(aplt.GetVisuals2D):
             light_obj=light_mass_obj, grid=grid
         )
 
-    def via_plane_from(self, plane, grid, galaxy_index):
+    def via_galaxies_from(self, galaxies, grid, galaxy_index):
         """
-        From a `Plane` get the attributes that can be plotted and returns them in a `Visuals2D` object.
+        From a list of galaxies get the attributes that can be plotted and returns them in a `Visuals2D` object.
 
         Only attributes with `True` entries in the `Include` object are extracted.
 
-        From a plane the following attributes can be extracted for plotting:
+        From a list of galaxie the following attributes can be extracted for plotting:
 
         - origin: the (y,x) origin of the coordinate system used to plot the light object's quantities in 2D.
         - border: the border of the mask of the grid used to plot the light object's quantities in 2D.
         - light profile centres: the (y,x) centre of every `LightProfile` in the object.
         - mass profile centres: the (y,x) centre of every `MassProfile` in the object.
-        - critical curves: the critical curves of all of the plane's mass profiles combined.
-        - caustics: the caustics of all of the plane's mass profiles combined.
+        - critical curves: the critical curves of all of the galaxy's mass profiles combined.
+        - caustics: the caustics of all of the galaxy's mass profiles combined.
 
-        When plotting a `Plane` it is common for plots to only display quantities corresponding to one galaxy at a time
-        (e.g. the image of each galaxy). Therefore, quantities are only extracted from one plane, specified by the
+        When plotting galaxies it is common for plots to only display quantities corresponding to one galaxy at a time
+        (e.g. the image of each galaxy). Therefore, quantities are only extracted from one galaxy, specified by the
         input `galaxy_index`.
 
         Parameters
         ----------
-        plane
-            The `Plane` object which has attributes extracted for plotting.
+        galaxies
+            The galaxies which have attributes extracted for plotting.
         grid
-            The 2D grid of (y,x) coordinates used to plot the plane's quantities in 2D.
+            The 2D grid of (y,x) coordinates used to plot the galaxies quantities in 2D.
         galaxy_index
-            The index of the plane in the plane which is used to extract quantities, as only one plane is plotted
+            The index of the galaxy in the galaxies which is used to extract quantities, as only one galaxy is plotted
             at a time.
 
         Returns
@@ -201,56 +205,20 @@ class GetVisuals2D(aplt.GetVisuals2D):
         origin = self.get("origin", value=aa.Grid2DIrregular(values=[grid.origin]))
         light_profile_centres = self.get(
             "light_profile_centres",
-            plane.galaxies[galaxy_index].extract_attribute(
+            galaxies[galaxy_index].extract_attribute(
                 cls=LightProfile, attr_name="centre"
             ),
         )
         mass_profile_centres = self.get(
             "mass_profile_centres",
-            plane.galaxies[galaxy_index].extract_attribute(
+            galaxies[galaxy_index].extract_attribute(
                 cls=MassProfile, attr_name="centre"
             ),
         )
-        if galaxy_index == 0:
-            tangential_critical_curves = self.get(
-                "tangential_critical_curves",
-                plane.tangential_critical_curve_list_from(grid=grid),
-                "tangential_critical_curves",
-            )
-        else:
-            tangential_critical_curves = None
-        if galaxy_index == 0:
-            radial_critical_curves = self.get(
-                "radial_critical_curves",
-                plane.radial_critical_curve_list_from(grid=grid),
-                "radial_critical_curves",
-            )
-        else:
-            radial_critical_curves = None
-        if galaxy_index == 1:
-            tangential_caustics = self.get(
-                "tangential_caustics",
-                plane.tangential_caustic_list_from(grid=grid),
-                "tangential_caustics",
-            )
-        else:
-            tangential_caustics = None
-        if galaxy_index == 1:
-            radial_caustics = self.get(
-                "radial_caustics",
-                plane.radial_caustic_list_from(grid=grid),
-                "radial_caustics",
-            )
-        else:
-            radial_caustics = None
         return self.visuals + self.visuals.__class__(
             origin=origin,
             light_profile_centres=light_profile_centres,
             mass_profile_centres=mass_profile_centres,
-            tangential_critical_curves=tangential_critical_curves,
-            radial_critical_curves=radial_critical_curves,
-            tangential_caustics=tangential_caustics,
-            radial_caustics=radial_caustics,
         )
 
     def via_fit_imaging_from(self, fit):
@@ -281,6 +249,6 @@ class GetVisuals2D(aplt.GetVisuals2D):
         """
         visuals_2d_via_fit = super().via_fit_imaging_from(fit=fit)
         visuals_2d_via_light_mass_obj = self.via_light_mass_obj_from(
-            light_mass_obj=fit.plane, grid=fit.grid
+            light_mass_obj=fit.galaxies, grid=fit.grids.uniform
         )
         return visuals_2d_via_fit + visuals_2d_via_light_mass_obj

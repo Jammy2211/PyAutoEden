@@ -4,7 +4,7 @@ from SLE_Model_Autofit.SLE_Model_Database.sqlalchemy_ import sa
 
 class NoneInstance(Object):
     __tablename__ = "none"
-    id = sa.Column(sa.Integer, sa.ForeignKey("object.id"), primary_key=True)
+    id = sa.Column(sa.Integer, sa.ForeignKey("object.id"), primary_key=True, index=True)
     __mapper_args__ = {"polymorphic_identity": "none"}
 
     def __call__(self):
@@ -17,7 +17,7 @@ class Collection(Object):
     """
 
     __tablename__ = "collection"
-    id = sa.Column(sa.Integer, sa.ForeignKey("object.id"), primary_key=True)
+    id = sa.Column(sa.Integer, sa.ForeignKey("object.id"), primary_key=True, index=True)
     __mapper_args__ = {"polymorphic_identity": "collection"}
 
     @classmethod
@@ -42,7 +42,7 @@ class Instance(Object):
     """
 
     __tablename__ = "instance"
-    id = sa.Column(sa.Integer, sa.ForeignKey("object.id"), primary_key=True)
+    id = sa.Column(sa.Integer, sa.ForeignKey("object.id"), primary_key=True, index=True)
     __mapper_args__ = {"polymorphic_identity": "instance"}
 
     @classmethod
@@ -63,7 +63,7 @@ class Value(Object):
 
     __tablename__ = "value"
     __mapper_args__ = {"polymorphic_identity": "value"}
-    id = sa.Column(sa.Integer, sa.ForeignKey("object.id"), primary_key=True)
+    id = sa.Column(sa.Integer, sa.ForeignKey("object.id"), primary_key=True, index=True)
     value = sa.Column(sa.Float)
 
     @classmethod
@@ -83,7 +83,7 @@ class StringValue(Object):
 
     __tablename__ = "string_value"
     __mapper_args__ = {"polymorphic_identity": "string_value"}
-    id = sa.Column(sa.Integer, sa.ForeignKey("object.id"), primary_key=True)
+    id = sa.Column(sa.Integer, sa.ForeignKey("object.id"), primary_key=True, index=True)
     value = sa.Column(sa.String)
 
     @classmethod
