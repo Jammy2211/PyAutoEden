@@ -49,5 +49,6 @@
     "serial_trap_list=None,":"serial_trap_list: Optional[List[TrapInstantCapture]] = None,",
     "serial_ccd=None":"serial_ccd: Optional[CCDPhase] = None",
     "trap_list=None,": "trap_list: Optional[List[TrapInstantCapture]] = None,",
-    "ccd=None,":"ccd: Optional[CCDPhase] = None,"
+    "ccd=None,":"ccd: Optional[CCDPhase] = None,",
+    "@decorators" : "@VIS_CTI_Decorators"
 }

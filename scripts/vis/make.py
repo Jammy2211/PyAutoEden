@@ -33,32 +33,32 @@ def main():
     with open("vis/remove_list.json") as json_file:
         remove_list = json.load(json_file)
 
-    # edenise(
-    #     root_directory=PYAUTOCONF_PATH,
-    #     name="autoconf",
-    #     eden_prefix=eden_prefix,
-    #     eden_dependencies=None,
-    #     eden_path=build_path,
-    #     should_remove_type_annotations=True,
-    # )
+    edenise(
+        root_directory=PYAUTOCONF_PATH,
+        name="autoconf",
+        eden_prefix=eden_prefix,
+        eden_dependencies=None,
+        eden_path=build_path,
+        should_remove_type_annotations=True,
+    )
 
-    # edenise(
-    #     root_directory=PYAUTOFIT_PATH,
-    #     name="autofit",
-    #     eden_prefix=eden_prefix,
-    #     eden_dependencies=["autoconf"],
-    #     eden_path=build_path,
-    #     should_remove_type_annotations=True,
-    # )
+    edenise(
+        root_directory=PYAUTOFIT_PATH,
+        name="autofit",
+        eden_prefix=eden_prefix,
+        eden_dependencies=["autoconf"],
+        eden_path=build_path,
+        should_remove_type_annotations=True,
+    )
 
-    # edenise(
-    #     root_directory=PYAUTOARRAY_PATH,
-    #     name="autoarray",
-    #     eden_prefix=eden_prefix,
-    #     eden_dependencies=["autoconf"],
-    #     eden_path=build_path,
-    #     should_remove_type_annotations=True,
-    # )
+    edenise(
+        root_directory=PYAUTOARRAY_PATH,
+        name="autoarray",
+        eden_prefix=eden_prefix,
+        eden_dependencies=["autoconf"],
+        eden_path=build_path,
+        should_remove_type_annotations=True,
+    )
 
     model_path = os.path.join(build_path, "VIS_CTI", "VIS_CTI_Autocti", "python", "VIS_CTI_Autocti", "VIS_CTI_Model")
     shutil.copy(os.path.join(manual_path, "VIS_CTI_Model", "model_util.py"), model_path)
